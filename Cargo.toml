@@ -1,0 +1,19 @@
+[package]
+name = "cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.65"
+clap = { version = "4.0.17", features = ["derive"] }
+hyper = "0.14.20"
+log = { version = "0.4.17", features = ["release_max_level_info", "max_level_trace"] }
+reqwest = { version = "0.11.12", features = ["json", "blocking"] }
+simple_logger = "3.0.0"
+tempdir = "0.3.7"
+thiserror = "1.0.37"
+
+[dev-dependencies]
+httpmock = "0.6"
