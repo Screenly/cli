@@ -47,13 +47,9 @@ fn main() {
             }
 
             Err(e) => match e {
-                AuthenticationError::ConnectionError => {
-                    println!("Connection error. Try again later.");
-                    std::process::exit(1);
-                }
                 AuthenticationError::WrongCredentialsError => {
                     println!("Token verification failed.");
-                    std::process::exit(2);
+                    std::process::exit(1);
                 }
                 _ => {
                     println!("Unknown error");
@@ -63,12 +59,11 @@ fn main() {
         },
         Commands::Screen(command) => match command {
             ScreenCommands::List => {
-                warn!("List");
+                warn!("List: to be implemented");
             }
             ScreenCommands::Get { id: _ } => {
-                warn!("GET");
+                warn!("Get: to be implemented");
             }
         },
     }
-    warn!("Hello, world!");
 }

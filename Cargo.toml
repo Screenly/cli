@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.65"
 clap = { version = "4.0.17", features = ["derive"] }
-hyper = "0.14.20"
 log = { version = "0.4.17", features = ["release_max_level_info", "max_level_trace"] }
 reqwest = { version = "0.11.12", features = ["json", "blocking"] }
 simple_logger = "3.0.0"
