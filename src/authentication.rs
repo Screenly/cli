@@ -1,17 +1,21 @@
 use reqwest::header;
 use std::{env, fs};
+
+use reqwest::header::{HeaderMap};
 use thiserror::Error;
 
 const API_BASE_URL: &str = "https://api.screenlyapp.com/api";
 
 pub struct Config {
-    url: String,
+    pub url: String,
 }
 
 #[derive(Error, Debug)]
 pub enum AuthenticationError {
     #[error("wrong credentials error")]
     WrongCredentialsError,
+    #[error("no credentials error")]
+    NoCredentialsError,
     #[error("request error")]
     RequestError(#[from] reqwest::Error),
     #[error("i/o error")]
@@ -23,7 +27,7 @@ pub enum AuthenticationError {
 }
 
 pub struct Authentication {
-    config: Config,
+    pub config: Config,
 }
 
 impl Config {
@@ -48,9 +52,20 @@ impl Authentication {
         }
     }
 
+    fn read_token() -> Result<String, AuthenticationError> {
+        match env::var("HOME") {
+            Ok(path) => {
+                std::fs::read_to_string(path + "/.screenly").map_err(AuthenticationError::IoError)
+            }
+            Err(_) => { Err(AuthenticationError::NoCredentialsError) }
+        }
+    }
+
     #[cfg(test)]
     pub fn new_with_config(config: Config) -> Self {
-        Self { config }
+        Self {
+            config,
+        }
     }
 
     pub fn verify_and_store_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
@@ -82,6 +97,14 @@ impl Authentication {
             _ => Err(AuthenticationError::Unknown),
         };
     }
+
+    pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {
+        let token = Authentication::read_token()?;
+        let secret = "Token ".to_owned() + token.as_str();
+        let mut default_headers = HeaderMap::new();
+        default_headers.insert(header::AUTHORIZATION, secret.parse().unwrap());
+        reqwest::blocking::Client::builder().default_headers(default_headers).build().map_err(AuthenticationError::RequestError)
+    }
 }
 
 #[cfg(test)]
@@ -110,7 +133,8 @@ mod tests {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/");
+                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/")
+                .header("Authorization", "Token token");
             then.status(404);
         });
 
