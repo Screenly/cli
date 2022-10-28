@@ -1,5 +1,4 @@
-
-use reqwest::{header};
+use reqwest::header;
 use std::{env, fs};
 use thiserror::Error;
 
@@ -91,9 +90,7 @@ mod tests {
     use crate::Authentication;
     use httpmock::{Method::GET, MockServer};
     use simple_logger::SimpleLogger;
-    
-    
-    
+
     use std::{env, fs};
     use tempdir::TempDir;
 

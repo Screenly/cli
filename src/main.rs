@@ -3,9 +3,8 @@ mod commands;
 
 use crate::authentication::{Authentication, AuthenticationError};
 use clap::{command, Parser, Subcommand};
-use log::{warn};
+use log::warn;
 use simple_logger::SimpleLogger;
-
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

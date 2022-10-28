@@ -1,11 +1,5 @@
 use crate::Authentication;
 
-
-
-
-
-
-
 pub struct ScreenCommand {
     authentication: Authentication,
 }
