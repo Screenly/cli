@@ -86,13 +86,17 @@ impl Authentication {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
     use crate::authentication::Config;
     use crate::Authentication;
     use httpmock::{Method::GET, MockServer};
     use simple_logger::SimpleLogger;
 
-    use std::{env, fs};
+    use std::fs;
     use tempdir::TempDir;
+
+    use envtestkit::lock::lock_test;
+    use envtestkit::set_env;
 
     #[test]
     fn test_verify_and_store_token_when_token_is_valid() {
@@ -101,7 +105,8 @@ mod tests {
             .init()
             .unwrap();
         let tmp_dir = TempDir::new("test").unwrap();
-        env::set_var("HOME", tmp_dir.path().to_str().unwrap());
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
@@ -124,7 +129,8 @@ mod tests {
     #[test]
     fn test_verify_and_store_token_when_token_is_invalid() {
         let tmp_dir = TempDir::new("invalid").unwrap();
-        env::set_var("HOME", tmp_dir.path().to_str().unwrap());
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
