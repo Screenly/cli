@@ -1,7 +1,7 @@
 use reqwest::header;
 use std::{env, fs};
 
-use reqwest::header::{HeaderMap};
+use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use thiserror::Error;
 
 const API_BASE_URL: &str = "https://api.screenlyapp.com/api";
@@ -22,6 +22,8 @@ pub enum AuthenticationError {
     IoError(#[from] std::io::Error),
     #[error("env error")]
     EnvError(#[from] env::VarError),
+    #[error("invalid header error")]
+    InvalidHeaderError(#[from] InvalidHeaderValue),
     #[error("unknown error")]
     Unknown,
 }
@@ -100,9 +102,10 @@ impl Authentication {
 
     pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {
         let token = Authentication::read_token()?;
-        let secret = "Token ".to_owned() + token.as_str();
+        let secret = format!("Token {}", token.as_str());
         let mut default_headers = HeaderMap::new();
-        default_headers.insert(header::AUTHORIZATION, secret.parse().unwrap());
+        default_headers.insert(header::AUTHORIZATION, secret.parse()?);
+        default_headers.insert(header::USER_AGENT, "screenly-cli 1.0.0".to_string().parse()?);
         reqwest::blocking::Client::builder().default_headers(default_headers).build().map_err(AuthenticationError::RequestError)
     }
 }
