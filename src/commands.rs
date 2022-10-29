@@ -90,7 +90,7 @@ impl ScreenCommand {
         if response.status().as_u16() != 200 {
              return Err(CommandError::WrongResponseStatus(response.status().as_u16()));
         }
-        serde_json::from_str(&response.text().unwrap_or("{}".to_owned())).map_err(CommandError::ParseError)
+        serde_json::from_str(&response.text().unwrap_or_else(|_|"{}".to_owned())).map_err(CommandError::ParseError)
     }
     pub fn get(&self, id: &str) -> anyhow::Result<Value, CommandError> {
         let url = self.authentication.config.url.clone() + "/v4/screens?id=eq." + id;
@@ -99,7 +99,7 @@ impl ScreenCommand {
             return Err(CommandError::WrongResponseStatus(response.status().as_u16()));
         }
 
-        serde_json::from_str(&response.text().unwrap_or("{}".to_owned())).map_err(CommandError::ParseError)
+        serde_json::from_str(&response.text().unwrap_or_else(|_|"{}".to_owned())).map_err(CommandError::ParseError)
     }
 }
 

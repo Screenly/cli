@@ -93,11 +93,11 @@ impl Authentication {
             .header(header::AUTHORIZATION, &secret)
             .send()?;
 
-        return match res.status().as_u16() {
+        match res.status().as_u16() {
             401 => Err(AuthenticationError::WrongCredentialsError),
             404 => Ok(()),
             _ => Err(AuthenticationError::Unknown),
-        };
+        }
     }
 
     pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {

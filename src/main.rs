@@ -61,7 +61,7 @@ fn main() {
                 let screen_command = commands::ScreenCommand::new(authentication);
                 match screen_command.list() {
                     Ok(v) => {
-                        println!("{}", serde_json::to_string_pretty(&v).unwrap_or("{}".to_string()));
+                        println!("{}", serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".to_string()));
                     }
                     Err(e) => {
                         println!("Error occurred: {:?}", e);
@@ -73,7 +73,7 @@ fn main() {
                 let screen_command = commands::ScreenCommand::new(authentication);
                 match screen_command.get(id) {
                      Ok(v) => {
-                         println!("{}", serde_json::to_string_pretty(&v).unwrap_or("{}".to_string()));
+                         println!("{}", serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".to_string()));
                          std::process::exit(0);
                     }
                     Err(e) => {
