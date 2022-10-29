@@ -59,15 +59,13 @@ impl Authentication {
             Ok(path) => {
                 std::fs::read_to_string(path + "/.screenly").map_err(AuthenticationError::IoError)
             }
-            Err(_) => { Err(AuthenticationError::NoCredentialsError) }
+            Err(_) => Err(AuthenticationError::NoCredentialsError),
         }
     }
 
     #[cfg(test)]
     pub fn new_with_config(config: Config) -> Self {
-        Self {
-            config,
-        }
+        Self { config }
     }
 
     pub fn verify_and_store_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
@@ -105,18 +103,24 @@ impl Authentication {
         let secret = format!("Token {}", token.as_str());
         let mut default_headers = HeaderMap::new();
         default_headers.insert(header::AUTHORIZATION, secret.parse()?);
-        default_headers.insert(header::USER_AGENT, "screenly-cli 1.0.0".to_string().parse()?);
-        reqwest::blocking::Client::builder().default_headers(default_headers).build().map_err(AuthenticationError::RequestError)
+        default_headers.insert(
+            header::USER_AGENT,
+            "screenly-cli 1.0.0".to_string().parse()?,
+        );
+        reqwest::blocking::Client::builder()
+            .default_headers(default_headers)
+            .build()
+            .map_err(AuthenticationError::RequestError)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
     use crate::authentication::Config;
     use crate::Authentication;
     use httpmock::{Method::GET, MockServer};
     use simple_logger::SimpleLogger;
+    use std::ffi::OsString;
 
     use std::fs;
     use tempdir::TempDir;
