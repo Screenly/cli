@@ -105,7 +105,7 @@ impl Authentication {
         default_headers.insert(header::AUTHORIZATION, secret.parse()?);
         default_headers.insert(
             header::USER_AGENT,
-            "screenly-cli 1.0.0".to_string().parse()?,
+            "screenly-cli 0.1.0".to_string().parse()?,
         );
         reqwest::blocking::Client::builder()
             .default_headers(default_headers)

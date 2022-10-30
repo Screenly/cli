@@ -47,12 +47,12 @@ fn main() {
 
             Err(e) => match e {
                 AuthenticationError::WrongCredentialsError => {
-                    println!("Token verification failed.");
+                    eprintln!("Token verification failed.");
                     std::process::exit(1);
                 }
                 _ => {
-                    println!("Unknown error");
-                    std::process::exit(2);
+                    eprintln!("Error occurred: {:?}", e);
+                    std::process::exit(1);
                 }
             },
         },
@@ -67,7 +67,7 @@ fn main() {
                         );
                     }
                     Err(e) => {
-                        println!("Error occurred: {:?}", e);
+                        eprintln!("Error occurred: {:?}", e);
                         std::process::exit(1);
                     }
                 }
@@ -83,7 +83,7 @@ fn main() {
                         std::process::exit(0);
                     }
                     Err(e) => {
-                        println!("Error occurred: {:?}", e);
+                        eprintln!("Error occurred: {:?}", e);
                         std::process::exit(1);
                     }
                 }
