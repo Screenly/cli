@@ -83,7 +83,7 @@ impl Authentication {
     fn verify_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
         // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
         let url = self.config.url.clone() + "/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/";
-        let secret = "Token ".to_owned() + token;
+        let secret = format!("Token {}", token);
         let client = reqwest::blocking::Client::builder().build()?;
 
         let res = client
