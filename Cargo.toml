@@ -15,6 +15,8 @@ clap = { version = "4.0.17", features = ["derive"] }
 envtestkit = "1.1.2"
 log = { version = "0.4.17", features = ["release_max_level_info", "max_level_trace"] }
 reqwest = { version = "0.11.12", features = ["json", "blocking"] }
+serde = { version = "1.0.147", features = ["derive"] }
+serde_json = "1.0.87"
 simple_logger = "3.0.0"
 tempdir = "0.3.7"
 thiserror = "1.0.37"

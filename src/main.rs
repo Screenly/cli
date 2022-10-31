@@ -3,7 +3,7 @@ mod commands;
 
 use crate::authentication::{Authentication, AuthenticationError};
 use clap::{command, Parser, Subcommand};
-use log::warn;
+
 use simple_logger::SimpleLogger;
 
 #[derive(Parser)]
@@ -47,21 +47,46 @@ fn main() {
 
             Err(e) => match e {
                 AuthenticationError::WrongCredentialsError => {
-                    println!("Token verification failed.");
+                    eprintln!("Token verification failed.");
                     std::process::exit(1);
                 }
                 _ => {
-                    println!("Unknown error");
-                    std::process::exit(2);
+                    eprintln!("Error occurred: {:?}", e);
+                    std::process::exit(1);
                 }
             },
         },
         Commands::Screen(command) => match command {
             ScreenCommands::List => {
-                warn!("List: to be implemented");
+                let screen_command = commands::ScreenCommand::new(authentication);
+                match screen_command.list() {
+                    Ok(v) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".to_string())
+                        );
+                    }
+                    Err(e) => {
+                        eprintln!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
-            ScreenCommands::Get { id: _ } => {
-                warn!("Get: to be implemented");
+            ScreenCommands::Get { id } => {
+                let screen_command = commands::ScreenCommand::new(authentication);
+                match screen_command.get(id) {
+                    Ok(v) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".to_string())
+                        );
+                        std::process::exit(0);
+                    }
+                    Err(e) => {
+                        eprintln!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
             }
         },
     }

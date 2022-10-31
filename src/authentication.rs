@@ -1,29 +1,35 @@
 use reqwest::header;
 use std::{env, fs};
+
+use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use thiserror::Error;
 
 const API_BASE_URL: &str = "https://api.screenlyapp.com/api";
 
 pub struct Config {
-    url: String,
+    pub url: String,
 }
 
 #[derive(Error, Debug)]
 pub enum AuthenticationError {
     #[error("wrong credentials error")]
     WrongCredentialsError,
+    #[error("no credentials error")]
+    NoCredentialsError,
     #[error("request error")]
     RequestError(#[from] reqwest::Error),
     #[error("i/o error")]
     IoError(#[from] std::io::Error),
     #[error("env error")]
     EnvError(#[from] env::VarError),
+    #[error("invalid header error")]
+    InvalidHeaderError(#[from] InvalidHeaderValue),
     #[error("unknown error")]
     Unknown,
 }
 
 pub struct Authentication {
-    config: Config,
+    pub config: Config,
 }
 
 impl Config {
@@ -48,6 +54,15 @@ impl Authentication {
         }
     }
 
+    fn read_token() -> Result<String, AuthenticationError> {
+        match env::var("HOME") {
+            Ok(path) => {
+                std::fs::read_to_string(path + "/.screenly").map_err(AuthenticationError::IoError)
+            }
+            Err(_) => Err(AuthenticationError::NoCredentialsError),
+        }
+    }
+
     #[cfg(test)]
     pub fn new_with_config(config: Config) -> Self {
         Self { config }
@@ -68,7 +83,7 @@ impl Authentication {
     fn verify_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
         // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
         let url = self.config.url.clone() + "/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/";
-        let secret = "Token ".to_owned() + token;
+        let secret = format!("Token {}", token);
         let client = reqwest::blocking::Client::builder().build()?;
 
         let res = client
@@ -76,21 +91,36 @@ impl Authentication {
             .header(header::AUTHORIZATION, &secret)
             .send()?;
 
-        return match res.status().as_u16() {
+        match res.status().as_u16() {
             401 => Err(AuthenticationError::WrongCredentialsError),
             404 => Ok(()),
             _ => Err(AuthenticationError::Unknown),
-        };
+        }
+    }
+
+    pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {
+        let token = Authentication::read_token()?;
+        let secret = format!("Token {}", token.as_str());
+        let mut default_headers = HeaderMap::new();
+        default_headers.insert(header::AUTHORIZATION, secret.parse()?);
+        default_headers.insert(
+            header::USER_AGENT,
+            "screenly-cli 0.1.0".to_string().parse()?,
+        );
+        reqwest::blocking::Client::builder()
+            .default_headers(default_headers)
+            .build()
+            .map_err(AuthenticationError::RequestError)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
     use crate::authentication::Config;
     use crate::Authentication;
     use httpmock::{Method::GET, MockServer};
     use simple_logger::SimpleLogger;
+    use std::ffi::OsString;
 
     use std::fs;
     use tempdir::TempDir;
@@ -110,7 +140,8 @@ mod tests {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/");
+                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/")
+                .header("Authorization", "Token token");
             then.status(404);
         });
 
