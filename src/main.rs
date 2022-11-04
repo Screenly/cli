@@ -16,7 +16,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Logins with the token and stores it for further use if it's valid
+    /// Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token.
     Login { token: String },
     /// Screen related commands
     #[command(subcommand)]

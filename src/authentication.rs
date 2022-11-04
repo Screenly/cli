@@ -42,7 +42,7 @@ impl Config {
     #[cfg(test)]
     pub fn new(url: String) -> Self {
         Self {
-            url: url.to_string(),
+            url,
         }
     }
 }
@@ -54,7 +54,11 @@ impl Authentication {
         }
     }
 
-    fn read_token() -> Result<String, AuthenticationError> {
+    pub fn read_token() -> Result<String, AuthenticationError> {
+          if let Ok(token) = env::var("API_TOKEN") { println!("API_TOKEN {}", token);
+             return Ok(token)
+          }
+
         match env::var("HOME") {
             Ok(path) => {
                 std::fs::read_to_string(path + "/.screenly").map_err(AuthenticationError::IoError)
@@ -176,5 +180,26 @@ mod tests {
             .is_err());
         let path = tmp_dir.path().join(".screenly");
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_read_token_when_token_is_overriden_with_env_variable_correct_token_is_returned() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _token = set_env(OsString::from("API_TOKEN"), "env_token");
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        println!("{}", tmp_dir.path().join(".screenly").to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        assert_eq!(Authentication::read_token().unwrap(), "env_token");
+    }
+
+    #[test]
+    fn test_read_token_correct_token_is_returned() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+
+        assert_eq!(Authentication::read_token().unwrap(), "token");
     }
 }
