@@ -7,7 +7,7 @@ The purpose of Screenly's CLI is to make developer's life easier. Using our CLI,
 To build the screenly cli you need to install rust. The instructions for installing latest rust can be found here https://www.rust-lang.org/tools/install
 Then you just need to invoke the following command from inside the cli directory.
 
-```
+```bash
 cargo build --release
 ```
 
