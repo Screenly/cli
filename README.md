@@ -4,11 +4,12 @@ The purpose of Screenly's CLI is to make developer's life easier. Using our CLI,
 
 # Building
 
-To build the screenly cli you need to install rust. The instructions for installing latest rust can be found here https://www.rust-lang.org/tools/install
-Then you just need to invoke the following command from inside the cli directory.
+To build the Screenly CLI, you need to install [rust](https://www.rust-lang.org). The instructions for installing latest rust can be found [here](https://www.rust-lang.org/tools/install).
+
+Then you just need to invoke the following command from inside the CLI directory:
 
 ```bash
 cargo build --release
 ```
 
-`screenly` binary will be located in `target/release` directory.
+the `screenly` binary will be located in `target/release` directory.
