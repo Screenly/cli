@@ -55,7 +55,7 @@ impl Authentication {
     }
 
     pub fn read_token() -> Result<String, AuthenticationError> {
-          if let Ok(token) = env::var("API_TOKEN") { println!("API_TOKEN {}", token);
+          if let Ok(token) = env::var("API_TOKEN") {
              return Ok(token)
           }
 
