@@ -1,9 +1,9 @@
 use crate::{Authentication, AuthenticationError};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+
+
 use thiserror::Error;
 
-use prettytable::{row, Cell, Row, Table};
+use prettytable::{row, Table};
 
 pub enum OutputType {
     HumanReadable,
@@ -58,12 +58,12 @@ impl Formatter for Screens {
                 if let Some(screens) = self.value.as_array() {
                     for screen in screens {
                         table.add_row(row!(
-                            screen["id"].as_str().unwrap_or_else(|| "n/a"),
-                            screen["name"].as_str().unwrap_or_else(|| "n/a"),
-                            screen["hardware_version"].as_str().unwrap_or_else(|| "n/a"),
-                            screen["in_sync"].as_bool().unwrap_or_else(|| false),
-                            screen["last_ping"].as_str().unwrap_or_else(|| "n/a"),
-                            screen["uptime"].as_str().unwrap_or_else(|| "n/a"),
+                            screen["id"].as_str().unwrap_or("n/a"),
+                            screen["name"].as_str().unwrap_or("n/a"),
+                            screen["hardware_version"].as_str().unwrap_or("n/a"),
+                            screen["in_sync"].as_bool().unwrap_or(false),
+                            screen["last_ping"].as_str().unwrap_or("n/a"),
+                            screen["uptime"].as_str().unwrap_or("n/a"),
                         ));
                     }
                 }
