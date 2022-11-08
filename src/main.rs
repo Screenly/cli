@@ -1,6 +1,6 @@
 mod authentication;
 mod commands;
-#[macro_use]
+
 extern crate prettytable;
 use crate::authentication::{Authentication, AuthenticationError};
 use clap::{command, Parser, Subcommand};
