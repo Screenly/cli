@@ -41,9 +41,7 @@ impl Config {
 
     #[cfg(test)]
     pub fn new(url: String) -> Self {
-        Self {
-            url,
-        }
+        Self { url }
     }
 }
 
@@ -55,9 +53,9 @@ impl Authentication {
     }
 
     pub fn read_token() -> Result<String, AuthenticationError> {
-          if let Ok(token) = env::var("API_TOKEN") {
-             return Ok(token)
-          }
+        if let Ok(token) = env::var("API_TOKEN") {
+            return Ok(token);
+        }
 
         match env::var("HOME") {
             Ok(path) => {

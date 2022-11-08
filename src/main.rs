@@ -1,15 +1,26 @@
 mod authentication;
 mod commands;
 
+extern crate prettytable;
 use crate::authentication::{Authentication, AuthenticationError};
 use clap::{command, Parser, Subcommand};
 
+use crate::commands::{Formatter, OutputType};
 use simple_logger::SimpleLogger;
 
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(
+    author,
+    version,
+    about,
+    long_about = "Command line interface is intended for quick interaction with Screenly through terminal. Moreover, this CLI is built such that it can be used for automating tasks."
+)]
 #[command(propagate_version = true)]
 struct Cli {
+    /// Enables json output
+    #[arg(short, long)]
+    json: Option<u8>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -26,9 +37,18 @@ enum Commands {
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum ScreenCommands {
     /// Lists your screens
-    List,
+    List {
+        /// Enables json output
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
     /// Gets a single screen by id
-    Get { id: String },
+    Get {
+        /// Enables json output
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        id: String,
+    },
 }
 
 fn main() {
@@ -57,14 +77,16 @@ fn main() {
             },
         },
         Commands::Screen(command) => match command {
-            ScreenCommands::List => {
+            ScreenCommands::List { json } => {
                 let screen_command = commands::ScreenCommand::new(authentication);
                 match screen_command.list() {
-                    Ok(v) => {
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".to_string())
-                        );
+                    Ok(screen) => {
+                        let output_type = if json.unwrap_or(false) {
+                            OutputType::Json
+                        } else {
+                            OutputType::HumanReadable
+                        };
+                        println!("{}", screen.format(output_type));
                     }
                     Err(e) => {
                         eprintln!("Error occurred: {:?}", e);
@@ -72,14 +94,17 @@ fn main() {
                     }
                 }
             }
-            ScreenCommands::Get { id } => {
+            ScreenCommands::Get { id, json } => {
                 let screen_command = commands::ScreenCommand::new(authentication);
                 match screen_command.get(id) {
-                    Ok(v) => {
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(&v).unwrap_or_else(|_| "{}".to_string())
-                        );
+                    Ok(screen) => {
+                        let output_type = if json.unwrap_or(false) {
+                            OutputType::Json
+                        } else {
+                            OutputType::HumanReadable
+                        };
+
+                        println!("{}", screen.format(output_type));
                         std::process::exit(0);
                     }
                     Err(e) => {
