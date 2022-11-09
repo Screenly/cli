@@ -44,7 +44,7 @@ impl Formatter for Screens {
             OutputType::HumanReadable => {
                 let mut table = Table::new();
                 table.add_row(row!(
-                    b =>
+                    bc =>
                     "Id",
                     "Name",
                     "Hardware Version",
@@ -74,14 +74,15 @@ impl Formatter for Screens {
                         };
 
                         table.add_row(row!(
+                            c =>
                             screen["id"].as_str().unwrap_or("N/A"),
                             screen["name"].as_str().unwrap_or("N/A"),
                             screen["hardware_version"].as_str().unwrap_or("N/A"),
                             // converting to &str just to make sure they are capitalized
                             if screen["in_sync"].as_bool().unwrap_or(false) {
-                                "True"
+                                "✅"
                             } else {
-                                "False"
+                                "❌"
                             },
                             screen["last_ping"].as_str().unwrap_or("N/A"),
                             formatted_uptime,
@@ -226,11 +227,11 @@ mod tests {
         println!("{}", screen.format(OutputType::HumanReadable));
         let expected_output = concat!(
 "+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n",
-"| Id                                   | Name                            | Hardware Version | In Sync | Last Ping                     | Uptime           |\n",
+"|                  Id                  |              Name               | Hardware Version | In Sync |           Last Ping           |      Uptime      |\n",
 "+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n",
-"| 017a5104-524b-33d8-8026-9087b59e7eb5 | Renat's integrated wired NM     | Raspberry Pi 3B  | False   | 2021-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n",
+"| 017a5104-524b-33d8-8026-9087b59e7eb5 |   Renat's integrated wired NM   | Raspberry Pi 3B  |   ❌    | 2021-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n",
 "+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n",
-"| 017a5104-524b-33d8-8026-9087b59e7eb6 | Not Renat's integrated wired NM | Raspberry Pi 3B  | False   | 2020-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n",
+"| 017a5104-524b-33d8-8026-9087b59e7eb6 | Not Renat's integrated wired NM | Raspberry Pi 3B  |   ❌    | 2020-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n",
 "+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n"
 );
         assert_eq!(screen.format(OutputType::HumanReadable), expected_output);
