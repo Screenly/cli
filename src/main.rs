@@ -2,10 +2,11 @@ mod authentication;
 mod commands;
 
 extern crate prettytable;
+
 use crate::authentication::{Authentication, AuthenticationError};
 use clap::{command, Parser, Subcommand};
 
-use crate::commands::{Formatter, OutputType};
+use crate::commands::{CommandError, Formatter, OutputType, Screens};
 use simple_logger::SimpleLogger;
 
 #[derive(Parser)]
@@ -49,6 +50,41 @@ enum ScreenCommands {
         json: Option<bool>,
         id: String,
     },
+    /// Adds a new screen
+    Add {
+        /// Enables json output
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// Pin code created with registrations endpoint
+        pin: String,
+        /// Optional name of the new screen.
+        name: Option<String>,
+    },
+    /// Deletes a screen. This cannot be undone.
+    Delete {
+        /// Id of the screen to be deleted
+        id: String,
+    },
+}
+
+fn handle_command_execution_result(
+    result: anyhow::Result<Screens, CommandError>,
+    json: &Option<bool>,
+) {
+    match result {
+        Ok(screen) => {
+            let output_type = if json.unwrap_or(false) {
+                OutputType::Json
+            } else {
+                OutputType::HumanReadable
+            };
+            println!("{}", screen.format(output_type));
+        }
+        Err(e) => {
+            eprintln!("Error occurred: {:?}", e);
+            std::process::exit(1);
+        }
+    }
 }
 
 fn main() {
@@ -79,32 +115,21 @@ fn main() {
         Commands::Screen(command) => match command {
             ScreenCommands::List { json } => {
                 let screen_command = commands::ScreenCommand::new(authentication);
-                match screen_command.list() {
-                    Ok(screen) => {
-                        let output_type = if json.unwrap_or(false) {
-                            OutputType::Json
-                        } else {
-                            OutputType::HumanReadable
-                        };
-                        println!("{}", screen.format(output_type));
-                    }
-                    Err(e) => {
-                        eprintln!("Error occurred: {:?}", e);
-                        std::process::exit(1);
-                    }
-                }
+                handle_command_execution_result(screen_command.list(), json);
             }
             ScreenCommands::Get { id, json } => {
                 let screen_command = commands::ScreenCommand::new(authentication);
-                match screen_command.get(id) {
-                    Ok(screen) => {
-                        let output_type = if json.unwrap_or(false) {
-                            OutputType::Json
-                        } else {
-                            OutputType::HumanReadable
-                        };
-
-                        println!("{}", screen.format(output_type));
+                handle_command_execution_result(screen_command.get(id), json);
+            }
+            ScreenCommands::Add { pin, name, json } => {
+                let screen_command = commands::ScreenCommand::new(authentication);
+                handle_command_execution_result(screen_command.add(pin, name.clone()), json);
+            }
+            ScreenCommands::Delete { id } => {
+                let screen_command = commands::ScreenCommand::new(authentication);
+                match screen_command.delete(id) {
+                    Ok(()) => {
+                        println!("Screen deleted successfully.");
                         std::process::exit(0);
                     }
                     Err(e) => {
