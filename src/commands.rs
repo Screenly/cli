@@ -26,6 +26,8 @@ pub enum CommandError {
     ParseError(#[from] serde_json::Error),
     #[error("unknown error #[0]")]
     WrongResponseStatus(u16),
+    #[error("Required field is missing in the response")]
+    MissingField,
 }
 
 #[derive(Debug)]
