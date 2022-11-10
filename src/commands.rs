@@ -110,7 +110,7 @@ impl ScreenCommand {
     }
 
     pub fn list(&self) -> anyhow::Result<Screens, CommandError> {
-        let url = self.authentication.config.url.clone() + "/v4/screens";
+        let url = format!("{}/v4/screens", self.authentication.config.url.clone());
         let response = self.authentication.build_client()?.get(url).send()?;
         if response.status().as_u16() != 200 {
             return Err(CommandError::WrongResponseStatus(
@@ -121,7 +121,7 @@ impl ScreenCommand {
     }
 
     pub fn get(&self, id: &str) -> anyhow::Result<Screens, CommandError> {
-        let url = self.authentication.config.url.clone() + "/v4/screens?id=eq." + id;
+        let url = format!("{}/v4/screens?id=eq.{}", self.authentication.config.url.clone(), id);
         let response = self.authentication.build_client()?.get(url).send()?;
         if response.status().as_u16() != 200 {
             return Err(CommandError::WrongResponseStatus(
@@ -137,7 +137,7 @@ impl ScreenCommand {
         pin: &str,
         maybe_name: Option<String>,
     ) -> anyhow::Result<Screens, CommandError> {
-        let url = self.authentication.config.url.clone() + "/v3/screens/";
+        let url = format!("{}/v3/screens/", self.authentication.config.url.clone());
         let mut payload = HashMap::new();
         payload.insert("pin".to_string(), pin.to_string());
         if let Some(name) = maybe_name {
