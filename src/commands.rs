@@ -181,7 +181,7 @@ fn get(
 fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
     let url = format!("{}/{}", authentication.config.url.clone(), endpoint);
     let response = authentication.build_client()?.delete(url).send()?;
-    if ![200 as u16, 204 as u16].contains(&response.status().as_u16()) {
+    if ![200_u16, 204_u16].contains(&response.status().as_u16()) {
         return Err(CommandError::WrongResponseStatus(
             response.status().as_u16(),
         ));
@@ -264,7 +264,9 @@ impl AssetCommand {
         let file_size = file.metadata()?.len();
         let pb = ProgressBar::new(file_size);
         println!("Uploading asset.");
-        if let Ok(template) = ProgressStyle::with_template("[{elapsed_precise}] {bar:160.cyan/blue} {percent}% ETA: {eta}") {
+        if let Ok(template) = ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:160.cyan/blue} {percent}% ETA: {eta}",
+        ) {
             pb.set_style(template);
         }
 
@@ -307,7 +309,7 @@ mod tests {
     use std::ffi::OsString;
     use std::fs;
 
-    use crate::commands::{AssetCommand, ScreenCommand, Screens, Assets};
+    use crate::commands::{AssetCommand, Assets, ScreenCommand, Screens};
     use serde_json::{json, Value};
     use tempdir::TempDir;
 
@@ -665,12 +667,12 @@ mod tests {
 
         println!("{}", asset.format(OutputType::HumanReadable));
         let expected_output = concat!(
-"+--------------------------------------+------------+------+--------+\n",
-"| Id                                   | Title      | Type | Status |\n",
-"+--------------------------------------+------------+------+--------+\n",
-"| 0184f162-585e-6334-8dae-38a80062a6c2 | test3.html | N/A  | none   |\n",
-"+--------------------------------------+------------+------+--------+\n"
-);
+            "+--------------------------------------+------------+------+--------+\n",
+            "| Id                                   | Title      | Type | Status |\n",
+            "+--------------------------------------+------------+------+--------+\n",
+            "| 0184f162-585e-6334-8dae-38a80062a6c2 | test3.html | N/A  | none   |\n",
+            "+--------------------------------------+------------+------+--------+\n"
+        );
         assert_eq!(asset.format(OutputType::HumanReadable), expected_output);
     }
 }
