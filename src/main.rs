@@ -19,9 +19,9 @@ use std::io::Write;
 )]
 #[command(propagate_version = true)]
 struct Cli {
-    /// Enables json output
-    #[arg(short, long)]
-    json: Option<u8>,
+    /// Enables json output.
+    #[arg(short, long, action = clap::ArgAction::SetTrue)]
+    json: Option<bool>,
 
     #[command(subcommand)]
     command: Commands,
