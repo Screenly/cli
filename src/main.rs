@@ -120,7 +120,16 @@ fn handle_command_execution_result<T: commands::Formatter>(
             println!("{}", screen.format(output_type));
         }
         Err(e) => {
-            eprintln!("Error occurred: {:?}", e);
+            match e {
+                CommandError::AuthenticationError(_) => {
+                    eprintln!(
+                        "Authentication error occurred. Please use login command to authenticate."
+                    )
+                }
+                _ => {
+                    eprintln!("Error occurred: {:?}", e);
+                }
+            }
             std::process::exit(1);
         }
     }
