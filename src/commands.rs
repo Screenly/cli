@@ -274,7 +274,7 @@ impl AssetCommand {
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
 
-        if path.starts_with("http") || path.starts_with("https") {
+        if path.starts_with("http://") || path.starts_with("https://") {
             let mut payload = HashMap::new();
             payload.insert("title", &title);
             payload.insert("source_url", &path);
