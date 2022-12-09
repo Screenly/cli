@@ -94,7 +94,7 @@ enum AssetCommands {
         /// Enables json output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
-        /// Path to file.
+        /// Path to local file or URL for remote file.
         path: String,
         /// Asset title.
         title: String,
@@ -166,7 +166,7 @@ fn get_asset_title(
 
     if let Some(assets) = target_asset.value.as_array() {
         if assets.is_empty() {
-            error!("Screen could not be found.");
+            error!("Asset could not be found.");
             return Err(CommandError::MissingField);
         }
 
