@@ -20,7 +20,7 @@ use log::{error, info};
 )]
 #[command(propagate_version = true)]
 struct Cli {
-    /// Enables json output.
+    /// Enables JSON output.
     #[arg(short, long, action = clap::ArgAction::SetTrue)]
     json: Option<bool>,
 
@@ -44,13 +44,13 @@ enum Commands {
 enum ScreenCommands {
     /// Lists your screens.
     List {
-        /// Enables json output.
+        /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
     /// Gets a single screen by id.
     Get {
-        /// Enables json output.
+        /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
         /// UUID of the screen.
@@ -58,7 +58,7 @@ enum ScreenCommands {
     },
     /// Adds a new screen.
     Add {
-        /// Enables json output.
+        /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
         /// Pin code created with registrations endpoint.
@@ -77,13 +77,13 @@ enum ScreenCommands {
 enum AssetCommands {
     /// Lists your assets.
     List {
-        /// Enables json output.
+        /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
     /// Gets a single asset by id.
     Get {
-        /// Enables json output.
+        /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
         /// UUID of the asset.
@@ -91,7 +91,7 @@ enum AssetCommands {
     },
     /// Adds a new asset.
     Add {
-        /// Enables json output.
+        /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
         /// Path to local file or URL for remote file.
