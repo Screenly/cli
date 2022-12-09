@@ -118,7 +118,7 @@ fn handle_command_execution_result<T: commands::Formatter>(
             } else {
                 OutputType::HumanReadable
             };
-            info!("{}", screen.format(output_type));
+            println!("{}", screen.format(output_type));
         }
         Err(e) => {
             match e {
