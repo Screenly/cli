@@ -525,7 +525,7 @@ mod tests {
             "send_metadata": false,
             "source_md5": null,
             "source_size": null,
-            "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%2FOZbhHeASzcYCsO8aNWICbpwrSYP2zVwB",
+            "source_url": "https://google.com",
             "status": "none",
             "title": "test3.html",
             "type": null,
@@ -535,8 +535,6 @@ mod tests {
 
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
-            // TODO: figure out how to check the body for multiform content
-
             when.method(POST)
                 .path("/v4/assets")
                 .header("Authorization", "Token token")
