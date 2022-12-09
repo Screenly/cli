@@ -1,4 +1,5 @@
 use reqwest::header;
+
 use std::{env, fs};
 
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
@@ -75,7 +76,7 @@ impl Authentication {
 
         match std::env::var("HOME") {
             Ok(home) => {
-                fs::write(home + "/.screenly", &token)?;
+                fs::write(home + "/.screenly", token)?;
                 Ok(())
             }
             Err(e) => Err(AuthenticationError::EnvError(e)),
@@ -109,6 +110,7 @@ impl Authentication {
             header::USER_AGENT,
             "screenly-cli 0.1.0".to_string().parse()?,
         );
+
         reqwest::blocking::Client::builder()
             .default_headers(default_headers)
             .build()

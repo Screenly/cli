@@ -4,7 +4,7 @@ mod commands;
 extern crate prettytable;
 
 use crate::authentication::{Authentication, AuthenticationError};
-use crate::commands::{CommandError, Formatter, OutputType, Screens};
+use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{command, Parser, Subcommand};
 use simple_logger::SimpleLogger;
 use std::io;
@@ -19,9 +19,9 @@ use std::io::Write;
 )]
 #[command(propagate_version = true)]
 struct Cli {
-    /// Enables json output
-    #[arg(short, long)]
-    json: Option<u8>,
+    /// Enables json output.
+    #[arg(short, long, action = clap::ArgAction::SetTrue)]
+    json: Option<bool>,
 
     #[command(subcommand)]
     command: Commands,
@@ -31,46 +31,83 @@ struct Cli {
 enum Commands {
     /// Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token.
     Login { token: String },
-    /// Screen related commands
+    /// Screen related commands.
     #[command(subcommand)]
     Screen(ScreenCommands),
+    /// Asset related commands.
+    #[command(subcommand)]
+    Asset(AssetCommands),
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum ScreenCommands {
-    /// Lists your screens
+    /// Lists your screens.
     List {
-        /// Enables json output
+        /// Enables json output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
-    /// Gets a single screen by id
+    /// Gets a single screen by id.
     Get {
-        /// Enables json output
+        /// Enables json output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
-        /// UUID of the screen
+        /// UUID of the screen.
         uuid: String,
     },
-    /// Adds a new screen
+    /// Adds a new screen.
     Add {
-        /// Enables json output
+        /// Enables json output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
-        /// Pin code created with registrations endpoint
+        /// Pin code created with registrations endpoint.
         pin: String,
         /// Optional name of the new screen.
         name: Option<String>,
     },
     /// Deletes a screen. This cannot be undone.
     Delete {
-        /// UUID of the screen to be deleted
+        /// UUID of the screen to be deleted.
         uuid: String,
     },
 }
 
-fn handle_command_execution_result(
-    result: anyhow::Result<Screens, CommandError>,
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum AssetCommands {
+    /// Lists your assets.
+    List {
+        /// Enables json output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
+    /// Gets a single asset by id.
+    Get {
+        /// Enables json output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// UUID of the asset.
+        uuid: String,
+    },
+    /// Adds a new asset.
+    Add {
+        /// Enables json output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// Path to file.
+        path: String,
+        /// Asset title.
+        title: String,
+    },
+
+    /// Deletes an asset. This cannot be undone.
+    Delete {
+        /// UUID of the asset to be deleted.
+        uuid: String,
+    },
+}
+
+fn handle_command_execution_result<T: commands::Formatter>(
+    result: anyhow::Result<T, CommandError>,
     json: &Option<bool>,
 ) {
     match result {
@@ -83,7 +120,16 @@ fn handle_command_execution_result(
             println!("{}", screen.format(output_type));
         }
         Err(e) => {
-            eprintln!("Error occurred: {:?}", e);
+            match e {
+                CommandError::AuthenticationError(_) => {
+                    eprintln!(
+                        "Authentication error occurred. Please use login command to authenticate."
+                    )
+                }
+                _ => {
+                    eprintln!("Error occurred: {:?}", e);
+                }
+            }
             std::process::exit(1);
         }
     }
@@ -102,6 +148,28 @@ fn get_screen_name(
         }
 
         return if let Some(name) = screens[0]["name"].as_str() {
+            Ok(name.to_string())
+        } else {
+            Err(CommandError::MissingField)
+        };
+    }
+
+    Err(CommandError::MissingField)
+}
+
+fn get_asset_title(
+    id: &str,
+    asset_command: &commands::AssetCommand,
+) -> Result<String, CommandError> {
+    let target_asset = asset_command.get(id)?;
+
+    if let Some(assets) = target_asset.value.as_array() {
+        if assets.is_empty() {
+            eprintln!("Screen could not be found.");
+            return Err(CommandError::MissingField);
+        }
+
+        return if let Some(name) = assets[0]["title"].as_str() {
             Ok(name.to_string())
         } else {
             Err(CommandError::MissingField)
@@ -190,6 +258,62 @@ fn main() {
                 }
             }
         },
+        Commands::Asset(command) => match command {
+            AssetCommands::List { json } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                handle_command_execution_result(asset_command.list(), json);
+            }
+            AssetCommands::Get { uuid, json } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                handle_command_execution_result(asset_command.get(uuid), json);
+            }
+            AssetCommands::Add { path, title, json } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                handle_command_execution_result(
+                    asset_command.add(path.clone(), title.clone()),
+                    json,
+                );
+            }
+            AssetCommands::Delete { uuid } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                match get_asset_title(uuid, &asset_command) {
+                    Ok(title) => {
+                        println!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
+                        print!("Enter the asset title to confirm the asset deletion: ");
+                        io::stdout().flush().unwrap();
+
+                        let stdin = io::stdin();
+                        let mut user_input = String::new();
+                        match stdin.read_line(&mut user_input) {
+                            Ok(_) => {}
+                            Err(e) => {
+                                eprintln!("Error occurred: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+
+                        if title != user_input.trim() {
+                            eprintln!("The title you entered is incorrect. Aborting.");
+                            std::process::exit(1);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error occurred: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                match asset_command.delete(uuid) {
+                    Ok(()) => {
+                        println!("Asset deleted successfully.");
+                        std::process::exit(0);
+                    }
+                    Err(e) => {
+                        eprintln!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        },
     }
 }
 
@@ -210,7 +334,7 @@ mod tests {
     use tempdir::TempDir;
 
     #[test]
-    fn test_list_screens_should_return_correct_screen_list() {
+    fn test_get_screen_name_should_return_correct_screen_name() {
         let _tmp_dir = TempDir::new("test").unwrap();
         let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
