@@ -131,14 +131,10 @@ impl Formatter for Assets {
                 if let Some(assets) = self.value.as_array() {
                     for asset in assets {
                         // TODO: actually use dimensions for videos and images?
-                        let mut _dimensions = "N/A".to_owned();
-                        if asset["width"].as_str().is_some() && asset["height"].as_str().is_some() {
-                            _dimensions = format!(
-                                "{}x{}",
-                                asset["width"].as_str().unwrap_or(""),
-                                asset["height"].as_str().unwrap_or("")
-                            );
-                        }
+                        let _dimensions = match (asset["width"].as_str(), asset["height"].as_str()) {
+                            (Some(width), Some(height)) => format!("{}x{}", width, height),
+                            _ => "N/A".to_owned()
+                        };
 
                         table.add_row(row!(
                             asset["id"].as_str().unwrap_or("N/A"),
@@ -168,7 +164,7 @@ fn get(
     authentication: &Authentication,
     endpoint: &str,
 ) -> anyhow::Result<serde_json::Value, CommandError> {
-    let url = format!("{}/{}", authentication.config.url.clone(), endpoint);
+    let url = format!("{}/{}", &authentication.config.url, endpoint);
     let response = authentication.build_client()?.get(url).send()?;
     if response.status().as_u16() != 200 {
         return Err(CommandError::WrongResponseStatus(
@@ -179,7 +175,7 @@ fn get(
 }
 
 fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
-    let url = format!("{}/{}", authentication.config.url.clone(), endpoint);
+    let url = format!("{}/{}", &authentication.config.url, endpoint);
     let response = authentication.build_client()?.delete(url).send()?;
     if ![200_u16, 204_u16].contains(&response.status().as_u16()) {
         return Err(CommandError::WrongResponseStatus(
@@ -209,7 +205,7 @@ impl ScreenCommand {
         pin: &str,
         maybe_name: Option<String>,
     ) -> anyhow::Result<Screens, CommandError> {
-        let url = format!("{}/v3/screens/", self.authentication.config.url.clone());
+        let url = format!("{}/v3/screens/", &self.authentication.config.url);
         let mut payload = HashMap::new();
         payload.insert("pin".to_string(), pin.to_string());
         if let Some(name) = maybe_name {
@@ -255,7 +251,7 @@ impl AssetCommand {
     }
 
     pub fn add(&self, path: String, title: String) -> anyhow::Result<Assets, CommandError> {
-        let url = format!("{}/v4/assets", self.authentication.config.url.clone());
+        let url = format!("{}/v4/assets", &self.authentication.config.url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
