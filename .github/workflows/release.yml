@@ -14,12 +14,13 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: x86_64-apple-darwin,
           override: true
       - uses: actions-rs/cargo@v1
         with:
           command: build
       - name: Zip artifact for deployment
-        run: zip screenly-cli-linux-x86.zip target/release/screenly
+        run: zip screenly-cli-linux-x86.zip cli/target/release/screenly
       - uses: actions/upload-artifact@v3
         with:
           name: Upload x86 binaries
@@ -40,7 +41,7 @@ jobs:
           command: build
           args: --target x86_64-apple-darwin
       - name: Zip artifact for deployment
-        run: zip screenly-cli-apple-x86.zip target/x86_64-apple-darwin/release/screenly
+        run: zip screenly-cli-apple-x86.zip cli/target/x86_64-apple-darwin/release/screenly
       - uses: actions/upload-artifact@v3
         with:
           name: Upload x86 binaries
@@ -61,7 +62,7 @@ jobs:
           command: build
           args: --target aarch64-apple-darwin
       - name: Zip artifact for deployment
-        run: zip screenly-cli-apple-arm64.zip target/release/screenly
+        run: zip screenly-cli-apple-arm64.zip cli/target/release/screenly
       - uses: actions/upload-artifact@v3
         with:
           name: Upload arm64 apple binaries
