@@ -9,6 +9,7 @@ use clap::{command, Parser, Subcommand};
 use simple_logger::SimpleLogger;
 use std::io;
 use std::io::Write;
+use log::{error, info};
 
 #[derive(Parser)]
 #[command(
@@ -93,7 +94,7 @@ enum AssetCommands {
         /// Enables json output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
-        /// Path to file.
+        /// Path to local file or URL for remote file.
         path: String,
         /// Asset title.
         title: String,
@@ -117,17 +118,17 @@ fn handle_command_execution_result<T: commands::Formatter>(
             } else {
                 OutputType::HumanReadable
             };
-            println!("{}", screen.format(output_type));
+            info!("{}", screen.format(output_type));
         }
         Err(e) => {
             match e {
                 CommandError::AuthenticationError(_) => {
-                    eprintln!(
+                    error!(
                         "Authentication error occurred. Please use login command to authenticate."
                     )
                 }
                 _ => {
-                    eprintln!("Error occurred: {:?}", e);
+                    error!("Error occurred: {:?}", e);
                 }
             }
             std::process::exit(1);
@@ -143,7 +144,7 @@ fn get_screen_name(
 
     if let Some(screens) = target_screen.value.as_array() {
         if screens.is_empty() {
-            eprintln!("Screen could not be found.");
+            error!("Screen could not be found.");
             return Err(CommandError::MissingField);
         }
 
@@ -165,7 +166,7 @@ fn get_asset_title(
 
     if let Some(assets) = target_asset.value.as_array() {
         if assets.is_empty() {
-            eprintln!("Screen could not be found.");
+            error!("Asset could not be found.");
             return Err(CommandError::MissingField);
         }
 
@@ -189,17 +190,17 @@ fn main() {
     match &cli.command {
         Commands::Login { token } => match authentication.verify_and_store_token(token) {
             Ok(()) => {
-                println!("Login credentials have been saved.");
+                info!("Login credentials have been saved.");
                 std::process::exit(0);
             }
 
             Err(e) => match e {
                 AuthenticationError::WrongCredentialsError => {
-                    eprintln!("Token verification failed.");
+                    error!("Token verification failed.");
                     std::process::exit(1);
                 }
                 _ => {
-                    eprintln!("Error occurred: {:?}", e);
+                    error!("Error occurred: {:?}", e);
                     std::process::exit(1);
                 }
             },
@@ -221,8 +222,8 @@ fn main() {
                 let screen_command = commands::ScreenCommand::new(authentication);
                 match get_screen_name(uuid, &screen_command) {
                     Ok(name) => {
-                        println!("You are about to delete the screen named \"{}\".  This operation cannot be reversed.", name);
-                        print!("Enter the screen name to confirm the screen deletion: ");
+                        info!("You are about to delete the screen named \"{}\".  This operation cannot be reversed.", name);
+                        info!("Enter the screen name to confirm the screen deletion: ");
                         io::stdout().flush().unwrap();
 
                         let stdin = io::stdin();
@@ -230,29 +231,29 @@ fn main() {
                         match stdin.read_line(&mut user_input) {
                             Ok(_) => {}
                             Err(e) => {
-                                eprintln!("Error occurred: {}", e);
+                                error!("Error occurred: {}", e);
                                 std::process::exit(1);
                             }
                         }
 
                         if name != user_input.trim() {
-                            eprintln!("The name you entered is incorrect. Aborting.");
+                            error!("The name you entered is incorrect. Aborting.");
                             std::process::exit(1);
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error occurred: {}", e);
+                        error!("Error occurred: {}", e);
                         std::process::exit(1);
                     }
                 }
 
                 match screen_command.delete(uuid) {
                     Ok(()) => {
-                        println!("Screen deleted successfully.");
+                        info!("Screen deleted successfully.");
                         std::process::exit(0);
                     }
                     Err(e) => {
-                        eprintln!("Error occurred: {:?}", e);
+                        error!("Error occurred: {:?}", e);
                         std::process::exit(1);
                     }
                 }
@@ -278,8 +279,8 @@ fn main() {
                 let asset_command = commands::AssetCommand::new(authentication);
                 match get_asset_title(uuid, &asset_command) {
                     Ok(title) => {
-                        println!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
-                        print!("Enter the asset title to confirm the asset deletion: ");
+                        info!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
+                        info!("Enter the asset title to confirm the asset deletion: ");
                         io::stdout().flush().unwrap();
 
                         let stdin = io::stdin();
@@ -287,28 +288,28 @@ fn main() {
                         match stdin.read_line(&mut user_input) {
                             Ok(_) => {}
                             Err(e) => {
-                                eprintln!("Error occurred: {}", e);
+                                error!("Error occurred: {}", e);
                                 std::process::exit(1);
                             }
                         }
 
                         if title != user_input.trim() {
-                            eprintln!("The title you entered is incorrect. Aborting.");
+                            error!("The title you entered is incorrect. Aborting.");
                             std::process::exit(1);
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error occurred: {}", e);
+                        error!("Error occurred: {}", e);
                         std::process::exit(1);
                     }
                 }
                 match asset_command.delete(uuid) {
                     Ok(()) => {
-                        println!("Asset deleted successfully.");
+                        info!("Asset deleted successfully.");
                         std::process::exit(0);
                     }
                     Err(e) => {
-                        eprintln!("Error occurred: {:?}", e);
+                        error!("Error occurred: {:?}", e);
                         std::process::exit(1);
                     }
                 }
