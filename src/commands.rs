@@ -5,6 +5,7 @@ use humantime::format_duration;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::fs::File;
 use std::time::Duration;
+use log::info;
 use thiserror::Error;
 
 use prettytable::{row, Table};
@@ -250,16 +251,40 @@ impl AssetCommand {
         Ok(Assets::new(get(&self.authentication, &endpoint)?))
     }
 
+    fn add_web_asset(&self, url: &str, headers: &HeaderMap, payload: &HashMap<&str, &String>) -> anyhow::Result<Assets, CommandError> {
+        let response = self
+            .authentication
+            .build_client()?
+            .post(url)
+            .json(payload)
+            .headers(headers.clone())
+            .send()?;
+
+        if response.status().as_u16() != 201 {
+            let status = response.status().as_u16();
+            return Err(CommandError::WrongResponseStatus(status));
+        }
+
+        Ok(Assets::new(serde_json::from_str(&response.text()?)?))
+    }
+
     pub fn add(&self, path: String, title: String) -> anyhow::Result<Assets, CommandError> {
         let url = format!("{}/v4/assets", &self.authentication.config.url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
 
+        if path.starts_with("http") || path.starts_with("https") {
+            let mut payload = HashMap::new();
+            payload.insert("title", &title);
+            payload.insert("source_url", &path);
+            return self.add_web_asset(&url, &headers, &payload);
+        }
+
         let file = File::open(path)?;
         let file_size = file.metadata()?.len();
         let pb = ProgressBar::new(file_size);
-        println!("Uploading asset.");
+        info!("Uploading asset.");
         if let Ok(template) = ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:160.cyan/blue} {percent}% ETA: {eta}",
         ) {
@@ -426,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_asset_should_send_correct_request() {
+    fn test_add_asset_when_local_asset_should_send_correct_request() {
         let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
@@ -472,6 +497,60 @@ mod tests {
         let v = asset_command
             .add(
                 tmp_dir.path().join("1.html").to_str().unwrap().to_string(),
+                "test".to_owned(),
+            )
+            .unwrap();
+        assert_eq!(v.value, new_asset);
+    }
+
+    #[test]
+    fn test_add_asset_when_web_asset_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
+
+        let new_asset = json!([
+          {
+            "asset_group_id": null,
+            "asset_url": "",
+            "disable_verification": false,
+            "duration": null,
+            "headers": {},
+            "height": null,
+            "id": "0184f162-585e-6334-8dae-38a80062a6c2",
+            "md5": null,
+            "meta_data": {},
+            "send_metadata": false,
+            "source_md5": null,
+            "source_size": null,
+            "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%2FOZbhHeASzcYCsO8aNWICbpwrSYP2zVwB",
+            "status": "none",
+            "title": "test3.html",
+            "type": null,
+            "width": null
+          }
+        ]);
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            // TODO: figure out how to check the body for multiform content
+
+            when.method(POST)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header("user-agent", "screenly-cli 0.1.0")
+                .json_body(json!({"source_url": "https://google.com", "title": "test"}));
+            then.status(201).json_body(new_asset.clone());
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let v = asset_command
+            .add(
+                "https://google.com".to_owned(),
                 "test".to_owned(),
             )
             .unwrap();
