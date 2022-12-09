@@ -29,6 +29,3 @@ jobs:
       - name: Run tests
         run: cargo test --verbose
       - uses: actions/upload-artifact@v3
-        with:
-          name: Upload build
-          path: target/release/screenly
