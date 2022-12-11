@@ -15,11 +15,12 @@ jobs:
       steps:
         - name: Checkout
           uses: actions/checkout@v1
+        - name: Install dependencies.
+          run: sudo apt install -y libssl-dev
         - name: Install rust
           uses: actions-rs/toolchain@v1
           with:
             toolchain: stable
-            profile: minimal
             override: true
             target: ${{ matrix.target }}
 
