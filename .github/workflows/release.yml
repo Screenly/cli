@@ -44,14 +44,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install packages (Ubuntu)
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-         sudo apt install libssl-dev
-      - name: Install packages (macOS)
-        if: matrix.os == 'macos-12'
-        run: |
-          brew install openssl@1.1
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
