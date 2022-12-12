@@ -6,41 +6,97 @@ on:
       - '*'
 
 jobs:
-  deploy:
-      name: deploy
-      runs-on: ubuntu-latest
-      strategy:
-        matrix:
-          target: [ x86_64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin]
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v1
-        - name: Install dependencies.
-          run: sudo apt install -y libssl-dev
-        - name: Install rust
-          uses: actions-rs/toolchain@v1
-          with:
-            toolchain: stable
-            override: true
-            target: ${{ matrix.target }}
+  build-release:
+    name: deploy
+    runs-on: ${{ matrix.os }}
+    env:
+      # For some builds, we use cross to test on 32-bit and big-endian
+      # systems.
+      CARGO: cargo
+      # When CARGO is set to CROSS, this is set to `--target matrix.target`.
+      TARGET_FLAGS: ""
+      # When CARGO is set to CROSS, TARGET_DIR includes matrix.target.
+      TARGET_DIR: ./target
+      # Emit backtraces on panics.
+      RUST_BACKTRACE: 1
+      # Build static releases with PCRE2.
+      PCRE2_SYS_STATIC: 1
+    strategy:
+      matrix:
+        build: [ linux, linux-arm, macos, win-msvc, win-gnu, win32-msvc ]
+        include:
+          - build: linux
+            os: ubuntu-22.04
+            rust: nightly
+            target: x86_64-unknown-linux-musl
+          - build: linux-arm
+            os: ubuntu-22.04
+            rust: nightly
+            target: arm-unknown-linux-gnueabihf
+          - build: macos
+            os: macos-12
+            rust: nightly
+            target: x86_64-apple-darwin
+          - build: win-msvc
+            os: windows-2022
+            rust: nightly
+            target: x86_64-pc-windows-msvc
+          - build: win-gnu
+            os: windows-2022
+            rust: nightly-x86_64-gnu
+            target: x86_64-pc-windows-gnu
+          - build: win32-msvc
+            os: windows-2022
+            rust: nightly
+            target: i686-pc-windows-msvc
 
-        - name: Build target
-          uses: actions-rs/cargo@v1
-          with:
-            use-cross: true
-            command: build
-            args: --release --target ${{ matrix.target }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-        - name: Package
-          shell: bash
-          run: |
-            cd target/${{ matrix.target }}/release          
-            tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly
-            cd -
-        - name: Publish
-          uses: softprops/action-gh-release@v1
-          # TODO: if any of the build step fails, the release should be deleted.
-          with:
-              files: 'screenly*'
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install packages (Ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+         # nothing to install
+      - name: Install packages (macOS)
+        if: matrix.os == 'macos-12'
+        run: |
+          brew install openssl@1.1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+
+      - name: Use Cross
+        shell: bash
+        run: |
+          cargo install cross
+          echo "CARGO=cross" >> $GITHUB_ENV
+          echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+          echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+      - name: Show command used for Cargo
+        run: |
+          echo "cargo command is: ${{ env.CARGO }}"
+          echo "target flag is: ${{ env.TARGET_FLAGS }}"
+          echo "target dir is: ${{ env.TARGET_DIR }}"
+      - name: Build release binary
+        run: ${{ env.CARGO }} build --verbose --release --features pcre2 ${{ env.TARGET_FLAGS }}
+
+      - name: Strip release binary (linux and macos)
+        if: matrix.build == 'linux' || matrix.build == 'macos'
+        run: strip "target/${{ matrix.target }}/release/rg"
+
+      - name: Package
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release          
+          tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly
+          cd -
+      - name: Publish
+        uses: softprops/action-gh-release@v1
+        # TODO: if any of the build step fails, the release should be deleted.
+        with:
+            files: 'screenly*'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
