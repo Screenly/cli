@@ -21,7 +21,7 @@ jobs:
       RUST_BACKTRACE: 1
     strategy:
       matrix:
-        build: [ linux, linux-arm, macos, win-msvc, win-gnu, win32-msvc ]
+        build: [ linux, macos ]
         include:
           - build: linux
             os: ubuntu-22.04
@@ -31,10 +31,7 @@ jobs:
             os: macos-12
             rust: nightly
             target: x86_64-apple-darwin
-          - build: win-msvc
-            os: windows-2022
-            rust: nightly
-            target: x86_64-pc-windows-msvc
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
