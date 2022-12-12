@@ -25,11 +25,11 @@ jobs:
         include:
           - build: linux
             os: ubuntu-22.04
-            rust: nightly
+            rust: stable
             target: x86_64-unknown-linux-gnu
           - build: macos
             os: macos-12
-            rust: nightly
+            rust: stable
             target: x86_64-apple-darwin
 
     steps:
@@ -67,7 +67,7 @@ jobs:
 
       - name: Strip release binary (linux and macos)
         if: matrix.build == 'linux' || matrix.build == 'macos'
-        run: strip "target/${{ matrix.target }}/release/rg"
+        run: strip "target/${{ matrix.target }}/release/screenly"
 
       - name: Package
         shell: bash
