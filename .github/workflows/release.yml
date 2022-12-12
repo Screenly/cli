@@ -31,7 +31,7 @@ jobs:
             os: macos-12
             rust: stable
             target: x86_64-apple-darwin
-          - build: macos
+          - build: macos-aarch64
             os: macos-12
             rust: stable
             target: aarch64-apple-darwin
