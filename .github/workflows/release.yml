@@ -27,10 +27,6 @@ jobs:
             os: ubuntu-22.04
             rust: nightly
             target: x86_64-unknown-linux-gnu
-          - build: linux-arm
-            os: ubuntu-22.04
-            rust: nightly
-            target: arm-unknown-linux-gnueabihf
           - build: macos
             os: macos-12
             rust: nightly
@@ -39,15 +35,6 @@ jobs:
             os: windows-2022
             rust: nightly
             target: x86_64-pc-windows-msvc
-          - build: win-gnu
-            os: windows-2022
-            rust: nightly-x86_64-gnu
-            target: x86_64-pc-windows-gnu
-          - build: win32-msvc
-            os: windows-2022
-            rust: nightly
-            target: i686-pc-windows-msvc
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
