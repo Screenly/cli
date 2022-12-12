@@ -4,7 +4,7 @@ The purpose of Screenly's CLI is to make developer's life easier. Using our CLI,
 
 ## Download
 
-This tool is still in beta. Releases will be published shortly. For now, see the building instructions below.
+Releases are built automatically. You can download the latest release [here](https://github.com/Screenly/cli/releases/latest).
 
 ## Building
 
