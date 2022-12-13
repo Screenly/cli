@@ -3,7 +3,7 @@ FROM rust:1-alpine3.15 as builder
 
 WORKDIR /usr/src/screenly-cli
 COPY . .
-RUN apk --no-cache add ca-certificates openssl-dev
+RUN apk --no-cache add ca-certificates openssl-dev linux-headers
 RUN cargo build --release
 
 FROM rust:3.15
