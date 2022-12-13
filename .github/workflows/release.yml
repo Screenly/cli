@@ -79,13 +79,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         # TODO: if any of the build step fails, the release should be deleted.
         with:
-            files: 'screenly*'
+          files: 'screenly*'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build container
         run: docker build . \
-          --build-arg "RELEASE=$GITHUB_REF_NAME" \
+          --build-arg "RELEASE=$GITHUB_REF_NAME"
+          -t "screenly/cli:$GITHUB_REF_NAME"
 
       - name: Tag container
         run: docker tag \
