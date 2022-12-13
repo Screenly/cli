@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1
-FROM rust:1-alpine3.15 as builder
+FROM alpine:3 as builder
 
 WORKDIR /usr/src/screenly-cli
-COPY . .
-RUN apk --no-cache add ca-certificates openssl-dev linux-headers
-RUN cargo build --release
+RUN apk add --no-cache wget tar
+ARG RELEASE=v0.1.0
+RUN wget "https://github.com/Screenly/cli/releases/download/$RELEASE/screenly-cli-x86_64-unknown-linux-gnu.tar.gz"
+RUN tar xfz screenly-cli-x86_64-unknown-linux-gnu.tar.gz
 
-FROM rust:3.15
-COPY --from=builder /usr/src/screenly-cli/target/release/screenly /usr/bin/
+FROM alpine:3
+COPY --from=builder /usr/src/screenly-cli/screenly /usr/bin/
 ENTRYPOINT ["/usr/bin/screenly"]

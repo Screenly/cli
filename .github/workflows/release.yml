@@ -72,7 +72,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          cd target/${{ matrix.target }}/release          
+          cd target/${{ matrix.target }}/release
           tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly
           cd -
       - name: Publish
@@ -82,3 +82,12 @@ jobs:
             files: 'screenly*'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build container
+        run: docker build . \
+          --build-arg "RELEASE=$GITHUB_REF_NAME" \
+
+      - name: Tag container
+        run: docker tag \
+          "screenly/cli:$GITHUB_REF_NAME" \
+          "screenly/cli:latest"
