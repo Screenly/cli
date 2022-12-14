@@ -6,10 +6,10 @@ extern crate prettytable;
 use crate::authentication::{Authentication, AuthenticationError};
 use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{command, Parser, Subcommand};
+use log::{error, info};
 use simple_logger::SimpleLogger;
 use std::io;
 use std::io::Write;
-use log::{error, info};
 
 #[derive(Parser)]
 #[command(

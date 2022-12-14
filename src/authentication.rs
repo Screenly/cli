@@ -23,6 +23,8 @@ pub enum AuthenticationError {
     IoError(#[from] std::io::Error),
     #[error("env error")]
     EnvError(#[from] env::VarError),
+    #[error("missing home dir error")]
+    MissingHomeDirError(),
     #[error("invalid header error")]
     InvalidHeaderError(#[from] InvalidHeaderValue),
     #[error("unknown error")]
@@ -58,11 +60,11 @@ impl Authentication {
             return Ok(token);
         }
 
-        match env::var("HOME") {
-            Ok(path) => {
-                std::fs::read_to_string(path + "/.screenly").map_err(AuthenticationError::IoError)
+       match dirs::home_dir() {
+            Some(path) => {
+                std::fs::read_to_string(path.join(".screenly")).map_err(AuthenticationError::IoError)
             }
-            Err(_) => Err(AuthenticationError::NoCredentialsError),
+            None => Err(AuthenticationError::NoCredentialsError),
         }
     }
 
@@ -74,12 +76,12 @@ impl Authentication {
     pub fn verify_and_store_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
         self.verify_token(token)?;
 
-        match std::env::var("HOME") {
-            Ok(home) => {
-                fs::write(home + "/.screenly", token)?;
+        match dirs::home_dir() {
+            Some(home) => {
+                fs::write(home.join(".screenly"), token)?;
                 Ok(())
             }
-            Err(e) => Err(AuthenticationError::EnvError(e)),
+            None => Err(AuthenticationError::MissingHomeDirError()),
         }
     }
 
