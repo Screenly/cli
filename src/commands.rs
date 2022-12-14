@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use humantime::format_duration;
 use indicatif::{ProgressBar, ProgressStyle};
+use log::info;
 use std::fs::File;
 use std::time::Duration;
-use log::info;
 use thiserror::Error;
 
 use prettytable::{row, Table};
@@ -132,9 +132,10 @@ impl Formatter for Assets {
                 if let Some(assets) = self.value.as_array() {
                     for asset in assets {
                         // TODO: actually use dimensions for videos and images?
-                        let _dimensions = match (asset["width"].as_str(), asset["height"].as_str()) {
+                        let _dimensions = match (asset["width"].as_str(), asset["height"].as_str())
+                        {
                             (Some(width), Some(height)) => format!("{}x{}", width, height),
-                            _ => "N/A".to_owned()
+                            _ => "N/A".to_owned(),
                         };
 
                         table.add_row(row!(
@@ -251,7 +252,12 @@ impl AssetCommand {
         Ok(Assets::new(get(&self.authentication, &endpoint)?))
     }
 
-    fn add_web_asset(&self, url: &str, headers: &HeaderMap, payload: &HashMap<&str, &String>) -> anyhow::Result<Assets, CommandError> {
+    fn add_web_asset(
+        &self,
+        url: &str,
+        headers: &HeaderMap,
+        payload: &HashMap<&str, &String>,
+    ) -> anyhow::Result<Assets, CommandError> {
         let response = self
             .authentication
             .build_client()?
@@ -547,10 +553,7 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
         let v = asset_command
-            .add(
-                "https://google.com".to_owned(),
-                "test".to_owned(),
-            )
+            .add("https://google.com".to_owned(), "test".to_owned())
             .unwrap();
         assert_eq!(v.value, new_asset);
     }
