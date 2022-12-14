@@ -86,9 +86,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build container
-        run: docker build . \
-          --build-arg "RELEASE=$GITHUB_REF_NAME"
-          -t "screenly/cli:$GITHUB_REF_NAME"
+        run: docker build \
+          --build-arg "RELEASE=$GITHUB_REF_NAME" \
+          -t "screenly/cli:$GITHUB_REF_NAME" .
 
       - name: Tag container
         run: docker tag \
