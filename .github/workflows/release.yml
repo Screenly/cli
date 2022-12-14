@@ -85,10 +85,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build-docker-image:
+    name: docker
+    needs: build-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Build container
-        run: docker build \
+        run: docker build . \
           --build-arg "RELEASE=$GITHUB_REF_NAME" \
-          -t "screenly/cli:$GITHUB_REF_NAME" .
+          -t "screenly/cli:$GITHUB_REF_NAME"
 
       - name: Tag container
         run: docker tag \
