@@ -24,7 +24,6 @@ jobs:
         build:
           - linux
           - macos
-          - win-msvc
         include:
           - build: linux
             os: ubuntu-22.04
