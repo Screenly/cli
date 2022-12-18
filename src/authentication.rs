@@ -184,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_token_when_token_is_overridden_with_env_variable_correct_token_is_returned() {
+    fn test_read_token_when_token_is_overriden_with_env_variable_correct_token_is_returned() {
         let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
         let _token = set_env(OsString::from("API_TOKEN"), "env_token");
