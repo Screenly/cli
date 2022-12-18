@@ -1,7 +1,6 @@
-use reqwest::header;
-
 use std::{env, fs};
 
+use reqwest::header;
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use thiserror::Error;
 
@@ -61,8 +60,9 @@ impl Authentication {
         }
 
         match dirs::home_dir() {
-            Some(path) => std::fs::read_to_string(path.join(".screenly"))
-                .map_err(AuthenticationError::IoError),
+            Some(path) => {
+                fs::read_to_string(path.join(".screenly")).map_err(AuthenticationError::IoError)
+            }
             None => Err(AuthenticationError::NoCredentialsError),
         }
     }
@@ -121,17 +121,17 @@ impl Authentication {
 
 #[cfg(test)]
 mod tests {
-    use crate::authentication::Config;
-    use crate::Authentication;
-    use httpmock::{Method::GET, MockServer};
-    use simple_logger::SimpleLogger;
     use std::ffi::OsString;
-
     use std::fs;
-    use tempdir::TempDir;
 
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
+    use httpmock::{Method::GET, MockServer};
+    use simple_logger::SimpleLogger;
+    use tempdir::TempDir;
+
+    use crate::authentication::Config;
+    use crate::Authentication;
 
     #[test]
     fn test_verify_and_store_token_when_token_is_valid() {
@@ -184,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_token_when_token_is_overriden_with_env_variable_correct_token_is_returned() {
+    fn test_read_token_when_token_is_overridden_with_env_variable_correct_token_is_returned() {
         let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
         let _token = set_env(OsString::from("API_TOKEN"), "env_token");
