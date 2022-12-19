@@ -16,6 +16,6 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   env:
-    - API_TOKEN: ${{ inputs.screenly_token }}
+    - API_TOKEN=${{ inputs.screenly_token }}
   args:
     - ${{ inputs.cli_commands }}
