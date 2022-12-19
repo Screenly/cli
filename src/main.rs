@@ -4,6 +4,7 @@ mod commands;
 extern crate prettytable;
 
 use crate::authentication::{Authentication, AuthenticationError};
+#[allow(unused_imports)]
 use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{command, Parser, Subcommand};
 use log::{error, info};

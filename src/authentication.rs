@@ -1,7 +1,6 @@
-use reqwest::header;
-
 use std::{env, fs};
 
+use reqwest::header;
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use thiserror::Error;
 
@@ -60,9 +59,9 @@ impl Authentication {
             return Ok(token);
         }
 
-       match dirs::home_dir() {
+        match dirs::home_dir() {
             Some(path) => {
-                std::fs::read_to_string(path.join(".screenly")).map_err(AuthenticationError::IoError)
+                fs::read_to_string(path.join(".screenly")).map_err(AuthenticationError::IoError)
             }
             None => Err(AuthenticationError::NoCredentialsError),
         }
@@ -87,7 +86,7 @@ impl Authentication {
 
     fn verify_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
         // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
-        let url = self.config.url.clone() + "/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/";
+        let url = format!("{}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/", &self.config.url);
         let secret = format!("Token {}", token);
         let client = reqwest::blocking::Client::builder().build()?;
 
@@ -122,17 +121,17 @@ impl Authentication {
 
 #[cfg(test)]
 mod tests {
-    use crate::authentication::Config;
-    use crate::Authentication;
-    use httpmock::{Method::GET, MockServer};
-    use simple_logger::SimpleLogger;
     use std::ffi::OsString;
-
     use std::fs;
-    use tempdir::TempDir;
 
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
+    use httpmock::{Method::GET, MockServer};
+    use simple_logger::SimpleLogger;
+    use tempdir::TempDir;
+
+    use crate::authentication::Config;
+    use crate::Authentication;
 
     #[test]
     fn test_verify_and_store_token_when_token_is_valid() {
