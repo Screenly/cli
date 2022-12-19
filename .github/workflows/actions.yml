@@ -12,5 +12,5 @@ jobs:
       - id: list-screens
         uses: screenly/cli@github-actions
         with:
-          screenly_token: ${{ secrets.DOCKER_USERNAME }}
+          screenly_token: ${{ secrets.SCREENLY_API_TOKEN }}
           cli_commands: screen list
