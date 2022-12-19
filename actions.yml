@@ -14,8 +14,7 @@ inputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
-    - id: run cli
-      env:
-        - API_TOKEN=${{ inputs.screenly_token }}
-      args:
-        - ${{ inputs.cli_commands }}
+  env:
+    - API_TOKEN=${{ inputs.screenly_token }}
+  args:
+    - ${{ inputs.cli_commands }}
