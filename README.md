@@ -25,15 +25,19 @@ Our CLI is also available as a GitHub Action workflow.
 
 ## Inputs
 
-## `screenly_api_token`
+### `screenly_api_token`
 
 **Required** The Screenly API token for your team. You can retrieve this by going to `Settings` -> `Team` -> `Tokens`. Note that API tokens are limited in scope to your team.
 
 You should use a [GitHub Action Secret](https://docs.github.com/en/actions/security-guides/encrypted-secrets) to store this rather than hard coding this in your code base.
 
-## `cli_commands`
+### `cli_commands`
 
 **Required** This is the command you want to pass on, such as `screen list`.
+
+### `cli_version`
+
+Use this option to override the CLI version used by the Action. Must point to a [valid release](https://github.com/Screenly/cli/releases).
 
 ## Example usage
 
