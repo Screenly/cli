@@ -347,7 +347,7 @@ mod tests {
             when.method(GET)
                 .path("/v4/screens")
                 .query_param("id", "eq.017a5104-524b-33d8-8026-9087b59e7eb5")
-                .header("user-agent", "screenly-cli 0.1.0")
+                .header("user-agent", format!("screenly-cli {}", env!("CARGO_PKG_VERSION")))
                 .header("Authorization", "Token token");
             then
                 .status(200)
