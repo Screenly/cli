@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - id: list-screens
-        uses: screenly/cli@actions-test
+        uses: screenly/cli@github-actions
         with:
           screenly_token: ${{ secrets.DOCKER_USERNAME }}
           cli_commands: screen list
