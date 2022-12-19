@@ -1,0 +1,33 @@
+# action.yml
+name: 'Screenly'
+description: 'GitHub Actions for Screenly.'
+author: 'Screenly, Inc'
+branding:
+  icon: 'code'
+  color: 'purple'
+inputs:
+  screenly_api_token:
+    description: "Your Screenly API token."
+    required: true
+  cli_commands:
+    description: "Your Screenly CLI command(s)."
+    required: true
+  cli_version:
+    description: "Screenly CLI version"
+    default: "v0.1.0"
+runs:
+  using: 'composite'
+  steps:
+    - id: download-cli
+      run: |
+        wget -q -O /tmp/screenly-cli.tar.gz \
+          "https://github.com/Screenly/cli/releases/download/${{ inputs.cli_version }}/screenly-cli-x86_64-unknown-linux-gnu.tar.gz"
+        cd /tmp
+        tar xfz screenly-cli.tar.gz
+        chmod +x screenly
+      shell: bash
+    - id: run-cli
+      run: |
+        API_TOKEN=${{ inputs.screenly_api_token }} \
+          /tmp/screenly ${{ inputs.cli_commands }}
+      shell: bash
