@@ -29,5 +29,5 @@ runs:
   - id: run cli
     run: |
       export API_TOKEN=${{ inputs.screenly_token }}
-      /tmp/screenly ${{ inputs cli_commands }}
+      /tmp/screenly ${{ inputs.cli_commands }}
     shell: bash
