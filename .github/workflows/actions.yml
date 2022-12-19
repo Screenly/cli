@@ -1,0 +1,16 @@
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test-github-action-workflow:
+    runs-on: ubuntu-latest
+    name: List screens
+    steps:
+      - uses: actions/checkout@v3
+      - id: list-screens
+        uses: screenly/cli@v1
+        with:
+          screenly_token: ${{ secrets.DOCKER_USERNAME }}
+          cli_commands: screen list
