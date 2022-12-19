@@ -18,3 +18,28 @@ cargo build --release
 
 the `screenly` binary will be located in `target/release` directory.
 
+
+## GitHub Action
+
+Our CLI is also available as a GitHub Action workflow.
+
+## Inputs
+
+## `screenly_api_token`
+
+**Required** The Screenly API token for your team. You can retrieve this by going to `Settings` -> `Team` -> `Tokens`. Note that API tokens are limited in scope to your team.
+
+You should use a [GitHub Action Secret](https://docs.github.com/en/actions/security-guides/encrypted-secrets) to store this rather than hard coding this in your code base.
+
+## `cli_commands`
+
+**Required** This is the command you want to pass on, such as `screen list`.
+
+## Example usage
+
+```yaml
+uses: screenly/cli@master
+with:
+  screenly_api_token: ${{ secrets.SCREENLY_API_TOKEN }}
+  cli_commands: screen list
+```
