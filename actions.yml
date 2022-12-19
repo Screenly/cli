@@ -1,6 +1,7 @@
 # action.yml
 name: 'Screenly'
 description: 'GitHub Actions for Screenly.'
+author: 'Screenly, Inc'
 branding:
   icon: 'code'
   color: 'purple'
@@ -15,6 +16,6 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   env:
-    - API_TOKEN=${{ inputs.screenly_token }}
+    - API_TOKEN: ${{ inputs.screenly_token }}
   args:
     - ${{ inputs.cli_commands }}
