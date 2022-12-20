@@ -256,7 +256,7 @@ impl AssetCommand {
         &self,
         url: &str,
         headers: &HeaderMap,
-        payload: &HashMap<&str, &String>,
+        payload: &HashMap<&str, &str>,
     ) -> anyhow::Result<Assets, CommandError> {
         let response = self
             .authentication
@@ -274,7 +274,7 @@ impl AssetCommand {
         Ok(Assets::new(serde_json::from_str(&response.text()?)?))
     }
 
-    pub fn add(&self, path: String, title: String) -> anyhow::Result<Assets, CommandError> {
+    pub fn add(&self, path: &str, title: &str) -> anyhow::Result<Assets, CommandError> {
         let url = format!("{}/v4/assets", &self.authentication.config.url);
 
         let mut headers = HeaderMap::new();
@@ -282,8 +282,8 @@ impl AssetCommand {
 
         if path.starts_with("http://") || path.starts_with("https://") {
             let mut payload = HashMap::new();
-            payload.insert("title", &title);
-            payload.insert("source_url", &path);
+            payload.insert("title", title.clone());
+            payload.insert("source_url", path);
             return self.add_web_asset(&url, &headers, &payload);
         }
 
@@ -299,7 +299,7 @@ impl AssetCommand {
 
         let part = reqwest::blocking::multipart::Part::reader(pb.wrap_read(file)).file_name("file");
         let form = reqwest::blocking::multipart::Form::new()
-            .text("title", title)
+            .text("title", title.to_owned())
             .part("file", part);
 
         let response = self
@@ -506,10 +506,7 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
         let v = asset_command
-            .add(
-                tmp_dir.path().join("1.html").to_str().unwrap().to_string(),
-                "test".to_owned(),
-            )
+            .add(tmp_dir.path().join("1.html").to_str().unwrap(), "test")
             .unwrap();
         assert_eq!(v.value, new_asset);
     }
@@ -560,9 +557,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
-        let v = asset_command
-            .add("https://google.com".to_owned(), "test".to_owned())
-            .unwrap();
+        let v = asset_command.add("https://google.com", "test").unwrap();
         assert_eq!(v.value, new_asset);
     }
 

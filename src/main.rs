@@ -271,10 +271,7 @@ fn main() {
             }
             AssetCommands::Add { path, title, json } => {
                 let asset_command = commands::AssetCommand::new(authentication);
-                handle_command_execution_result(
-                    asset_command.add(path.clone(), title.clone()),
-                    json,
-                );
+                handle_command_execution_result(asset_command.add(path, title), json);
             }
             AssetCommands::Delete { uuid } => {
                 let asset_command = commands::AssetCommand::new(authentication);
