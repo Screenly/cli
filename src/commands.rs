@@ -23,17 +23,17 @@ pub trait Formatter {
 #[derive(Error, Debug)]
 pub enum CommandError {
     #[error("auth error")]
-    AuthenticationError(#[from] AuthenticationError),
+    Authentication(#[from] AuthenticationError),
     #[error("request error")]
-    RequestError(#[from] reqwest::Error),
+    Request(#[from] reqwest::Error),
     #[error("parse error")]
-    ParseError(#[from] serde_json::Error),
+    Parse(#[from] serde_json::Error),
     #[error("unknown error #[0]")]
     WrongResponseStatus(u16),
     #[error("Required field is missing in the response")]
     MissingField,
     #[error("I/O error #[0]")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("Invalid header value")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
 }

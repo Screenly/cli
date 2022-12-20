@@ -108,7 +108,7 @@ enum AssetCommands {
     },
 }
 
-fn handle_command_execution_result<T: commands::Formatter>(
+fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
     json: &Option<bool>,
 ) {
@@ -123,7 +123,7 @@ fn handle_command_execution_result<T: commands::Formatter>(
         }
         Err(e) => {
             match e {
-                CommandError::AuthenticationError(_) => {
+                CommandError::Authentication(_) => {
                     error!(
                         "Authentication error occurred. Please use login command to authenticate."
                     )
@@ -196,7 +196,7 @@ fn main() {
             }
 
             Err(e) => match e {
-                AuthenticationError::WrongCredentialsError => {
+                AuthenticationError::WrongCredentials => {
                     error!("Token verification failed.");
                     std::process::exit(1);
                 }
