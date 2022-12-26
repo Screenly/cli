@@ -130,8 +130,7 @@ mod tests {
     use simple_logger::SimpleLogger;
     use tempdir::TempDir;
 
-    use crate::authentication::Config;
-    use crate::Authentication;
+    use super::*;
 
     #[test]
     fn test_verify_and_store_token_when_token_is_valid() {
