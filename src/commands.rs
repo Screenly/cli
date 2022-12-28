@@ -308,7 +308,7 @@ impl AssetCommand {
 
         if path.starts_with("http://") || path.starts_with("https://") {
             let mut payload = HashMap::new();
-            payload.insert("title", title.clone());
+            payload.insert("title", title);
             payload.insert("source_url", path);
             return self.add_web_asset(&url, &headers, &payload);
         }
