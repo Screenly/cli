@@ -4,13 +4,13 @@ mod commands;
 extern crate prettytable;
 
 use crate::authentication::{Authentication, AuthenticationError};
-#[allow(unused_imports)]
 use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{command, Parser, Subcommand};
 use log::{error, info};
 use simple_logger::SimpleLogger;
-use std::io;
+use std::collections::HashMap;
 use std::io::Write;
+use std::{fs, io};
 
 #[derive(Parser)]
 #[command(
@@ -105,6 +105,24 @@ enum AssetCommands {
     Delete {
         /// UUID of the asset to be deleted.
         uuid: String,
+    },
+
+    /// Injects javascript code inside of the web asset. It will be executed once the asset loads during playback.
+    InjectJs {
+        /// UUID of the web asset to inject with JavaScript.
+        uuid: String,
+
+        /// Path to local file or URL for remote file.
+        path: String,
+    },
+
+    /// Sets http headers for web asset.
+    SetHeaders {
+        /// UUID of the web asset to set http headers.
+        uuid: String,
+
+        /// HTTP headers in the dictionary form: {header1=value, header2=value2}.
+        headers: String,
     },
 }
 
@@ -310,6 +328,59 @@ fn main() {
                         error!("Error occurred: {:?}", e);
                         std::process::exit(1);
                     }
+                }
+            }
+            AssetCommands::InjectJs { uuid, path } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                let js_code = if path.starts_with("http://") || path.starts_with("https://") {
+                    match reqwest::blocking::get(path) {
+                        Ok(response) => match response.status().as_u16() {
+                            200 => response.text().unwrap_or_default(),
+                            status => {
+                                error!("Failed to retrieve JS injection code. Wrong response status: {}", status);
+                                std::process::exit(1);
+                            }
+                        },
+                        Err(e) => {
+                            error!("Failed to retrieve JS injection code. Error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    match fs::read_to_string(&path) {
+                        Ok(text) => text,
+                        Err(e) => {
+                            error!("Failed to read file with JS injection code. Error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                };
+
+                match asset_command.inject_js(uuid, &js_code) {
+                    Ok(()) => {
+                        info!("Asset updated successfully.");
+                    }
+                    Err(e) => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            AssetCommands::SetHeaders { uuid, headers } => {
+                if let Ok(headers) = serde_json::from_str::<HashMap<&str, &str>>(headers) {
+                    let asset_command = commands::AssetCommand::new(authentication);
+                    match asset_command.set_headers(uuid, headers) {
+                        Ok(()) => {
+                            info!("Asset updated successfully.");
+                        }
+                        Err(e) => {
+                            error!("Error occurred: {:?}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    error!("Failed to parse provided headers.");
+                    std::process::exit(1);
                 }
             }
         },

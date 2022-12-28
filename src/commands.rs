@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use prettytable::{row, Table};
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
+use serde_json::json;
 
 pub enum OutputType {
     HumanReadable,
@@ -187,6 +188,31 @@ fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(),
     Ok(())
 }
 
+fn patch(
+    authentication: &Authentication,
+    endpoint: &str,
+    payload: &serde_json::Value,
+) -> anyhow::Result<(), CommandError> {
+    let url = format!("{}/{}", &authentication.config.url, endpoint);
+    let mut headers = HeaderMap::new();
+    headers.insert("Prefer", "return=representation".parse()?);
+
+    let response = authentication
+        .build_client()?
+        .patch(url)
+        .json(&payload)
+        .headers(headers)
+        .send()?;
+
+    if response.status().as_u16() != 200 {
+        return Err(CommandError::WrongResponseStatus(
+            response.status().as_u16(),
+        ));
+    }
+
+    Ok(())
+}
+
 impl ScreenCommand {
     pub fn new(authentication: Authentication) -> Self {
         Self { authentication }
@@ -318,6 +344,28 @@ impl AssetCommand {
         Ok(Assets::new(serde_json::from_str(&response.text()?)?))
     }
 
+    pub fn set_headers(
+        &self,
+        id: &str,
+        headers: HashMap<&str, &str>,
+    ) -> anyhow::Result<(), CommandError> {
+        let endpoint = format!("v4/assets?id=eq.{}", id);
+        patch(
+            &self.authentication,
+            &endpoint,
+            &json!({ "headers": headers }),
+        )
+    }
+
+    pub fn inject_js(&self, id: &str, js_code: &str) -> anyhow::Result<(), CommandError> {
+        let endpoint = format!("v4/assets?id=eq.{}", id);
+        patch(
+            &self.authentication,
+            &endpoint,
+            &json!({ "js-injection": js_code }),
+        )
+    }
+
     pub fn delete(&self, id: &str) -> anyhow::Result<(), CommandError> {
         let endpoint = format!("v4/assets?id=eq.{}", id);
         delete(&self.authentication, &endpoint)
@@ -331,7 +379,7 @@ mod tests {
 
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
-    use httpmock::Method::{DELETE, POST};
+    use httpmock::Method::{DELETE, PATCH, POST};
     use std::ffi::OsString;
     use std::fs;
 
@@ -713,6 +761,61 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
         assert!(asset_command.delete("test-id").is_ok());
+    }
+
+    #[test]
+    fn test_inject_js_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"js-injection": "console.log(1)"}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        assert!(asset_command.inject_js("test-id", "console.log(1)").is_ok());
+    }
+
+    #[test]
+    fn test_set_headers_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"headers": {"k": "v"}}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let mut headers = HashMap::new();
+        headers.insert("k", "v");
+
+        assert!(asset_command.set_headers("test-id", headers).is_ok());
     }
 
     #[test]

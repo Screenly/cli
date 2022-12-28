@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 openssl = { version = '0.10', features = ["vendored"] }
 anyhow = "1.0.65"
-clap = { version = "4.0.17", features = ["derive"] }
+clap = { version = "4.0.17", features = ["derive", "cargo"] }
 envtestkit = "1.1.2"
 humantime = "2.1.0"
 indicatif = "0.17.2"
