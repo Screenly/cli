@@ -347,7 +347,7 @@ fn main() {
                         }
                     }
                 } else {
-                    match fs::read_to_string(&path) {
+                    match fs::read_to_string(path) {
                         Ok(text) => text,
                         Err(e) => {
                             error!("Failed to read file with JS injection code. Error: {}", e);
