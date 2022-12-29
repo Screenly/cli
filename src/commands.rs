@@ -347,14 +347,11 @@ impl AssetCommand {
     pub fn set_headers(
         &self,
         id: &str,
-        headers: HashMap<&str, &str>,
+        headers: Vec<(String, String)>,
     ) -> anyhow::Result<(), CommandError> {
         let endpoint = format!("v4/assets?id=eq.{}", id);
-        patch(
-            &self.authentication,
-            &endpoint,
-            &json!({ "headers": headers }),
-        )
+        let map: HashMap<_, _> = headers.into_iter().collect();
+        patch(&self.authentication, &endpoint, &json!({ "headers": map }))
     }
 
     pub fn inject_js(&self, id: &str, js_code: &str) -> anyhow::Result<(), CommandError> {
@@ -812,9 +809,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
-        let mut headers = HashMap::new();
-        headers.insert("k", "v");
-
+        let headers = vec![("k".to_owned(), "v".to_owned())];
         assert!(asset_command.set_headers("test-id", headers).is_ok());
     }
 

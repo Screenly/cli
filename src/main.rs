@@ -6,15 +6,28 @@ extern crate prettytable;
 use crate::authentication::{Authentication, AuthenticationError};
 use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{command, Parser, Subcommand};
+
 use log::{error, info};
 use simple_logger::SimpleLogger;
-use std::collections::HashMap;
 use std::io::Write;
 use std::{fs, io};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+enum ParseError {
+    #[error("missing \"=\" symbol")]
+    MissingSymbol(),
+}
+fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))
+        .map_err(|_| ParseError::MissingSymbol())?;
+    Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+}
 
 #[derive(Parser)]
 #[command(
-    author,
     version,
     about,
     long_about = "Command line interface is intended for quick interaction with Screenly through terminal. Moreover, this CLI is built such that it can be used for automating tasks."
@@ -121,8 +134,9 @@ enum AssetCommands {
         /// UUID of the web asset to set http headers.
         uuid: String,
 
-        /// HTTP headers in the dictionary form: {header1=value, header2=value2}.
-        headers: String,
+        /// HTTP header in the following form "k=v". This command can be used more than once to pass multiple headers.
+        #[arg(long="header", action = clap::ArgAction::Append, value_parser = parse_key_val)]
+        headers: Vec<(String, String)>,
     },
 }
 
@@ -205,6 +219,7 @@ fn main() {
         .init()
         .unwrap();
     let cli = Cli::parse();
+
     let authentication = Authentication::new();
     match &cli.command {
         Commands::Login { token } => match authentication.verify_and_store_token(token) {
@@ -367,20 +382,15 @@ fn main() {
                 }
             }
             AssetCommands::SetHeaders { uuid, headers } => {
-                if let Ok(headers) = serde_json::from_str::<HashMap<&str, &str>>(headers) {
-                    let asset_command = commands::AssetCommand::new(authentication);
-                    match asset_command.set_headers(uuid, headers) {
-                        Ok(()) => {
-                            info!("Asset updated successfully.");
-                        }
-                        Err(e) => {
-                            error!("Error occurred: {:?}", e);
-                            std::process::exit(1);
-                        }
+                let asset_command = commands::AssetCommand::new(authentication);
+                match asset_command.set_headers(uuid, headers.clone()) {
+                    Ok(()) => {
+                        info!("Asset updated successfully.");
                     }
-                } else {
-                    error!("Failed to parse provided headers.");
-                    std::process::exit(1);
+                    Err(e) => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
         },
