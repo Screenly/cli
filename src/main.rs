@@ -7,6 +7,7 @@ use crate::authentication::{Authentication, AuthenticationError};
 use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{command, Parser, Subcommand};
 
+use http_auth_basic::Credentials;
 use log::{error, info};
 use simple_logger::SimpleLogger;
 use std::io::Write;
@@ -134,6 +135,14 @@ enum AssetCommands {
         /// HTTP header in the following form "k=v". This command can be used more than once to pass multiple headers.
         #[arg(long="header", action = clap::ArgAction::Append, value_parser = parse_key_val)]
         headers: Vec<(String, String)>,
+    },
+
+    BasicAuth {
+        /// UUID of the web asset to set up basic authentication for.
+        uuid: String,
+        /// Shortcut for setting up basic authentication headers. Accepts login in password in form user=password.
+        #[arg(value_parser = parse_key_val)]
+        credentials: (String, String),
     },
 }
 
@@ -381,6 +390,22 @@ fn main() {
             AssetCommands::SetHeaders { uuid, headers } => {
                 let asset_command = commands::AssetCommand::new(authentication);
                 match asset_command.set_headers(uuid, headers.clone()) {
+                    Ok(()) => {
+                        info!("Asset updated successfully.");
+                    }
+                    Err(e) => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            AssetCommands::BasicAuth { uuid, credentials } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                let basic_auth = Credentials::new(&credentials.0, &credentials.1);
+                match asset_command.set_headers(
+                    uuid,
+                    vec![("Authorization".to_owned(), basic_auth.as_http_header())],
+                ) {
                     Ok(()) => {
                         info!("Asset updated successfully.");
                     }
