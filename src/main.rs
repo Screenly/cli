@@ -4,17 +4,28 @@ mod commands;
 extern crate prettytable;
 
 use crate::authentication::{Authentication, AuthenticationError};
-#[allow(unused_imports)]
 use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{command, Parser, Subcommand};
+
+use http_auth_basic::Credentials;
 use log::{error, info};
 use simple_logger::SimpleLogger;
-use std::io;
 use std::io::Write;
+use std::{fs, io};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+enum ParseError {
+    #[error("missing \"=\" symbol")]
+    MissingSymbol(),
+}
+fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
+    let pos = s.find('=').ok_or(ParseError::MissingSymbol())?;
+    Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+}
 
 #[derive(Parser)]
 #[command(
-    author,
     version,
     about,
     long_about = "Command line interface is intended for quick interaction with Screenly through terminal. Moreover, this CLI is built such that it can be used for automating tasks."
@@ -106,9 +117,36 @@ enum AssetCommands {
         /// UUID of the asset to be deleted.
         uuid: String,
     },
+
+    /// Injects javascript code inside of the web asset. It will be executed once the asset loads during playback.
+    InjectJs {
+        /// UUID of the web asset to inject with JavaScript.
+        uuid: String,
+
+        /// Path to local file or URL for remote file.
+        path: String,
+    },
+
+    /// Sets http headers for web asset.
+    SetHeaders {
+        /// UUID of the web asset to set http headers.
+        uuid: String,
+
+        /// HTTP header in the following form "k=v". This command can be used more than once to pass multiple headers.
+        #[arg(long="header", action = clap::ArgAction::Append, value_parser = parse_key_val)]
+        headers: Vec<(String, String)>,
+    },
+
+    BasicAuth {
+        /// UUID of the web asset to set up basic authentication for.
+        uuid: String,
+        /// Shortcut for setting up basic authentication headers. Accepts login in password in form user=password.
+        #[arg(value_parser = parse_key_val)]
+        credentials: (String, String),
+    },
 }
 
-fn handle_command_execution_result<T: commands::Formatter>(
+fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
     json: &Option<bool>,
 ) {
@@ -123,7 +161,7 @@ fn handle_command_execution_result<T: commands::Formatter>(
         }
         Err(e) => {
             match e {
-                CommandError::AuthenticationError(_) => {
+                CommandError::Authentication(_) => {
                     error!(
                         "Authentication error occurred. Please use login command to authenticate."
                     )
@@ -187,6 +225,7 @@ fn main() {
         .init()
         .unwrap();
     let cli = Cli::parse();
+
     let authentication = Authentication::new();
     match &cli.command {
         Commands::Login { token } => match authentication.verify_and_store_token(token) {
@@ -196,7 +235,7 @@ fn main() {
             }
 
             Err(e) => match e {
-                AuthenticationError::WrongCredentialsError => {
+                AuthenticationError::WrongCredentials => {
                     error!("Token verification failed.");
                     std::process::exit(1);
                 }
@@ -271,10 +310,7 @@ fn main() {
             }
             AssetCommands::Add { path, title, json } => {
                 let asset_command = commands::AssetCommand::new(authentication);
-                handle_command_execution_result(
-                    asset_command.add(path.clone(), title.clone()),
-                    json,
-                );
+                handle_command_execution_result(asset_command.add(path, title), json);
             }
             AssetCommands::Delete { uuid } => {
                 let asset_command = commands::AssetCommand::new(authentication);
@@ -308,6 +344,70 @@ fn main() {
                     Ok(()) => {
                         info!("Asset deleted successfully.");
                         std::process::exit(0);
+                    }
+                    Err(e) => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            AssetCommands::InjectJs { uuid, path } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                let js_code = if path.starts_with("http://") || path.starts_with("https://") {
+                    match reqwest::blocking::get(path) {
+                        Ok(response) => match response.status().as_u16() {
+                            200 => response.text().unwrap_or_default(),
+                            status => {
+                                error!("Failed to retrieve JS injection code. Wrong response status: {}", status);
+                                std::process::exit(1);
+                            }
+                        },
+                        Err(e) => {
+                            error!("Failed to retrieve JS injection code. Error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    match fs::read_to_string(path) {
+                        Ok(text) => text,
+                        Err(e) => {
+                            error!("Failed to read file with JS injection code. Error: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                };
+
+                match asset_command.inject_js(uuid, &js_code) {
+                    Ok(()) => {
+                        info!("Asset updated successfully.");
+                    }
+                    Err(e) => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            AssetCommands::SetHeaders { uuid, headers } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                match asset_command.set_web_asset_headers(uuid, headers.clone()) {
+                    Ok(()) => {
+                        info!("Asset updated successfully.");
+                    }
+                    Err(e) => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            AssetCommands::BasicAuth { uuid, credentials } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                let basic_auth = Credentials::new(&credentials.0, &credentials.1);
+                match asset_command.set_web_asset_headers(
+                    uuid,
+                    vec![("Authorization".to_owned(), basic_auth.as_http_header())],
+                ) {
+                    Ok(()) => {
+                        info!("Asset updated successfully.");
                     }
                     Err(e) => {
                         error!("Error occurred: {:?}", e);

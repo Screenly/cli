@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use prettytable::{row, Table};
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
+use serde_json::json;
 
 pub enum OutputType {
     HumanReadable,
@@ -23,17 +24,17 @@ pub trait Formatter {
 #[derive(Error, Debug)]
 pub enum CommandError {
     #[error("auth error")]
-    AuthenticationError(#[from] AuthenticationError),
+    Authentication(#[from] AuthenticationError),
     #[error("request error")]
-    RequestError(#[from] reqwest::Error),
+    Request(#[from] reqwest::Error),
     #[error("parse error")]
-    ParseError(#[from] serde_json::Error),
+    Parse(#[from] serde_json::Error),
     #[error("unknown error #[0]")]
     WrongResponseStatus(u16),
     #[error("Required field is missing in the response")]
     MissingField,
     #[error("I/O error #[0]")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("Invalid header value")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
 }
@@ -187,6 +188,31 @@ fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(),
     Ok(())
 }
 
+fn patch(
+    authentication: &Authentication,
+    endpoint: &str,
+    payload: &serde_json::Value,
+) -> anyhow::Result<(), CommandError> {
+    let url = format!("{}/{}", &authentication.config.url, endpoint);
+    let mut headers = HeaderMap::new();
+    headers.insert("Prefer", "return=representation".parse()?);
+
+    let response = authentication
+        .build_client()?
+        .patch(url)
+        .json(&payload)
+        .headers(headers)
+        .send()?;
+
+    if response.status().as_u16() != 200 {
+        return Err(CommandError::WrongResponseStatus(
+            response.status().as_u16(),
+        ));
+    }
+
+    Ok(())
+}
+
 impl ScreenCommand {
     pub fn new(authentication: Authentication) -> Self {
         Self { authentication }
@@ -256,7 +282,7 @@ impl AssetCommand {
         &self,
         url: &str,
         headers: &HeaderMap,
-        payload: &HashMap<&str, &String>,
+        payload: &HashMap<&str, &str>,
     ) -> anyhow::Result<Assets, CommandError> {
         let response = self
             .authentication
@@ -274,7 +300,7 @@ impl AssetCommand {
         Ok(Assets::new(serde_json::from_str(&response.text()?)?))
     }
 
-    pub fn add(&self, path: String, title: String) -> anyhow::Result<Assets, CommandError> {
+    pub fn add(&self, path: &str, title: &str) -> anyhow::Result<Assets, CommandError> {
         let url = format!("{}/v4/assets", &self.authentication.config.url);
 
         let mut headers = HeaderMap::new();
@@ -282,8 +308,8 @@ impl AssetCommand {
 
         if path.starts_with("http://") || path.starts_with("https://") {
             let mut payload = HashMap::new();
-            payload.insert("title", &title);
-            payload.insert("source_url", &path);
+            payload.insert("title", title);
+            payload.insert("source_url", path);
             return self.add_web_asset(&url, &headers, &payload);
         }
 
@@ -299,7 +325,7 @@ impl AssetCommand {
 
         let part = reqwest::blocking::multipart::Part::reader(pb.wrap_read(file)).file_name("file");
         let form = reqwest::blocking::multipart::Form::new()
-            .text("title", title)
+            .text("title", title.to_owned())
             .part("file", part);
 
         let response = self
@@ -318,6 +344,25 @@ impl AssetCommand {
         Ok(Assets::new(serde_json::from_str(&response.text()?)?))
     }
 
+    pub fn set_web_asset_headers(
+        &self,
+        id: &str,
+        headers: Vec<(String, String)>,
+    ) -> anyhow::Result<(), CommandError> {
+        let endpoint = format!("v4/assets?id=eq.{}", id);
+        let map: HashMap<_, _> = headers.into_iter().collect();
+        patch(&self.authentication, &endpoint, &json!({ "headers": map }))
+    }
+
+    pub fn inject_js(&self, id: &str, js_code: &str) -> anyhow::Result<(), CommandError> {
+        let endpoint = format!("v4/assets?id=eq.{}", id);
+        patch(
+            &self.authentication,
+            &endpoint,
+            &json!({ "js-injection": js_code }),
+        )
+    }
+
     pub fn delete(&self, id: &str) -> anyhow::Result<(), CommandError> {
         let endpoint = format!("v4/assets?id=eq.{}", id);
         delete(&self.authentication, &endpoint)
@@ -326,17 +371,16 @@ impl AssetCommand {
 
 #[cfg(test)]
 mod tests {
-    use crate::authentication::Config;
-    use crate::{Authentication, Formatter, OutputType};
+    use super::*;
     use httpmock::{Method::GET, MockServer};
 
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
-    use httpmock::Method::{DELETE, POST};
+    use httpmock::Method::{DELETE, PATCH, POST};
     use std::ffi::OsString;
     use std::fs;
 
-    use crate::commands::{AssetCommand, Assets, ScreenCommand, Screens};
+    use crate::authentication::Config;
     use serde_json::{json, Value};
     use tempdir::TempDir;
 
@@ -346,23 +390,26 @@ mod tests {
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
         fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+
+        let screens = serde_json::from_str::<Value>("[{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Renat's integrated wired NM\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}]").unwrap();
+
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/screens")
                 .header("Authorization", "Token token")
-                .header("user-agent", format!("screenly-cli {}", env!("CARGO_PKG_VERSION")));
-            then
-                .status(200)
-                .body(b"[{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Renat's integrated wired NM\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}]");
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200).json_body(screens.clone());
         });
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let screen_command = ScreenCommand::new(authentication);
-        let expected = serde_json::from_str::<Value>("[{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Renat's integrated wired NM\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}]").unwrap();
         let v = screen_command.list().unwrap();
-        assert_eq!(v.value, expected);
+        assert_eq!(v.value, screens);
     }
 
     #[test]
@@ -435,27 +482,29 @@ mod tests {
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
         fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let new_screen = serde_json::from_str::<Value>("{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Test\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}").unwrap();
+
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v3/screens/")
                 .header("Authorization", "Token token")
                 .header("content-type", "application/json")
-                .header("user-agent", format!("screenly-cli {}", env!("CARGO_PKG_VERSION")))
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
                 .json_body(json!({"pin": "test-pin", "name": "test"}));
-            then
-                .status(201)
-                .body(b"{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Test\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}");
+            then.status(201).json_body(new_screen.clone());
         });
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let screen_command = ScreenCommand::new(authentication);
-        let expected = serde_json::from_str::<Value>("[{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Test\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}]").unwrap();
         let v = screen_command
             .add("test-pin", Some("test".to_string()))
             .unwrap();
-        assert_eq!(v.value, expected);
+        assert_eq!(v.value.as_array().unwrap()[0], new_screen);
     }
 
     #[test]
@@ -506,10 +555,7 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
         let v = asset_command
-            .add(
-                tmp_dir.path().join("1.html").to_str().unwrap().to_string(),
-                "test".to_owned(),
-            )
+            .add(tmp_dir.path().join("1.html").to_str().unwrap(), "test")
             .unwrap();
         assert_eq!(v.value, new_asset);
     }
@@ -560,9 +606,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
-        let v = asset_command
-            .add("https://google.com".to_owned(), "test".to_owned())
-            .unwrap();
+        let v = asset_command.add("https://google.com", "test").unwrap();
         assert_eq!(v.value, new_asset);
     }
 
@@ -717,19 +761,74 @@ mod tests {
     }
 
     #[test]
+    fn test_inject_js_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"js-injection": "console.log(1)"}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        assert!(asset_command.inject_js("test-id", "console.log(1)").is_ok());
+    }
+
+    #[test]
+    fn test_set_headers_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"headers": {"k": "v"}}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let headers = vec![("k".to_owned(), "v".to_owned())];
+        assert!(asset_command
+            .set_web_asset_headers("test-id", headers)
+            .is_ok());
+    }
+
+    #[test]
     fn test_format_screen_when_human_readable_output_is_set_should_return_correct_formatted_string()
     {
         let screen = Screens::new(serde_json::from_str("[{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Renat's integrated wired NM\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}, {\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb6\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875d\",\"created_at\":\"2020-06-28T05:07:55+00:00\",\"name\":\"Not Renat's integrated wired NM\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2020-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}]").unwrap());
         println!("{}", screen.format(OutputType::HumanReadable));
-        let expected_output = concat!(
-"+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n",
-"| Id                                   | Name                            | Hardware Version | In Sync | Last Ping                     | Uptime           |\n",
-"+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n",
-"| 017a5104-524b-33d8-8026-9087b59e7eb5 | Renat's integrated wired NM     | Raspberry Pi 3B  |   ❌    | 2021-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n",
-"+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n",
-"| 017a5104-524b-33d8-8026-9087b59e7eb6 | Not Renat's integrated wired NM | Raspberry Pi 3B  |   ❌    | 2020-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n",
-"+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n"
-);
+        let expected_output =
+"+--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n\
+| Id                                   | Name                            | Hardware Version | In Sync | Last Ping                     | Uptime           |\n\
++--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n\
+| 017a5104-524b-33d8-8026-9087b59e7eb5 | Renat's integrated wired NM     | Raspberry Pi 3B  |   ❌    | 2021-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n\
++--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n\
+| 017a5104-524b-33d8-8026-9087b59e7eb6 | Not Renat's integrated wired NM | Raspberry Pi 3B  |   ❌    | 2020-08-25T06:17:20.728+00:00 | 2days 16h 5m 28s |\n\
++--------------------------------------+---------------------------------+------------------+---------+-------------------------------+------------------+\n";
+
         assert_eq!(screen.format(OutputType::HumanReadable), expected_output);
     }
 
@@ -759,13 +858,13 @@ mod tests {
         ]));
 
         println!("{}", asset.format(OutputType::HumanReadable));
-        let expected_output = concat!(
-            "+--------------------------------------+------------+------+--------+\n",
-            "| Id                                   | Title      | Type | Status |\n",
-            "+--------------------------------------+------------+------+--------+\n",
-            "| 0184f162-585e-6334-8dae-38a80062a6c2 | test3.html | N/A  | none   |\n",
-            "+--------------------------------------+------------+------+--------+\n"
-        );
+        let expected_output =
+            "+--------------------------------------+------------+------+--------+\n\
+            | Id                                   | Title      | Type | Status |\n\
+            +--------------------------------------+------------+------+--------+\n\
+            | 0184f162-585e-6334-8dae-38a80062a6c2 | test3.html | N/A  | none   |\n\
+            +--------------------------------------+------------+------+--------+\n";
+
         assert_eq!(asset.format(OutputType::HumanReadable), expected_output);
     }
 }

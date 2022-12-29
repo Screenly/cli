@@ -13,19 +13,19 @@ pub struct Config {
 #[derive(Error, Debug)]
 pub enum AuthenticationError {
     #[error("wrong credentials error")]
-    WrongCredentialsError,
+    WrongCredentials,
     #[error("no credentials error")]
-    NoCredentialsError,
+    NoCredentials,
     #[error("request error")]
-    RequestError(#[from] reqwest::Error),
+    Request(#[from] reqwest::Error),
     #[error("i/o error")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("env error")]
-    EnvError(#[from] env::VarError),
+    Env(#[from] env::VarError),
     #[error("missing home dir error")]
-    MissingHomeDirError(),
+    MissingHomeDir(),
     #[error("invalid header error")]
-    InvalidHeaderError(#[from] InvalidHeaderValue),
+    InvalidHeader(#[from] InvalidHeaderValue),
     #[error("unknown error")]
     Unknown,
 }
@@ -61,9 +61,9 @@ impl Authentication {
 
         match dirs::home_dir() {
             Some(path) => {
-                fs::read_to_string(path.join(".screenly")).map_err(AuthenticationError::IoError)
+                fs::read_to_string(path.join(".screenly")).map_err(AuthenticationError::Io)
             }
-            None => Err(AuthenticationError::NoCredentialsError),
+            None => Err(AuthenticationError::NoCredentials),
         }
     }
 
@@ -80,7 +80,7 @@ impl Authentication {
                 fs::write(home.join(".screenly"), token)?;
                 Ok(())
             }
-            None => Err(AuthenticationError::MissingHomeDirError()),
+            None => Err(AuthenticationError::MissingHomeDir()),
         }
     }
 
@@ -96,7 +96,7 @@ impl Authentication {
             .send()?;
 
         match res.status().as_u16() {
-            401 => Err(AuthenticationError::WrongCredentialsError),
+            401 => Err(AuthenticationError::WrongCredentials),
             404 => Ok(()),
             _ => Err(AuthenticationError::Unknown),
         }
@@ -115,7 +115,7 @@ impl Authentication {
         reqwest::blocking::Client::builder()
             .default_headers(default_headers)
             .build()
-            .map_err(AuthenticationError::RequestError)
+            .map_err(AuthenticationError::Request)
     }
 }
 
@@ -130,8 +130,7 @@ mod tests {
     use simple_logger::SimpleLogger;
     use tempdir::TempDir;
 
-    use crate::authentication::Config;
-    use crate::Authentication;
+    use super::*;
 
     #[test]
     fn test_verify_and_store_token_when_token_is_valid() {
@@ -184,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_token_when_token_is_overriden_with_env_variable_correct_token_is_returned() {
+    fn test_read_token_when_token_is_overridden_with_env_variable_correct_token_is_returned() {
         let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
         let _token = set_env(OsString::from("API_TOKEN"), "env_token");

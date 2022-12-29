@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 openssl = { version = '0.10', features = ["vendored"] }
 anyhow = "1.0.65"
-clap = { version = "4.0.17", features = ["derive"] }
+clap = { version = "4.0.17", features = ["derive", "cargo"] }
 envtestkit = "1.1.2"
 humantime = "2.1.0"
 indicatif = "0.17.2"
@@ -26,6 +26,7 @@ tempdir = "0.3.7"
 term = "0.7.0"
 thiserror = "1.0.37"
 dirs = "4.0.0"
+http-auth-basic = "0.3.3"
 
 [dev-dependencies]
 httpmock = "0.6"
