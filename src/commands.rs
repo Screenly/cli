@@ -344,7 +344,7 @@ impl AssetCommand {
         Ok(Assets::new(serde_json::from_str(&response.text()?)?))
     }
 
-    pub fn set_headers(
+    pub fn set_web_asset_headers(
         &self,
         id: &str,
         headers: Vec<(String, String)>,
@@ -810,7 +810,9 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
         let headers = vec![("k".to_owned(), "v".to_owned())];
-        assert!(asset_command.set_headers("test-id", headers).is_ok());
+        assert!(asset_command
+            .set_web_asset_headers("test-id", headers)
+            .is_ok());
     }
 
     #[test]

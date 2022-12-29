@@ -389,7 +389,7 @@ fn main() {
             }
             AssetCommands::SetHeaders { uuid, headers } => {
                 let asset_command = commands::AssetCommand::new(authentication);
-                match asset_command.set_headers(uuid, headers.clone()) {
+                match asset_command.set_web_asset_headers(uuid, headers.clone()) {
                     Ok(()) => {
                         info!("Asset updated successfully.");
                     }
@@ -402,7 +402,7 @@ fn main() {
             AssetCommands::BasicAuth { uuid, credentials } => {
                 let asset_command = commands::AssetCommand::new(authentication);
                 let basic_auth = Credentials::new(&credentials.0, &credentials.1);
-                match asset_command.set_headers(
+                match asset_command.set_web_asset_headers(
                     uuid,
                     vec![("Authorization".to_owned(), basic_auth.as_http_header())],
                 ) {
