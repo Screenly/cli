@@ -19,10 +19,7 @@ enum ParseError {
     MissingSymbol(),
 }
 fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
-    let pos = s
-        .find('=')
-        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))
-        .map_err(|_| ParseError::MissingSymbol())?;
+    let pos = s.find('=').ok_or(ParseError::MissingSymbol())?;
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
