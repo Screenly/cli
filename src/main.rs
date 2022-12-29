@@ -137,10 +137,11 @@ enum AssetCommands {
         headers: Vec<(String, String)>,
     },
 
+    /// Shortcut for setting up basic authentication headers.
     BasicAuth {
         /// UUID of the web asset to set up basic authentication for.
         uuid: String,
-        /// Shortcut for setting up basic authentication headers. Accepts login in password in form user=password.
+        /// Basic auth credentials in user=password form.
         #[arg(value_parser = parse_key_val)]
         credentials: (String, String),
     },
