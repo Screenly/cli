@@ -118,7 +118,7 @@ enum AssetCommands {
         uuid: String,
     },
 
-    /// Injects javascript code inside of the web asset. It will be executed once the asset loads during playback.
+    /// Injects JavaScript code inside of the web asset. It will be executed once the asset loads during playback.
     InjectJs {
         /// UUID of the web asset to inject with JavaScript.
         uuid: String,
@@ -127,7 +127,7 @@ enum AssetCommands {
         path: String,
     },
 
-    /// Sets http headers for web asset.
+    /// Sets HTTP headers for web asset.
     SetHeaders {
         /// UUID of the web asset to set http headers.
         uuid: String,
@@ -141,7 +141,7 @@ enum AssetCommands {
     BasicAuth {
         /// UUID of the web asset to set up basic authentication for.
         uuid: String,
-        /// Basic auth credentials in user=password form.
+        /// Basic authentication credentials in "user=password" form.
         #[arg(value_parser = parse_key_val)]
         credentials: (String, String),
     },
