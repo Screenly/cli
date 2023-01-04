@@ -359,7 +359,7 @@ impl AssetCommand {
         patch(
             &self.authentication,
             &endpoint,
-            &json!({ "js-injection": js_code }),
+            &json!({ "js_injection": js_code }),
         )
     }
 
@@ -775,7 +775,7 @@ mod tests {
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .json_body(json!({"js-injection": "console.log(1)"}))
+                .json_body(json!({"js_injection": "console.log(1)"}))
                 .header("Authorization", "Token token");
             then.status(200);
         });
