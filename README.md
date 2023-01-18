@@ -5,6 +5,12 @@ The purpose of Screenly's CLI is to make developer's life easier. Using our CLI,
 ## Download
 
 Releases are built automatically. You can download the latest release [here](https://github.com/Screenly/cli/releases/latest).
+On MacOS you can also use brew to install the latest version.
+
+```
+brew tap screenly/screenly-cli
+brew install screenly-cli
+```
 
 ## Building
 
