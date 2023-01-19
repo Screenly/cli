@@ -2,9 +2,26 @@
 
 The purpose of Screenly's CLI is to make developer's life easier. Using our CLI, users are able to quickly interact with Screenly through their terminal. Moreover, this CLI is built such that it can be used for automating tasks.
 
-## Download
+## Installation
 
 Releases are built automatically. You can download the latest release [here](https://github.com/Screenly/cli/releases/latest).
+
+On macOS you can also use [Homebrew](https://brew.sh/) to install the latest version.
+
+```bash
+$ brew tap screenly/screenly-cli
+$ brew install screenly-cli
+```
+
+For other operating systems, you can either use the pre-compiled binaries, or use our Docker wrapper:
+
+```bash
+$ docker run --rm \
+    -e API_TOKEN=YOUR_API_TOKEN \
+    screenly/cli:latest \
+    help
+[...]
+```
 
 ## Building
 
