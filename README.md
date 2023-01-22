@@ -41,6 +41,8 @@ You can:
 
 #### Examples
 
+Add a web asset:
+
 ```bash
 $ screenly asset add https://news.ycombinator.com "Hacker News"
 +----------------------------+-------------+------+--------+
@@ -61,8 +63,16 @@ $ screenly asset add path/to/file.html "My File"
 +----------------------------+-------------+------+--------+
 ```
 
-This file will be served locally on your Screenly Player. You need to inline HTML/CSS/Images.
+This file will be served locally on your Screenly Player. You (currently) need to inline HTML/CSS/Images.
 
+You can also use the `--json` feature, which is handy in conjuction with `jq` for getting say the Asset ID of a particular asset:
+
+```bash
+$ screenly asset list --json | \
+    jq -r '.[] | select (.title|test("Hacker News")) | .id'
+XXXXXXXXXXXXXXXXXXXXXXXXXX
+
+```
 ### Interact with screens
 
 You can:
@@ -75,6 +85,8 @@ You can:
 
 #### Examples
 
+Listing screens:
+
 ```bash
 > $ screenly screen list
 +----------------------------+-----------------------+-----------------------+---------+---------------------------------+-------------------+
@@ -82,7 +94,7 @@ You can:
 +----------------------------+-----------------------+-----------------------+---------+---------------------------------+-------------------+
 | XXXXXXXXXXXXXXXXXXXXXXXXXX | Lobby Screen          | Screenly Player Max   |   ✅    | 2023-01-22T09:56:23.89686+00:00 | 8days 23h 18m 53s |
 +----------------------------+-----------------------+-----------------------+---------+---------------------------------+-------------------+
-| XXXXXXXXXXXXXXXXXXXXXXXXXX | NOC Dashboard         | Raspberry Pi 3B+      |   ✅    | 2023-01-22T09:54:17.88319+00:00 | 10days 22h 9m 32s |
+| XXXXXXXXXXXXXXXXXXXXXXXXXX | Grafana Dashboard     | Raspberry Pi 3B+      |   ✅    | 2023-01-22T09:54:17.88319+00:00 | 10days 22h 9m 32s |
 +----------------------------+-----------------------+-----------------------+---------+---------------------------------+-------------------+
 ```
 
