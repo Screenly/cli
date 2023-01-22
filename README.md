@@ -105,7 +105,7 @@ To build the Screenly CLI, you need to install [Rust](https://www.rust-lang.org)
 Then you just need to invoke the following command from inside the CLI directory:
 
 ```bash
-cargo build --release
+$ cargo build --release
 ```
 
 the `screenly` binary will be located in `target/release` directory.
