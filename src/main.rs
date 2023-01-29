@@ -24,6 +24,21 @@ fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
+fn parse_headers(s: &str) -> Result<Headers, ParseError> {
+    if s.is_empty() {
+        return Ok(Headers {
+            headers: Vec::new(),
+        });
+    }
+
+    let mut headers = Vec::new();
+    let header_pairs = s.split(',');
+    for header_pair in header_pairs {
+        headers.push(parse_key_val(header_pair)?);
+    }
+    Ok(Headers { headers })
+}
+
 #[derive(Parser)]
 #[command(
     version,
@@ -85,6 +100,13 @@ enum ScreenCommands {
     },
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+struct Headers {
+    // this struct is only needed because I was getting panic from clap when trying to directly use Vec<(String, String)> and parse it.
+    // it really did not want to deal with vector when argaction was not set to Append.
+    headers: Vec<(String, String)>,
+}
+
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum AssetCommands {
     /// Lists your assets.
@@ -132,9 +154,20 @@ enum AssetCommands {
         /// UUID of the web asset to set http headers.
         uuid: String,
 
-        /// HTTP header in the following form "k=v". This command can be used more than once to pass multiple headers.
-        #[arg(long="header", action = clap::ArgAction::Append, value_parser = parse_key_val)]
-        headers: Vec<(String, String)>,
+        /// HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command
+        /// replaces all headers of the asset with the given headers (when an empty string is given, e.g. --set-headers "",
+        /// all existing headers are removed, if any)
+        #[arg(value_parser = parse_headers)]
+        headers: Headers,
+    },
+
+    UpdateHeaders {
+        /// UUID of the web asset to set http headers.
+        uuid: String,
+
+        /// HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command updates only the given headers (adding them if new), leaving any other headers unchanged.
+        #[arg(value_parser=parse_headers)]
+        headers: Headers,
     },
 
     /// Shortcut for setting up basic authentication headers.
@@ -390,7 +423,7 @@ fn main() {
             }
             AssetCommands::SetHeaders { uuid, headers } => {
                 let asset_command = commands::AssetCommand::new(authentication);
-                match asset_command.set_web_asset_headers(uuid, headers.clone()) {
+                match asset_command.set_web_asset_headers(uuid, headers.headers.clone()) {
                     Ok(()) => {
                         info!("Asset updated successfully.");
                     }
@@ -403,10 +436,22 @@ fn main() {
             AssetCommands::BasicAuth { uuid, credentials } => {
                 let asset_command = commands::AssetCommand::new(authentication);
                 let basic_auth = Credentials::new(&credentials.0, &credentials.1);
-                match asset_command.set_web_asset_headers(
+                match asset_command.update_web_asset_headers(
                     uuid,
                     vec![("Authorization".to_owned(), basic_auth.as_http_header())],
                 ) {
+                    Ok(()) => {
+                        info!("Asset updated successfully.");
+                    }
+                    Err(e) => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            AssetCommands::UpdateHeaders { uuid, headers } => {
+                let asset_command = commands::AssetCommand::new(authentication);
+                match asset_command.update_web_asset_headers(uuid, headers.headers.clone()) {
                     Ok(()) => {
                         info!("Asset updated successfully.");
                     }
