@@ -9,6 +9,7 @@ use clap::{command, Parser, Subcommand};
 
 use http_auth_basic::Credentials;
 use log::{error, info};
+use rpassword::read_password;
 use simple_logger::SimpleLogger;
 use std::io::Write;
 use std::{fs, io};
@@ -58,7 +59,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token.
-    Login { token: String },
+    Login {},
     /// Screen related commands.
     #[command(subcommand)]
     Screen(ScreenCommands),
@@ -262,23 +263,28 @@ fn main() {
 
     let authentication = Authentication::new();
     match &cli.command {
-        Commands::Login { token } => match authentication.verify_and_store_token(token) {
-            Ok(()) => {
-                info!("Login credentials have been saved.");
-                std::process::exit(0);
-            }
+        Commands::Login {} => {
+            print!("Enter your API Token: ");
+            std::io::stdout().flush().unwrap();
+            let token = read_password().unwrap();
+            match authentication.verify_and_store_token(&token) {
+                Ok(()) => {
+                    info!("Login credentials have been saved.");
+                    std::process::exit(0);
+                }
 
-            Err(e) => match e {
-                AuthenticationError::WrongCredentials => {
-                    error!("Token verification failed.");
-                    std::process::exit(1);
-                }
-                _ => {
-                    error!("Error occurred: {:?}", e);
-                    std::process::exit(1);
-                }
-            },
-        },
+                Err(e) => match e {
+                    AuthenticationError::WrongCredentials => {
+                        error!("Token verification failed.");
+                        std::process::exit(1);
+                    }
+                    _ => {
+                        error!("Error occurred: {:?}", e);
+                        std::process::exit(1);
+                    }
+                },
+            }
+        }
         Commands::Screen(command) => match command {
             ScreenCommands::List { json } => {
                 let screen_command = commands::ScreenCommand::new(authentication);
