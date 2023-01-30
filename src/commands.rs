@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use humantime::format_duration;
 use indicatif::{ProgressBar, ProgressStyle};
-use log::info;
+use log::{debug, info};
 use std::fs::File;
 use std::time::Duration;
 use thiserror::Error;
@@ -352,6 +352,36 @@ impl AssetCommand {
         let endpoint = format!("v4/assets?id=eq.{}", id);
         let map: HashMap<_, _> = headers.into_iter().collect();
         patch(&self.authentication, &endpoint, &json!({ "headers": map }))
+    }
+
+    pub fn update_web_asset_headers(
+        &self,
+        id: &str,
+        headers: Vec<(String, String)>,
+    ) -> anyhow::Result<(), CommandError> {
+        // if no headers provided update has nothing to do
+        if headers.is_empty() {
+            return Ok(());
+        }
+
+        let mut new_headers: HashMap<_, _> = headers.into_iter().collect();
+        let asset = self.get(id)?;
+        if let Some(assets) = asset.value.as_array() {
+            if assets.is_empty() {
+                return Err(CommandError::MissingField);
+            }
+            let headers = assets[0].get("headers").ok_or(CommandError::MissingField)?;
+            let old_headers = serde_json::from_value::<HashMap<String, String>>(headers.clone())?;
+            debug!("Old headers {:?}", &old_headers);
+            for (key, value) in old_headers {
+                new_headers.entry(key).or_insert(value);
+            }
+        }
+
+        self.set_web_asset_headers(
+            id,
+            new_headers.into_iter().collect::<Vec<(String, String)>>(),
+        )
     }
 
     pub fn inject_js(&self, id: &str, js_code: &str) -> anyhow::Result<(), CommandError> {
@@ -812,6 +842,67 @@ mod tests {
         let headers = vec![("k".to_owned(), "v".to_owned())];
         assert!(asset_command
             .set_web_asset_headers("test-id", headers)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_update_headers_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        let asset = json!(  [{
+          "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
+          "asset_url": "https://vimeo.com/1084537",
+          "disable_verification": false,
+          "duration": 10.0,
+          "headers": {"a": "b"},
+          "height": 0,
+          "id": "017b0187-d88c-eef6-7d42-e7c4ec7ef30a",
+          "md5": "skip_md5",
+          "meta_data": {},
+          "send_metadata": false,
+          "source_md5": null,
+          "source_size": null,
+          "source_url": "https://vimeo.com/1084537",
+          "status": "finished",
+          "title": "vimeo.com/1084537",
+          "type": "web",
+          "width": 0
+        }]);
+
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .header("Authorization", "Token token");
+            then.status(200).json_body(asset);
+        });
+
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"headers": {"k": "v", "a": "b"}}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let headers = vec![("k".to_owned(), "v".to_owned())];
+        assert!(asset_command
+            .update_web_asset_headers("test-id", headers)
             .is_ok());
     }
 
