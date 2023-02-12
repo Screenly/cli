@@ -1,17 +1,17 @@
 use crate::{Authentication, AuthenticationError};
-use std::collections::HashMap;
 
-use humantime::format_duration;
-use indicatif::{ProgressBar, ProgressStyle};
-use log::{debug, info};
-use std::fs::File;
-use std::time::Duration;
+
+
+
+
+
+
 use thiserror::Error;
 
-use prettytable::{row, Table};
+
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::StatusCode;
-use serde_json::json;
+
 
 pub mod asset;
 pub mod screen;

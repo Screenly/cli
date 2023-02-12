@@ -1,10 +1,6 @@
 use crate::authentication::{Authentication, Config};
 use crate::commands;
 use crate::commands::{CommandError, Formatter, OutputType};
-use envtestkit::lock::lock_test;
-use envtestkit::set_env;
-use httpmock::Method::{DELETE, GET, PATCH, POST};
-use httpmock::MockServer;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, info};
 use prettytable::{row, Table};
@@ -12,10 +8,7 @@ use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
 use serde_json::json;
 use std::collections::HashMap;
-use std::ffi::OsString;
-use std::fs;
 use std::fs::File;
-use tempdir::TempDir;
 
 #[derive(Debug)]
 pub struct Assets {
@@ -48,7 +41,7 @@ impl Formatter for Assets {
                         // TODO: actually use dimensions for videos and images?
                         let _dimensions = match (asset["width"].as_str(), asset["height"].as_str())
                         {
-                            (Some(width), Some(height)) => format!("{}x{}", width, height),
+                            (Some(width), Some(height)) => format!("{width}x{height}"),
                             _ => "N/A".to_owned(),
                         };
 
@@ -82,7 +75,7 @@ impl AssetCommand {
     }
 
     pub fn get(&self, id: &str) -> anyhow::Result<Assets, CommandError> {
-        let endpoint = format!("v4/assets?id=eq.{}", id);
+        let endpoint = format!("v4/assets?id=eq.{id}");
 
         Ok(Assets::new(commands::get(&self.authentication, &endpoint)?))
     }
@@ -158,7 +151,7 @@ impl AssetCommand {
         id: &str,
         headers: Vec<(String, String)>,
     ) -> anyhow::Result<(), CommandError> {
-        let endpoint = format!("v4/assets?id=eq.{}", id);
+        let endpoint = format!("v4/assets?id=eq.{id}");
         let map: HashMap<_, _> = headers.into_iter().collect();
         commands::patch(&self.authentication, &endpoint, &json!({ "headers": map }))
     }
@@ -194,7 +187,7 @@ impl AssetCommand {
     }
 
     pub fn inject_js(&self, id: &str, js_code: &str) -> anyhow::Result<(), CommandError> {
-        let endpoint = format!("v4/assets?id=eq.{}", id);
+        let endpoint = format!("v4/assets?id=eq.{id}");
         commands::patch(
             &self.authentication,
             &endpoint,
@@ -203,399 +196,412 @@ impl AssetCommand {
     }
 
     pub fn delete(&self, id: &str) -> anyhow::Result<(), CommandError> {
-        let endpoint = format!("v4/assets?id=eq.{}", id);
+        let endpoint = format!("v4/assets?id=eq.{id}");
         commands::delete(&self.authentication, &endpoint)
     }
 }
 
-#[test]
-fn test_list_assets_should_return_correct_asset_list() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-    let asset_list = json!([{
-      "asset_group_id": null,
-      "asset_url": "https://us-assets.screenlyapp.com/test13",
-      "disable_verification": false,
-      "duration": 10.0,
-      "headers": {},
-      "height": null,
-      "id": "0184846d-8f2e-d867-64af-8021cd00a3bc",
-      "md5": "5b0db3811985481905566faf7b38f677",
-      "meta_data": {},
-      "send_metadata": false,
-      "source_md5": null,
-      "source_size": null,
-      "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%test",
-      "status": "finished",
-      "title": "Uploaded via API v4",
-      "type": "edge-app",
-      "width": null
-    },
+mod tests {
+    use super::*;
+    use envtestkit::lock::lock_test;
+    use envtestkit::set_env;
+    use httpmock::Method::{DELETE, GET, PATCH, POST};
+    use httpmock::MockServer;
+    use std::ffi::OsString;
+    use std::fs;
+    use tempdir::TempDir;
+
+    #[test]
+    fn test_list_assets_should_return_correct_asset_list() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let asset_list = json!([{
+          "asset_group_id": null,
+          "asset_url": "https://us-assets.screenlyapp.com/test13",
+          "disable_verification": false,
+          "duration": 10.0,
+          "headers": {},
+          "height": null,
+          "id": "0184846d-8f2e-d867-64af-8021cd00a3bc",
+          "md5": "5b0db3811985481905566faf7b38f677",
+          "meta_data": {},
+          "send_metadata": false,
+          "source_md5": null,
+          "source_size": null,
+          "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%test",
+          "status": "finished",
+          "title": "Uploaded via API v4",
+          "type": "edge-app",
+          "width": null
+        },
+        {
+          "asset_group_id": "01675f41-d468-0000-d807-1a0019f71ce7",
+          "asset_url": "https://us-assets.screenlyapp.com/test",
+          "disable_verification": false,
+          "duration": 33.07,
+          "headers": {},
+          "height": 1080,
+          "id": "0163d007-4f10-0000-cf24-c500181dfcdc",
+          "md5": "bb1fb7d464dd8db0b1cea151b4ea2997",
+          "meta_data": {},
+          "send_metadata": false,
+          "source_md5": "90da81a2d0e62a068ac64370e0d55c2b",
+          "source_size": 30874052,
+          "source_url": "https://us-assets.screenlyapp.com/assets/raw/test/test/test",
+          "status": "finished",
+          "title": "Big Buck Bunny Trailer",
+          "type": "video",
+          "width": 1920
+        }]);
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200).json_body(asset_list.clone());
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let v = asset_command.list().unwrap();
+        assert_eq!(v.value, asset_list);
+    }
+
+    #[test]
+    fn test_add_asset_when_local_asset_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
+
+        let new_asset = json!([
+          {
+            "asset_group_id": null,
+            "asset_url": "",
+            "disable_verification": false,
+            "duration": null,
+            "headers": {},
+            "height": null,
+            "id": "0184f162-585e-6334-8dae-38a80062a6c2",
+            "md5": null,
+            "meta_data": {},
+            "send_metadata": false,
+            "source_md5": null,
+            "source_size": null,
+            "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%2FOZbhHeASzcYCsO8aNWICbpwrSYP2zVwB",
+            "status": "none",
+            "title": "test3.html",
+            "type": null,
+            "width": null
+          }
+        ]);
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            // TODO: figure out how to check the body for multiform content
+
+            when.method(POST)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(201).json_body(new_asset.clone());
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let v = asset_command
+            .add(tmp_dir.path().join("1.html").to_str().unwrap(), "test")
+            .unwrap();
+        assert_eq!(v.value, new_asset);
+    }
+
+    #[test]
+    fn test_add_asset_when_web_asset_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
+
+        let new_asset = json!([
+          {
+            "asset_group_id": null,
+            "asset_url": "",
+            "disable_verification": false,
+            "duration": null,
+            "headers": {},
+            "height": null,
+            "id": "0184f162-585e-6334-8dae-38a80062a6c2",
+            "md5": null,
+            "meta_data": {},
+            "send_metadata": false,
+            "source_md5": null,
+            "source_size": null,
+            "source_url": "https://google.com",
+            "status": "none",
+            "title": "test3.html",
+            "type": null,
+            "width": null
+          }
+        ]);
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"source_url": "https://google.com", "title": "test"}));
+            then.status(201).json_body(new_asset.clone());
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let v = asset_command.add("https://google.com", "test").unwrap();
+        assert_eq!(v.value, new_asset);
+    }
+
+    #[test]
+    fn test_get_asset_should_return_asset() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+
+        let asset = json!(  [{
+          "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
+          "asset_url": "https://vimeo.com/1084537",
+          "disable_verification": false,
+          "duration": 10.0,
+          "headers": {},
+          "height": 0,
+          "id": "017b0187-d88c-eef6-7d42-e7c4ec7ef30a",
+          "md5": "skip_md5",
+          "meta_data": {},
+          "send_metadata": false,
+          "source_md5": null,
+          "source_size": null,
+          "source_url": "https://vimeo.com/1084537",
+          "status": "finished",
+          "title": "vimeo.com/1084537",
+          "type": "web",
+          "width": 0
+        }]);
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .query_param("id", "eq.017b0187-d887-3c79-7b67-18c94098345d")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .header("Authorization", "Token token");
+            then.status(200).json_body(asset.clone());
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+
+        let v = asset_command
+            .get("017b0187-d887-3c79-7b67-18c94098345d")
+            .unwrap();
+        assert_eq!(v.value, asset);
+    }
+
+    #[test]
+    fn test_delete_asset_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(DELETE)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        assert!(asset_command.delete("test-id").is_ok());
+    }
+
+    #[test]
+    fn test_format_asset_when_human_readable_output_is_set_should_return_correct_formatted_string()
     {
-      "asset_group_id": "01675f41-d468-0000-d807-1a0019f71ce7",
-      "asset_url": "https://us-assets.screenlyapp.com/test",
-      "disable_verification": false,
-      "duration": 33.07,
-      "headers": {},
-      "height": 1080,
-      "id": "0163d007-4f10-0000-cf24-c500181dfcdc",
-      "md5": "bb1fb7d464dd8db0b1cea151b4ea2997",
-      "meta_data": {},
-      "send_metadata": false,
-      "source_md5": "90da81a2d0e62a068ac64370e0d55c2b",
-      "source_size": 30874052,
-      "source_url": "https://us-assets.screenlyapp.com/assets/raw/test/test/test",
-      "status": "finished",
-      "title": "Big Buck Bunny Trailer",
-      "type": "video",
-      "width": 1920
-    }]);
+        let asset = Assets::new(json!([
+          {
+            "asset_group_id": null,
+            "asset_url": "",
+            "disable_verification": false,
+            "duration": null,
+            "headers": {},
+            "height": null,
+            "id": "0184f162-585e-6334-8dae-38a80062a6c2",
+            "md5": null,
+            "meta_data": {},
+            "send_metadata": false,
+            "source_md5": null,
+            "source_size": null,
+            "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%2FOZbhHeASzcYCsO8aNWICbpwrSYP2zVwB",
+            "status": "none",
+            "title": "test3.html",
+            "type": null,
+            "width": null
+          }
+        ]));
 
-    let mock_server = MockServer::start();
-    mock_server.mock(|when, then| {
-        when.method(GET)
-            .path("/v4/assets")
-            .header("Authorization", "Token token")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            );
-        then.status(200).json_body(asset_list.clone());
-    });
-
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-    let v = asset_command.list().unwrap();
-    assert_eq!(v.value, asset_list);
-}
-
-#[test]
-fn test_add_asset_when_local_asset_should_send_correct_request() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-    fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
-
-    let new_asset = json!([
-      {
-        "asset_group_id": null,
-        "asset_url": "",
-        "disable_verification": false,
-        "duration": null,
-        "headers": {},
-        "height": null,
-        "id": "0184f162-585e-6334-8dae-38a80062a6c2",
-        "md5": null,
-        "meta_data": {},
-        "send_metadata": false,
-        "source_md5": null,
-        "source_size": null,
-        "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%2FOZbhHeASzcYCsO8aNWICbpwrSYP2zVwB",
-        "status": "none",
-        "title": "test3.html",
-        "type": null,
-        "width": null
-      }
-    ]);
-
-    let mock_server = MockServer::start();
-    mock_server.mock(|when, then| {
-        // TODO: figure out how to check the body for multiform content
-
-        when.method(POST)
-            .path("/v4/assets")
-            .header("Authorization", "Token token")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            );
-        then.status(201).json_body(new_asset.clone());
-    });
-
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-    let v = asset_command
-        .add(tmp_dir.path().join("1.html").to_str().unwrap(), "test")
-        .unwrap();
-    assert_eq!(v.value, new_asset);
-}
-
-#[test]
-fn test_add_asset_when_web_asset_should_send_correct_request() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-    fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
-
-    let new_asset = json!([
-      {
-        "asset_group_id": null,
-        "asset_url": "",
-        "disable_verification": false,
-        "duration": null,
-        "headers": {},
-        "height": null,
-        "id": "0184f162-585e-6334-8dae-38a80062a6c2",
-        "md5": null,
-        "meta_data": {},
-        "send_metadata": false,
-        "source_md5": null,
-        "source_size": null,
-        "source_url": "https://google.com",
-        "status": "none",
-        "title": "test3.html",
-        "type": null,
-        "width": null
-      }
-    ]);
-
-    let mock_server = MockServer::start();
-    mock_server.mock(|when, then| {
-        when.method(POST)
-            .path("/v4/assets")
-            .header("Authorization", "Token token")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            )
-            .json_body(json!({"source_url": "https://google.com", "title": "test"}));
-        then.status(201).json_body(new_asset.clone());
-    });
-
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-    let v = asset_command.add("https://google.com", "test").unwrap();
-    assert_eq!(v.value, new_asset);
-}
-
-#[test]
-fn test_get_asset_should_return_asset() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-
-    let asset = json!(  [{
-      "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
-      "asset_url": "https://vimeo.com/1084537",
-      "disable_verification": false,
-      "duration": 10.0,
-      "headers": {},
-      "height": 0,
-      "id": "017b0187-d88c-eef6-7d42-e7c4ec7ef30a",
-      "md5": "skip_md5",
-      "meta_data": {},
-      "send_metadata": false,
-      "source_md5": null,
-      "source_size": null,
-      "source_url": "https://vimeo.com/1084537",
-      "status": "finished",
-      "title": "vimeo.com/1084537",
-      "type": "web",
-      "width": 0
-    }]);
-
-    let mock_server = MockServer::start();
-    mock_server.mock(|when, then| {
-        when.method(GET)
-            .path("/v4/assets")
-            .query_param("id", "eq.017b0187-d887-3c79-7b67-18c94098345d")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            )
-            .header("Authorization", "Token token");
-        then.status(200).json_body(asset.clone());
-    });
-
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-
-    let v = asset_command
-        .get("017b0187-d887-3c79-7b67-18c94098345d")
-        .unwrap();
-    assert_eq!(v.value, asset);
-}
-
-#[test]
-fn test_delete_asset_should_send_correct_request() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-    let mock_server = MockServer::start();
-    mock_server.mock(|when, then| {
-        when.method(DELETE)
-            .path("/v4/assets")
-            .query_param("id", "eq.test-id")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            )
-            .header("Authorization", "Token token");
-        then.status(200);
-    });
-
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-    assert!(asset_command.delete("test-id").is_ok());
-}
-
-#[test]
-fn test_format_asset_when_human_readable_output_is_set_should_return_correct_formatted_string() {
-    let asset = Assets::new(json!([
-      {
-        "asset_group_id": null,
-        "asset_url": "",
-        "disable_verification": false,
-        "duration": null,
-        "headers": {},
-        "height": null,
-        "id": "0184f162-585e-6334-8dae-38a80062a6c2",
-        "md5": null,
-        "meta_data": {},
-        "send_metadata": false,
-        "source_md5": null,
-        "source_size": null,
-        "source_url": "https://s3.amazonaws.com/us-assets.screenlyapp.com/assets%2Frow%2FOZbhHeASzcYCsO8aNWICbpwrSYP2zVwB",
-        "status": "none",
-        "title": "test3.html",
-        "type": null,
-        "width": null
-      }
-    ]));
-
-    println!("{}", asset.format(OutputType::HumanReadable));
-    let expected_output = "+--------------------------------------+------------+------+--------+\n\
+        println!("{}", asset.format(OutputType::HumanReadable));
+        let expected_output =
+            "+--------------------------------------+------------+------+--------+\n\
         | Id                                   | Title      | Type | Status |\n\
         +--------------------------------------+------------+------+--------+\n\
         | 0184f162-585e-6334-8dae-38a80062a6c2 | test3.html | N/A  | none   |\n\
         +--------------------------------------+------------+------+--------+\n";
 
-    assert_eq!(asset.format(OutputType::HumanReadable), expected_output);
-}
+        assert_eq!(asset.format(OutputType::HumanReadable), expected_output);
+    }
 
-#[test]
-fn test_inject_js_should_send_correct_request() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-    let mock_server = MockServer::start();
-    mock_server.mock(|when, then| {
-        when.method(PATCH)
-            .path("/v4/assets")
-            .query_param("id", "eq.test-id")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            )
-            .json_body(json!({"js_injection": "console.log(1)"}))
-            .header("Authorization", "Token token");
-        then.status(200);
-    });
+    #[test]
+    fn test_inject_js_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"js_injection": "console.log(1)"}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
 
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-    assert!(asset_command.inject_js("test-id", "console.log(1)").is_ok());
-}
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        assert!(asset_command.inject_js("test-id", "console.log(1)").is_ok());
+    }
 
-#[test]
-fn test_set_headers_should_send_correct_request() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-    let mock_server = MockServer::start();
-    mock_server.mock(|when, then| {
-        when.method(PATCH)
-            .path("/v4/assets")
-            .query_param("id", "eq.test-id")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            )
-            .json_body(json!({"headers": {"k": "v"}}))
-            .header("Authorization", "Token token");
-        then.status(200);
-    });
+    #[test]
+    fn test_set_headers_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"headers": {"k": "v"}}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
 
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-    let headers = vec![("k".to_owned(), "v".to_owned())];
-    assert!(asset_command
-        .set_web_asset_headers("test-id", headers)
-        .is_ok());
-}
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let headers = vec![("k".to_owned(), "v".to_owned())];
+        assert!(asset_command
+            .set_web_asset_headers("test-id", headers)
+            .is_ok());
+    }
 
-#[test]
-fn test_update_headers_should_send_correct_request() {
-    let tmp_dir = TempDir::new("test").unwrap();
-    let _lock = lock_test();
-    let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-    fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-    let mock_server = MockServer::start();
-    let asset = json!(  [{
-      "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
-      "asset_url": "https://vimeo.com/1084537",
-      "disable_verification": false,
-      "duration": 10.0,
-      "headers": {"a": "b"},
-      "height": 0,
-      "id": "017b0187-d88c-eef6-7d42-e7c4ec7ef30a",
-      "md5": "skip_md5",
-      "meta_data": {},
-      "send_metadata": false,
-      "source_md5": null,
-      "source_size": null,
-      "source_url": "https://vimeo.com/1084537",
-      "status": "finished",
-      "title": "vimeo.com/1084537",
-      "type": "web",
-      "width": 0
-    }]);
+    #[test]
+    fn test_update_headers_should_send_correct_request() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let mock_server = MockServer::start();
+        let asset = json!(  [{
+          "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
+          "asset_url": "https://vimeo.com/1084537",
+          "disable_verification": false,
+          "duration": 10.0,
+          "headers": {"a": "b"},
+          "height": 0,
+          "id": "017b0187-d88c-eef6-7d42-e7c4ec7ef30a",
+          "md5": "skip_md5",
+          "meta_data": {},
+          "send_metadata": false,
+          "source_md5": null,
+          "source_size": null,
+          "source_url": "https://vimeo.com/1084537",
+          "status": "finished",
+          "title": "vimeo.com/1084537",
+          "type": "web",
+          "width": 0
+        }]);
 
-    mock_server.mock(|when, then| {
-        when.method(GET)
-            .path("/v4/assets")
-            .query_param("id", "eq.test-id")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            )
-            .header("Authorization", "Token token");
-        then.status(200).json_body(asset);
-    });
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .header("Authorization", "Token token");
+            then.status(200).json_body(asset);
+        });
 
-    mock_server.mock(|when, then| {
-        when.method(PATCH)
-            .path("/v4/assets")
-            .query_param("id", "eq.test-id")
-            .header(
-                "user-agent",
-                format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-            )
-            .json_body(json!({"headers": {"k": "v", "a": "b"}}))
-            .header("Authorization", "Token token");
-        then.status(200);
-    });
+        mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .query_param("id", "eq.test-id")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"headers": {"k": "v", "a": "b"}}))
+                .header("Authorization", "Token token");
+            then.status(200);
+        });
 
-    let config = Config::new(mock_server.base_url());
-    let authentication = Authentication::new_with_config(config);
-    let asset_command = AssetCommand::new(authentication);
-    let headers = vec![("k".to_owned(), "v".to_owned())];
-    assert!(asset_command
-        .update_web_asset_headers("test-id", headers)
-        .is_ok());
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config);
+        let asset_command = AssetCommand::new(authentication);
+        let headers = vec![("k".to_owned(), "v".to_owned())];
+        assert!(asset_command
+            .update_web_asset_headers("test-id", headers)
+            .is_ok());
+    }
 }
