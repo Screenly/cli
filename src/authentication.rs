@@ -1,7 +1,7 @@
 use std::{env, fs};
 
-use reqwest::header;
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
+use reqwest::{header, StatusCode};
 use thiserror::Error;
 
 const API_BASE_URL: &str = "https://api.screenlyapp.com/api";
@@ -95,9 +95,9 @@ impl Authentication {
             .header(header::AUTHORIZATION, &secret)
             .send()?;
 
-        match res.status().as_u16() {
-            401 => Err(AuthenticationError::WrongCredentials),
-            404 => Ok(()),
+        match res.status() {
+            StatusCode::UNAUTHORIZED => Err(AuthenticationError::WrongCredentials),
+            StatusCode::NOT_FOUND => Ok(()),
             _ => Err(AuthenticationError::Unknown),
         }
     }
