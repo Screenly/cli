@@ -1,17 +1,9 @@
 use crate::{Authentication, AuthenticationError};
 
-
-
-
-
-
-
 use thiserror::Error;
-
 
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::StatusCode;
-
 
 pub mod asset;
 pub mod screen;
