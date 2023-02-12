@@ -1,4 +1,4 @@
-use crate::authentication::{Authentication, Config};
+use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{CommandError, Formatter, OutputType};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -201,8 +201,10 @@ impl AssetCommand {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::authentication::Config;
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
     use httpmock::Method::{DELETE, GET, PATCH, POST};

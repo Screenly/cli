@@ -1,6 +1,6 @@
 use crate::authentication::{Authentication, AuthenticationError};
 use crate::commands::{CommandError, Formatter, OutputType};
-use crate::{cli, commands};
+use crate::{commands};
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
 use log::{error, info};
