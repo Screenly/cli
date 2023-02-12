@@ -212,7 +212,7 @@ fn handle_command_execution_result<T: Formatter>(
 
 fn get_screen_name(
     id: &str,
-    screen_command: &commands::ScreenCommand,
+    screen_command: &commands::screen::ScreenCommand,
 ) -> Result<String, CommandError> {
     let target_screen = screen_command.get(id)?;
 
@@ -234,7 +234,7 @@ fn get_screen_name(
 
 fn get_asset_title(
     id: &str,
-    asset_command: &commands::AssetCommand,
+    asset_command: &commands::asset::AssetCommand,
 ) -> Result<String, CommandError> {
     let target_asset = asset_command.get(id)?;
 
@@ -287,19 +287,19 @@ fn main() {
         }
         Commands::Screen(command) => match command {
             ScreenCommands::List { json } => {
-                let screen_command = commands::ScreenCommand::new(authentication);
+                let screen_command = commands::screen::ScreenCommand::new(authentication);
                 handle_command_execution_result(screen_command.list(), json);
             }
             ScreenCommands::Get { uuid, json } => {
-                let screen_command = commands::ScreenCommand::new(authentication);
+                let screen_command = commands::screen::ScreenCommand::new(authentication);
                 handle_command_execution_result(screen_command.get(uuid), json);
             }
             ScreenCommands::Add { pin, name, json } => {
-                let screen_command = commands::ScreenCommand::new(authentication);
+                let screen_command = commands::screen::ScreenCommand::new(authentication);
                 handle_command_execution_result(screen_command.add(pin, name.clone()), json);
             }
             ScreenCommands::Delete { uuid } => {
-                let screen_command = commands::ScreenCommand::new(authentication);
+                let screen_command = commands::screen::ScreenCommand::new(authentication);
                 match get_screen_name(uuid, &screen_command) {
                     Ok(name) => {
                         info!("You are about to delete the screen named \"{}\".  This operation cannot be reversed.", name);
@@ -341,19 +341,19 @@ fn main() {
         },
         Commands::Asset(command) => match command {
             AssetCommands::List { json } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 handle_command_execution_result(asset_command.list(), json);
             }
             AssetCommands::Get { uuid, json } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 handle_command_execution_result(asset_command.get(uuid), json);
             }
             AssetCommands::Add { path, title, json } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 handle_command_execution_result(asset_command.add(path, title), json);
             }
             AssetCommands::Delete { uuid } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 match get_asset_title(uuid, &asset_command) {
                     Ok(title) => {
                         info!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
@@ -392,7 +392,7 @@ fn main() {
                 }
             }
             AssetCommands::InjectJs { uuid, path } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 let js_code = if path.starts_with("http://") || path.starts_with("https://") {
                     match reqwest::blocking::get(path) {
                         Ok(response) => match response.status().as_u16() {
@@ -428,7 +428,7 @@ fn main() {
                 }
             }
             AssetCommands::SetHeaders { uuid, headers } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 match asset_command.set_web_asset_headers(uuid, headers.headers.clone()) {
                     Ok(()) => {
                         info!("Asset updated successfully.");
@@ -440,7 +440,7 @@ fn main() {
                 }
             }
             AssetCommands::BasicAuth { uuid, credentials } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 let basic_auth = Credentials::new(&credentials.0, &credentials.1);
                 match asset_command.update_web_asset_headers(
                     uuid,
@@ -456,7 +456,7 @@ fn main() {
                 }
             }
             AssetCommands::UpdateHeaders { uuid, headers } => {
-                let asset_command = commands::AssetCommand::new(authentication);
+                let asset_command = commands::asset::AssetCommand::new(authentication);
                 match asset_command.update_web_asset_headers(uuid, headers.headers.clone()) {
                     Ok(()) => {
                         info!("Asset updated successfully.");
@@ -474,7 +474,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use crate::authentication::Config;
-    use crate::{get_screen_name, Authentication};
+    use crate::{commands, get_screen_name, Authentication};
     use httpmock::{Method::GET, MockServer};
 
     use envtestkit::lock::lock_test;
@@ -482,8 +482,6 @@ mod tests {
 
     use std::ffi::OsString;
     use std::fs;
-
-    use crate::commands::ScreenCommand;
 
     use tempdir::TempDir;
 
@@ -508,7 +506,7 @@ mod tests {
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
-        let screen_command = ScreenCommand::new(authentication);
+        let screen_command = commands::screen::ScreenCommand::new(authentication);
         let name =
             get_screen_name("017a5104-524b-33d8-8026-9087b59e7eb5", &screen_command).unwrap();
         assert_eq!(name, "Test name");
