@@ -5,6 +5,7 @@ use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
 use log::{error, info};
+use reqwest::StatusCode;
 use rpassword::read_password;
 use std::io::Write;
 use std::path::PathBuf;
@@ -459,8 +460,8 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             let js_code = if path.starts_with("http://") || path.starts_with("https://") {
                 match reqwest::blocking::get(path) {
                     Ok(response) => {
-                        match response.status().as_u16() {
-                            200 => response.text().unwrap_or_default(),
+                        match response.status() {
+                            StatusCode::OK => response.text().unwrap_or_default(),
                             status => {
                                 error!("Failed to retrieve JS injection code. Wrong response status: {}", status);
                                 std::process::exit(1);
