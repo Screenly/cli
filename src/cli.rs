@@ -1,15 +1,21 @@
-use crate::authentication::{Authentication, AuthenticationError};
-use crate::commands;
+use std::fs::File;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::{fs, io};
 
-use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
 use log::{error, info};
+use reqwest::StatusCode;
 use rpassword::read_password;
-use std::io::Write;
-use std::path::PathBuf;
-use std::{fs, io};
 use thiserror::Error;
+
+use crate::authentication::{Authentication, AuthenticationError};
+use crate::commands;
+use crate::commands::playlist::{PlaylistCommand, PlaylistFile};
+use crate::commands::{CommandError, EdgeAppManifest, Formatter, OutputType};
+
+const DEFAULT_ASSET_DURATION: u32 = 15;
 
 #[derive(Error, Debug)]
 enum ParseError {
@@ -64,6 +70,8 @@ pub enum Commands {
     #[command(subcommand)]
     Asset(AssetCommands),
     #[command(subcommand)]
+    Playlist(PlaylistCommands),
+    #[command(subcommand)]
     EdgeApp(EdgeAppCommands),
 }
 
@@ -97,6 +105,71 @@ pub enum ScreenCommands {
     Delete {
         /// UUID of the screen to be deleted.
         uuid: String,
+    },
+}
+
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PlaylistCommands {
+    ///Creates a new playlist.
+    Create {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// Title of the new playlist.
+        title: String,
+        /// Predicate for the new playlist. If not specified it will be set to "TRUE".
+        predicate: Option<String>,
+    },
+    /// Lists your playlists.
+    List {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
+    /// Gets a single playlist by id.
+    Get {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// UUID of the playlist.
+        uuid: String,
+    },
+    /// Deletes a playlist. This cannot be undone.
+    Delete {
+        /// UUID of the playlist to be deleted.
+        uuid: String,
+    },
+    /// Adds an asset to the end of the playlist.
+    Append {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// UUID of the playlist.
+        uuid: String,
+        /// UUID of the asset.
+        asset_uuid: String,
+        /// Duration of the playlist item in seconds. If not specified it will be set to 15 seconds.
+        duration: Option<u32>,
+    },
+    /// Adds an asset to the beginning of the playlist.
+    Prepend {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// UUID of the playlist.
+        uuid: String,
+        /// UUID of the asset.
+        asset_uuid: String,
+        /// Duration of the playlist item in seconds. If not specified it will be set to 15 seconds.
+        duration: Option<u32>,
+    },
+    /// Patches a given playlist.
+    Update {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+        /// Path to the directory containing playlist.json. If not specified it will look for playlist.json in the current directory.
+        path: Option<String>,
     },
 }
 
@@ -160,7 +233,7 @@ pub enum AssetCommands {
         #[arg(value_parser = parse_headers)]
         headers: Headers,
     },
-
+    /// Updates HTTP headers for web asset.
     UpdateHeaders {
         /// UUID of the web asset to set http headers.
         uuid: String,
@@ -189,15 +262,68 @@ pub enum AssetCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppCommands {
-    /// Initializes edge app manifest.
-    Init {
-        /// Path to the directory to initialize manifest in. If not specified CLI initializes screenly.yml in the current working directory.
+    /// Creates edge-app in the store.
+    Create {
+        /// Edge app name
+        name: String,
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
     },
-    /// Publishes edge-app to the store.
-    Publish {
-        /// Path to the directory with edge app manifest. If not specified CLI looks for screenly.yml in the current working directory.
+
+    /// Lists your edge apps.
+    List {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
+
+    #[command(subcommand)]
+    Version(EdgeAppVersionCommands),
+
+    #[command(subcommand)]
+    Settings(EdgeAppSettingsCommands),
+
+    /// Creates a new version of the edge app.
+    Promote {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
+    },
+    /// Uploads assets and settings of the edge app.
+    Upload {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EdgeAppVersionCommands {
+    List {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
+    /// Creates a new version of the edge app.
+    Promote {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
+    },
+    /// Uploads assets and settings of the edge app.
+    Upload {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EdgeAppSettingsCommands {
+    List {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
     },
 }
 
@@ -301,40 +427,8 @@ pub fn handle_cli(cli: &Cli) {
         }
         Commands::Screen(command) => handle_cli_screen_command(command),
         Commands::Asset(command) => handle_cli_asset_command(command),
-        Commands::EdgeApp(edge_app_command) => match edge_app_command {
-            EdgeAppCommands::Init { path } => {
-                let authentication = Authentication::new();
-                let command = commands::edge_app::EdgeAppCommand::new(authentication);
-                let destination_path = transform_edge_app_path_to_manifest(path);
-                if destination_path.as_path().exists() {
-                    println!("Failed to initialize screenly.yml. screenly.yml already exists.");
-                    std::process::exit(1);
-                }
-
-                match command.init(destination_path.as_path()) {
-                    Ok(_) => {
-                        println!("screenly.yml successfully initialized.");
-                        std::process::exit(0);
-                    }
-                    Err(e) => {
-                        println!("Failed to initialize screenly.yml: {e}.");
-                        std::process::exit(1);
-                    }
-                }
-            }
-            EdgeAppCommands::Publish { path } => {
-                let authentication = Authentication::new();
-                let command = commands::edge_app::EdgeAppCommand::new(authentication);
-                match command.publish(transform_edge_app_path_to_manifest(path).as_path()) {
-                    Ok(manifest) => {
-                        println!("Edge app successfully published. Your manifest: {manifest:?}");
-                    }
-                    Err(e) => {
-                        println!("Failed to publish edge app manifest: {e}.");
-                    }
-                }
-            }
-        },
+        Commands::EdgeApp(command) => handle_cli_edge_app_command(command),
+        Commands::Playlist(command) => handle_cli_playlist_command(command),
     }
 }
 
@@ -344,40 +438,40 @@ fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
     result
 }
 
+fn get_user_input() -> String {
+    let stdin = io::stdin();
+    let mut user_input = String::new();
+    match stdin.read_line(&mut user_input) {
+        Ok(_) => {}
+        Err(e) => {
+            error!("Error occurred: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+    user_input.trim().to_string()
+}
+
 pub fn handle_cli_screen_command(command: &ScreenCommands) {
     let authentication = Authentication::new();
+    let screen_command = commands::screen::ScreenCommand::new(authentication);
+
     match command {
         ScreenCommands::List { json } => {
-            let screen_command = commands::screen::ScreenCommand::new(authentication);
             handle_command_execution_result(screen_command.list(), json);
         }
         ScreenCommands::Get { uuid, json } => {
-            let screen_command = commands::screen::ScreenCommand::new(authentication);
             handle_command_execution_result(screen_command.get(uuid), json);
         }
         ScreenCommands::Add { pin, name, json } => {
-            let screen_command = commands::screen::ScreenCommand::new(authentication);
             handle_command_execution_result(screen_command.add(pin, name.clone()), json);
         }
         ScreenCommands::Delete { uuid } => {
-            let screen_command = commands::screen::ScreenCommand::new(authentication);
             match get_screen_name(uuid, &screen_command) {
                 Ok(name) => {
                     info!("You are about to delete the screen named \"{}\".  This operation cannot be reversed.", name);
                     info!("Enter the screen name to confirm the screen deletion: ");
-                    io::stdout().flush().unwrap();
-
-                    let stdin = io::stdin();
-                    let mut user_input = String::new();
-                    match stdin.read_line(&mut user_input) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!("Error occurred: {}", e);
-                            std::process::exit(1);
-                        }
-                    }
-
-                    if name != user_input.trim() {
+                    if name != get_user_input() {
                         error!("The name you entered is incorrect. Aborting.");
                         std::process::exit(1);
                     }
@@ -402,23 +496,108 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
     }
 }
 
+pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
+    let playlist_command = PlaylistCommand::new(Authentication::new());
+    match command {
+        PlaylistCommands::Create {
+            json,
+            title,
+            predicate,
+        } => {
+            handle_command_execution_result(
+                playlist_command.create(title, &predicate.clone().unwrap_or("TRUE".to_owned())),
+                json,
+            );
+        }
+        PlaylistCommands::List { json } => {
+            handle_command_execution_result(playlist_command.list(), json);
+        }
+        PlaylistCommands::Get { json: _, uuid } => {
+            let playlist_file = playlist_command.get_playlist_file(uuid);
+            match playlist_file {
+                Ok(playlist) => {
+                    let pretty_playlist_file = serde_json::to_string_pretty(&playlist).unwrap();
+                    let file = File::create("playlist.json").unwrap();
+                    write!(&file, "{pretty_playlist_file}").unwrap();
+                    println!("Playlist saved to playlist.json. You can modify and upload it with the update command.");
+                }
+                Err(e) => {
+                    println!("Error occurred when getting playlist: {e:?}")
+                }
+            }
+        }
+        PlaylistCommands::Delete { uuid } => match playlist_command.delete(uuid) {
+            Ok(()) => {
+                println!("Playlist deleted successfully.");
+            }
+            Err(e) => {
+                println!("Error occurred when deleting playlist: {e:?}")
+            }
+        },
+        PlaylistCommands::Append {
+            json,
+            uuid,
+            asset_uuid,
+            duration,
+        } => {
+            handle_command_execution_result(
+                playlist_command.append_asset(
+                    uuid,
+                    asset_uuid,
+                    (*duration).unwrap_or(DEFAULT_ASSET_DURATION),
+                ),
+                json,
+            );
+        }
+        PlaylistCommands::Prepend {
+            json,
+            uuid,
+            asset_uuid,
+            duration,
+        } => {
+            handle_command_execution_result(
+                playlist_command.prepend_asset(
+                    uuid,
+                    asset_uuid,
+                    (*duration).unwrap_or(DEFAULT_ASSET_DURATION),
+                ),
+                json,
+            );
+        }
+        PlaylistCommands::Update { json: _, path } => {
+            let path_to_playlist_json =
+                Path::new(&path.clone().unwrap_or(".".to_owned())).join("playlist.json");
+            let playlist_content = std::fs::read_to_string(path_to_playlist_json)
+                .expect("Unable to read playlist file");
+            let playlist: PlaylistFile =
+                serde_json::from_str(&playlist_content).expect("Unable to parse playlist file.");
+            match playlist_command.update(&playlist) {
+                Ok(_) => {
+                    println!("Playlist updated successfully.");
+                }
+                Err(e) => {
+                    println!("Error occurred when updating playlist: {e:?}")
+                }
+            }
+        }
+    }
+}
+
 pub fn handle_cli_asset_command(command: &AssetCommands) {
     let authentication = Authentication::new();
+    let asset_command = commands::asset::AssetCommand::new(authentication);
+
     match command {
         AssetCommands::List { json } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             handle_command_execution_result(asset_command.list(), json);
         }
         AssetCommands::Get { uuid, json } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             handle_command_execution_result(asset_command.get(uuid), json);
         }
         AssetCommands::Add { path, title, json } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             handle_command_execution_result(asset_command.add(path, title), json);
         }
         AssetCommands::Delete { uuid } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             match get_asset_title(uuid, &asset_command) {
                 Ok(title) => {
                     info!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
@@ -457,12 +636,11 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             }
         }
         AssetCommands::InjectJs { uuid, path } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             let js_code = if path.starts_with("http://") || path.starts_with("https://") {
                 match reqwest::blocking::get(path) {
                     Ok(response) => {
-                        match response.status().as_u16() {
-                            200 => response.text().unwrap_or_default(),
+                        match response.status() {
+                            StatusCode::OK => response.text().unwrap_or_default(),
                             status => {
                                 error!("Failed to retrieve JS injection code. Wrong response status: {}", status);
                                 std::process::exit(1);
@@ -495,7 +673,6 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             }
         }
         AssetCommands::SetHeaders { uuid, headers } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             match asset_command.set_web_asset_headers(uuid, headers.headers.clone()) {
                 Ok(()) => {
                     info!("Asset updated successfully.");
@@ -507,7 +684,6 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             }
         }
         AssetCommands::BasicAuth { uuid, credentials } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             let basic_auth = Credentials::new(&credentials.0, &credentials.1);
             match asset_command.update_web_asset_headers(
                 uuid,
@@ -523,7 +699,6 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             }
         }
         AssetCommands::UpdateHeaders { uuid, headers } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             match asset_command.update_web_asset_headers(uuid, headers.headers.clone()) {
                 Ok(()) => {
                     info!("Asset updated successfully.");
@@ -535,7 +710,6 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             }
         }
         AssetCommands::BearerAuth { uuid, token } => {
-            let asset_command = commands::asset::AssetCommand::new(authentication);
             match asset_command.update_web_asset_headers(
                 uuid,
                 vec![("Authorization".to_owned(), format!("Bearer {token}"))],
@@ -552,19 +726,73 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
     }
 }
 
+pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
+    let authentication = Authentication::new();
+    let edge_app_command = commands::edge_app::EdgeAppCommand::new(authentication);
+
+    match command {
+        EdgeAppCommands::Create { name, path } => {
+            match edge_app_command.create(name, transform_edge_app_path_to_manifest(path).as_path())
+            {
+                Ok(()) => {
+                    println!("Edge app successfully created.");
+                }
+                Err(e) => {
+                    println!("Failed to publish edge app manifest: {e}.");
+                }
+            }
+        }
+        EdgeAppCommands::List { json } => {
+            handle_command_execution_result(edge_app_command.list(), json);
+        }
+        EdgeAppCommands::Promote { path: _ } => {}
+        EdgeAppCommands::Upload { path } => {
+            match edge_app_command.upload(transform_edge_app_path_to_manifest(path).as_path()) {
+                Ok(()) => {
+                    println!("Edge app assets successfully uploaded.");
+                }
+                Err(e) => {
+                    println!("Failed to upload assets: {e}.");
+                }
+            }
+        }
+        EdgeAppCommands::Version(command) => match command {
+            EdgeAppVersionCommands::List { path, json } => {
+                handle_command_execution_result(
+                    edge_app_command
+                        .list_versions(transform_edge_app_path_to_manifest(path).as_path()),
+                    json,
+                );
+            }
+            EdgeAppVersionCommands::Promote { .. } => {}
+            EdgeAppVersionCommands::Upload { .. } => {}
+        },
+        EdgeAppCommands::Settings(command) => match command {
+            EdgeAppSettingsCommands::List { path, json } => {
+                handle_command_execution_result(
+                    edge_app_command.list_settings(
+                        &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
+                            .unwrap(),
+                    ),
+                    json,
+                );
+            }
+        },
+    }
+}
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::authentication::Config;
-    use httpmock::{Method::GET, MockServer};
-
-    use envtestkit::lock::lock_test;
-    use envtestkit::set_env;
-
     use std::ffi::OsString;
     use std::fs;
 
+    use envtestkit::lock::lock_test;
+    use envtestkit::set_env;
+    use httpmock::{Method::GET, MockServer};
     use tempdir::TempDir;
+
+    use crate::authentication::Config;
+
+    use super::*;
 
     #[test]
     fn test_get_screen_name_should_return_correct_screen_name() {

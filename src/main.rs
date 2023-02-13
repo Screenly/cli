@@ -1,6 +1,8 @@
 mod authentication;
 mod cli;
 mod commands;
+mod pb_signature;
+mod signature;
 
 extern crate prettytable;
 
@@ -9,10 +11,7 @@ use clap::Parser;
 use simple_logger::SimpleLogger;
 
 fn main() {
-    SimpleLogger::new()
-        .with_level(log::LevelFilter::Info)
-        .init()
-        .unwrap();
+    SimpleLogger::new().init().unwrap();
 
     let cli = cli::Cli::parse();
     cli::handle_cli(&cli);

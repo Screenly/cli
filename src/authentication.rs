@@ -4,7 +4,8 @@ use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::{header, StatusCode};
 use thiserror::Error;
 
-const API_BASE_URL: &str = "https://api.screenlyapp.com/api";
+const API_BASE_URL: &str = "https://api.screenlyappstage.com/api";
+//const API_BASE_URL: &str = "https://api.screenlyapp.com/api";
 
 pub struct Config {
     pub url: String,

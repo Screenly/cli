@@ -1,0 +1,10 @@
+syntax = "proto2";
+message Signature {
+	required bytes full_hash = 1;
+	required bytes hashes_hash = 2;
+	message Hash {
+		required bytes hash = 1;
+		required int64 offset = 2;
+	}
+	repeated Hash hashes = 3;
+}
