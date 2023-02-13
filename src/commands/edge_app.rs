@@ -131,10 +131,10 @@ impl EdgeAppCommand {
 mod tests {
     use super::*;
     use crate::authentication::Config;
-    use crate::cli::Commands::EdgeApp;
+
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
-    use httpmock::Method::{GET, POST};
+    use httpmock::Method::POST;
     use httpmock::MockServer;
     use std::ffi::OsString;
     use tempdir::TempDir;

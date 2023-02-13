@@ -7,7 +7,7 @@ use http_auth_basic::Credentials;
 use log::{error, info};
 use rpassword::read_password;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::{fs, io};
 use thiserror::Error;
 
