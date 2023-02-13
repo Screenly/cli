@@ -178,6 +178,13 @@ pub enum AssetCommands {
         #[arg(value_parser = parse_key_val)]
         credentials: (String, String),
     },
+    /// Shortcut for setting up bearer authentication headers.
+    BearerAuth {
+        /// UUID of the web asset to set up basic authentication for.
+        uuid: String,
+        /// Bearer token.
+        token: String,
+    },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -518,6 +525,21 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
         AssetCommands::UpdateHeaders { uuid, headers } => {
             let asset_command = commands::asset::AssetCommand::new(authentication);
             match asset_command.update_web_asset_headers(uuid, headers.headers.clone()) {
+                Ok(()) => {
+                    info!("Asset updated successfully.");
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        AssetCommands::BearerAuth { uuid, token } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            match asset_command.update_web_asset_headers(
+                uuid,
+                vec![("Authorization".to_owned(), format!("Bearer {token}"))],
+            ) {
                 Ok(()) => {
                     info!("Asset updated successfully.");
                 }
