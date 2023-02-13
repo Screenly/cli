@@ -1,11 +1,13 @@
 use crate::authentication::{Authentication, AuthenticationError};
+use crate::commands;
+
 use crate::commands::{CommandError, Formatter, OutputType};
-use crate::{commands};
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
 use log::{error, info};
 use rpassword::read_password;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 use thiserror::Error;
 
@@ -61,6 +63,8 @@ pub enum Commands {
     /// Asset related commands.
     #[command(subcommand)]
     Asset(AssetCommands),
+    #[command(subcommand)]
+    EdgeApp(EdgeAppCommands),
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -176,6 +180,20 @@ pub enum AssetCommands {
     },
 }
 
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EdgeAppCommands {
+    /// Initializes edge app manifest.
+    Init {
+        /// Path to the directory to initialize manifest in. If not specified CLI initializes screenly.yml in the current working directory.
+        path: Option<String>,
+    },
+    /// Publishes edge-app to the store.
+    Publish {
+        /// Path to the directory with edge app manifest. If not specified CLI looks for screenly.yml in the current working directory.
+        path: Option<String>,
+    },
+}
+
 pub fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
     json: &Option<bool>,
@@ -274,189 +292,239 @@ pub fn handle_cli(cli: &Cli) {
                 },
             }
         }
-        Commands::Screen(command) => match command {
-            ScreenCommands::List { json } => {
-                let screen_command = commands::screen::ScreenCommand::new(authentication);
-                handle_command_execution_result(screen_command.list(), json);
-            }
-            ScreenCommands::Get { uuid, json } => {
-                let screen_command = commands::screen::ScreenCommand::new(authentication);
-                handle_command_execution_result(screen_command.get(uuid), json);
-            }
-            ScreenCommands::Add { pin, name, json } => {
-                let screen_command = commands::screen::ScreenCommand::new(authentication);
-                handle_command_execution_result(screen_command.add(pin, name.clone()), json);
-            }
-            ScreenCommands::Delete { uuid } => {
-                let screen_command = commands::screen::ScreenCommand::new(authentication);
-                match get_screen_name(uuid, &screen_command) {
-                    Ok(name) => {
-                        info!("You are about to delete the screen named \"{}\".  This operation cannot be reversed.", name);
-                        info!("Enter the screen name to confirm the screen deletion: ");
-                        io::stdout().flush().unwrap();
+        Commands::Screen(command) => handle_cli_screen_command(command),
+        Commands::Asset(command) => handle_cli_asset_command(command),
+        Commands::EdgeApp(edge_app_command) => match edge_app_command {
+            EdgeAppCommands::Init { path } => {
+                let authentication = Authentication::new();
+                let command = commands::edge_app::EdgeAppCommand::new(authentication);
 
-                        let stdin = io::stdin();
-                        let mut user_input = String::new();
-                        match stdin.read_line(&mut user_input) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("Error occurred: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
-
-                        if name != user_input.trim() {
-                            error!("The name you entered is incorrect. Aborting.");
-                            std::process::exit(1);
-                        }
+                match command.init(transform_edge_app_path_to_manifest(path).as_path()) {
+                    Ok(_) => {
+                        println!("screenly.yml successfully initialized.");
                     }
                     Err(e) => {
-                        error!("Error occurred: {}", e);
-                        std::process::exit(1);
+                        println!("Failed to initialize screenly.yml: {e}.");
                     }
                 }
-
-                match screen_command.delete(uuid) {
-                    Ok(()) => {
-                        info!("Screen deleted successfully.");
-                        std::process::exit(0);
+            }
+            EdgeAppCommands::Publish { path } => {
+                let authentication = Authentication::new();
+                let command = commands::edge_app::EdgeAppCommand::new(authentication);
+                match command.publish(transform_edge_app_path_to_manifest(path).as_path()) {
+                    Ok(manifest) => {
+                        println!("Edge app successfully published. Your manifest: {manifest:?}");
                     }
                     Err(e) => {
-                        error!("Error occurred: {:?}", e);
-                        std::process::exit(1);
+                        println!("Failed to publish edge app manifest: {e}.");
                     }
                 }
             }
         },
-        Commands::Asset(command) => match command {
-            AssetCommands::List { json } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                handle_command_execution_result(asset_command.list(), json);
-            }
-            AssetCommands::Get { uuid, json } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                handle_command_execution_result(asset_command.get(uuid), json);
-            }
-            AssetCommands::Add { path, title, json } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                handle_command_execution_result(asset_command.add(path, title), json);
-            }
-            AssetCommands::Delete { uuid } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                match get_asset_title(uuid, &asset_command) {
-                    Ok(title) => {
-                        info!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
-                        info!("Enter the asset title to confirm the asset deletion: ");
-                        io::stdout().flush().unwrap();
+    }
+}
 
-                        let stdin = io::stdin();
-                        let mut user_input = String::new();
-                        match stdin.read_line(&mut user_input) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("Error occurred: {}", e);
-                                std::process::exit(1);
-                            }
-                        }
+fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
+    let mut p = "screenly.yml".to_owned();
+    if let Some(path_input) = path {
+        let mut buf = PathBuf::from(path_input);
+        buf.push("screenly.yml");
+        p = buf.to_str().unwrap_or("screenly.yml").to_owned();
+    }
 
-                        if title != user_input.trim() {
-                            error!("The title you entered is incorrect. Aborting.");
+    PathBuf::from(p)
+}
+
+pub fn handle_cli_screen_command(command: &ScreenCommands) {
+    let authentication = Authentication::new();
+    match command {
+        ScreenCommands::List { json } => {
+            let screen_command = commands::screen::ScreenCommand::new(authentication);
+            handle_command_execution_result(screen_command.list(), json);
+        }
+        ScreenCommands::Get { uuid, json } => {
+            let screen_command = commands::screen::ScreenCommand::new(authentication);
+            handle_command_execution_result(screen_command.get(uuid), json);
+        }
+        ScreenCommands::Add { pin, name, json } => {
+            let screen_command = commands::screen::ScreenCommand::new(authentication);
+            handle_command_execution_result(screen_command.add(pin, name.clone()), json);
+        }
+        ScreenCommands::Delete { uuid } => {
+            let screen_command = commands::screen::ScreenCommand::new(authentication);
+            match get_screen_name(uuid, &screen_command) {
+                Ok(name) => {
+                    info!("You are about to delete the screen named \"{}\".  This operation cannot be reversed.", name);
+                    info!("Enter the screen name to confirm the screen deletion: ");
+                    io::stdout().flush().unwrap();
+
+                    let stdin = io::stdin();
+                    let mut user_input = String::new();
+                    match stdin.read_line(&mut user_input) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error occurred: {}", e);
                             std::process::exit(1);
                         }
                     }
-                    Err(e) => {
-                        error!("Error occurred: {}", e);
+
+                    if name != user_input.trim() {
+                        error!("The name you entered is incorrect. Aborting.");
                         std::process::exit(1);
                     }
                 }
-                match asset_command.delete(uuid) {
-                    Ok(()) => {
-                        info!("Asset deleted successfully.");
-                        std::process::exit(0);
-                    }
-                    Err(e) => {
-                        error!("Error occurred: {:?}", e);
-                        std::process::exit(1);
-                    }
+                Err(e) => {
+                    error!("Error occurred: {}", e);
+                    std::process::exit(1);
                 }
             }
-            AssetCommands::InjectJs { uuid, path } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                let js_code = if path.starts_with("http://") || path.starts_with("https://") {
-                    match reqwest::blocking::get(path) {
-                        Ok(response) => match response.status().as_u16() {
+
+            match screen_command.delete(uuid) {
+                Ok(()) => {
+                    info!("Screen deleted successfully.");
+                    std::process::exit(0);
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+}
+
+pub fn handle_cli_asset_command(command: &AssetCommands) {
+    let authentication = Authentication::new();
+    match command {
+        AssetCommands::List { json } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            handle_command_execution_result(asset_command.list(), json);
+        }
+        AssetCommands::Get { uuid, json } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            handle_command_execution_result(asset_command.get(uuid), json);
+        }
+        AssetCommands::Add { path, title, json } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            handle_command_execution_result(asset_command.add(path, title), json);
+        }
+        AssetCommands::Delete { uuid } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            match get_asset_title(uuid, &asset_command) {
+                Ok(title) => {
+                    info!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
+                    info!("Enter the asset title to confirm the asset deletion: ");
+                    io::stdout().flush().unwrap();
+
+                    let stdin = io::stdin();
+                    let mut user_input = String::new();
+                    match stdin.read_line(&mut user_input) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!("Error occurred: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+
+                    if title != user_input.trim() {
+                        error!("The title you entered is incorrect. Aborting.");
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    error!("Error occurred: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            match asset_command.delete(uuid) {
+                Ok(()) => {
+                    info!("Asset deleted successfully.");
+                    std::process::exit(0);
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        AssetCommands::InjectJs { uuid, path } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            let js_code = if path.starts_with("http://") || path.starts_with("https://") {
+                match reqwest::blocking::get(path) {
+                    Ok(response) => {
+                        match response.status().as_u16() {
                             200 => response.text().unwrap_or_default(),
                             status => {
                                 error!("Failed to retrieve JS injection code. Wrong response status: {}", status);
                                 std::process::exit(1);
                             }
-                        },
-                        Err(e) => {
-                            error!("Failed to retrieve JS injection code. Error: {}", e);
-                            std::process::exit(1);
                         }
                     }
-                } else {
-                    match fs::read_to_string(path) {
-                        Ok(text) => text,
-                        Err(e) => {
-                            error!("Failed to read file with JS injection code. Error: {}", e);
-                            std::process::exit(1);
-                        }
+                    Err(e) => {
+                        error!("Failed to retrieve JS injection code. Error: {}", e);
+                        std::process::exit(1);
                     }
-                };
+                }
+            } else {
+                match fs::read_to_string(path) {
+                    Ok(text) => text,
+                    Err(e) => {
+                        error!("Failed to read file with JS injection code. Error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            };
 
-                match asset_command.inject_js(uuid, &js_code) {
-                    Ok(()) => {
-                        info!("Asset updated successfully.");
-                    }
-                    Err(e) => {
-                        error!("Error occurred: {:?}", e);
-                        std::process::exit(1);
-                    }
+            match asset_command.inject_js(uuid, &js_code) {
+                Ok(()) => {
+                    info!("Asset updated successfully.");
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
                 }
             }
-            AssetCommands::SetHeaders { uuid, headers } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                match asset_command.set_web_asset_headers(uuid, headers.headers.clone()) {
-                    Ok(()) => {
-                        info!("Asset updated successfully.");
-                    }
-                    Err(e) => {
-                        error!("Error occurred: {:?}", e);
-                        std::process::exit(1);
-                    }
+        }
+        AssetCommands::SetHeaders { uuid, headers } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            match asset_command.set_web_asset_headers(uuid, headers.headers.clone()) {
+                Ok(()) => {
+                    info!("Asset updated successfully.");
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
                 }
             }
-            AssetCommands::BasicAuth { uuid, credentials } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                let basic_auth = Credentials::new(&credentials.0, &credentials.1);
-                match asset_command.update_web_asset_headers(
-                    uuid,
-                    vec![("Authorization".to_owned(), basic_auth.as_http_header())],
-                ) {
-                    Ok(()) => {
-                        info!("Asset updated successfully.");
-                    }
-                    Err(e) => {
-                        error!("Error occurred: {:?}", e);
-                        std::process::exit(1);
-                    }
+        }
+        AssetCommands::BasicAuth { uuid, credentials } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            let basic_auth = Credentials::new(&credentials.0, &credentials.1);
+            match asset_command.update_web_asset_headers(
+                uuid,
+                vec![("Authorization".to_owned(), basic_auth.as_http_header())],
+            ) {
+                Ok(()) => {
+                    info!("Asset updated successfully.");
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
                 }
             }
-            AssetCommands::UpdateHeaders { uuid, headers } => {
-                let asset_command = commands::asset::AssetCommand::new(authentication);
-                match asset_command.update_web_asset_headers(uuid, headers.headers.clone()) {
-                    Ok(()) => {
-                        info!("Asset updated successfully.");
-                    }
-                    Err(e) => {
-                        error!("Error occurred: {:?}", e);
-                        std::process::exit(1);
-                    }
+        }
+        AssetCommands::UpdateHeaders { uuid, headers } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            match asset_command.update_web_asset_headers(uuid, headers.headers.clone()) {
+                Ok(()) => {
+                    info!("Asset updated successfully.");
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
                 }
             }
-        },
+        }
     }
 }
 

@@ -6,6 +6,7 @@ use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::StatusCode;
 
 pub mod asset;
+pub mod edge_app;
 pub mod screen;
 
 pub enum OutputType {
@@ -21,18 +22,24 @@ pub trait Formatter {
 pub enum CommandError {
     #[error("auth error")]
     Authentication(#[from] AuthenticationError),
-    #[error("request error")]
+    #[error("request error: {0}")]
     Request(#[from] reqwest::Error),
-    #[error("parse error")]
+    #[error("parse error: {0}")]
     Parse(#[from] serde_json::Error),
-    #[error("unknown error #[0]")]
+    #[error("serde error")]
+    Serde,
+    #[error("parse error: {0}")]
+    YamlParse(#[from] serde_yaml::Error),
+    #[error("unknown error: {0}")]
     WrongResponseStatus(u16),
     #[error("Required field is missing in the response")]
     MissingField,
-    #[error("I/O error #[0]")]
+    #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Invalid header value")]
+    #[error("Invalid header value: {0}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
+    #[error("Field cannot be empty: {0}")]
+    InvalidManifestValue(String),
 }
 
 pub fn get(

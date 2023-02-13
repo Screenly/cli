@@ -5,16 +5,8 @@ mod commands;
 extern crate prettytable;
 
 use crate::authentication::{Authentication, AuthenticationError};
-
-use clap::{Parser};
-
-
-
-
+use clap::Parser;
 use simple_logger::SimpleLogger;
-
-
-
 
 fn main() {
     SimpleLogger::new()

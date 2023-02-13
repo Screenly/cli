@@ -104,7 +104,7 @@ impl Authentication {
 
     pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {
         let token = Authentication::read_token()?;
-        let secret = format!("Token {}", token.as_str());
+        let secret = format!("Token {token}");
         let mut default_headers = HeaderMap::new();
         default_headers.insert(header::AUTHORIZATION, secret.parse()?);
         default_headers.insert(
