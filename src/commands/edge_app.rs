@@ -237,5 +237,13 @@ mod tests {
 
         let manifest_from_server = command.publish(Path::new(p.to_str().unwrap())).unwrap();
         assert_eq!(manifest_from_server, published_manifest[0]);
+
+        // also check that file was updated
+        let manifest_from_file = serde_yaml::from_str::<EdgeAppManifest>(
+            &fs::read_to_string(Path::new(p.to_str().unwrap())).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(manifest_from_file, manifest_from_server);
     }
 }
