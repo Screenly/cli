@@ -325,14 +325,9 @@ pub fn handle_cli(cli: &Cli) {
 }
 
 fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
-    let mut p = "screenly.yml".to_owned();
-    if let Some(path_input) = path {
-        let mut buf = PathBuf::from(path_input);
-        buf.push("screenly.yml");
-        p = buf.to_str().unwrap_or("screenly.yml").to_owned();
-    }
-
-    PathBuf::from(p)
+    let mut result = PathBuf::from(path.as_ref().map(String::as_str).unwrap_or(""));
+    result.push("screenly.yml");
+    result
 }
 
 pub fn handle_cli_screen_command(command: &ScreenCommands) {
