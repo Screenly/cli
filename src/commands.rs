@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use prettytable::{row, Table};
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
+use reqwest::StatusCode;
 use serde_json::json;
 
 pub enum OutputType {
@@ -169,7 +170,7 @@ fn get(
 ) -> anyhow::Result<serde_json::Value, CommandError> {
     let url = format!("{}/{}", &authentication.config.url, endpoint);
     let response = authentication.build_client()?.get(url).send()?;
-    if response.status().as_u16() != 200 {
+    if response.status() != StatusCode::OK {
         return Err(CommandError::WrongResponseStatus(
             response.status().as_u16(),
         ));
@@ -180,7 +181,7 @@ fn get(
 fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
     let url = format!("{}/{}", &authentication.config.url, endpoint);
     let response = authentication.build_client()?.delete(url).send()?;
-    if ![200_u16, 204_u16].contains(&response.status().as_u16()) {
+    if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&response.status()) {
         return Err(CommandError::WrongResponseStatus(
             response.status().as_u16(),
         ));
@@ -204,7 +205,7 @@ fn patch(
         .headers(headers)
         .send()?;
 
-    if response.status().as_u16() != 200 {
+    if response.status() != StatusCode::OK {
         return Err(CommandError::WrongResponseStatus(
             response.status().as_u16(),
         ));
@@ -245,7 +246,7 @@ impl ScreenCommand {
             .post(url)
             .json(&payload)
             .send()?;
-        if response.status().as_u16() != 201 {
+        if response.status() != StatusCode::CREATED {
             return Err(CommandError::WrongResponseStatus(
                 response.status().as_u16(),
             ));
@@ -292,7 +293,7 @@ impl AssetCommand {
             .headers(headers.clone())
             .send()?;
 
-        if response.status().as_u16() != 201 {
+        if response.status() != StatusCode::CREATED {
             let status = response.status().as_u16();
             return Err(CommandError::WrongResponseStatus(status));
         }
@@ -336,7 +337,7 @@ impl AssetCommand {
             .headers(headers)
             .send()?;
 
-        if response.status().as_u16() != 201 {
+        if response.status() != StatusCode::CREATED {
             let status = response.status().as_u16();
             return Err(CommandError::WrongResponseStatus(status));
         }
