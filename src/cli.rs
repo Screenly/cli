@@ -298,13 +298,20 @@ pub fn handle_cli(cli: &Cli) {
             EdgeAppCommands::Init { path } => {
                 let authentication = Authentication::new();
                 let command = commands::edge_app::EdgeAppCommand::new(authentication);
+                let destination_path = transform_edge_app_path_to_manifest(path);
+                if destination_path.as_path().exists() {
+                    println!("Failed to initialize screenly.yml. screenly.yml already exists.");
+                    std::process::exit(1);
+                }
 
-                match command.init(transform_edge_app_path_to_manifest(path).as_path()) {
+                match command.init(destination_path.as_path()) {
                     Ok(_) => {
                         println!("screenly.yml successfully initialized.");
+                        std::process::exit(0);
                     }
                     Err(e) => {
                         println!("Failed to initialize screenly.yml: {e}.");
+                        std::process::exit(1);
                     }
                 }
             }

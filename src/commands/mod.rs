@@ -26,8 +26,6 @@ pub enum CommandError {
     Request(#[from] reqwest::Error),
     #[error("parse error: {0}")]
     Parse(#[from] serde_json::Error),
-    #[error("serde error")]
-    Serde,
     #[error("parse error: {0}")]
     YamlParse(#[from] serde_yaml::Error),
     #[error("unknown error: {0}")]

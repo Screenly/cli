@@ -63,39 +63,34 @@ impl EdgeAppCommand {
         let url = format!("{}/v4/edge_apps", &self.authentication.config.url);
 
         let data = fs::read_to_string(path)?;
+
         // by converting to struct we make sure there no extra fields and all required fields are present
-        let edge_app: EdgeAppManifest = serde_yaml::from_str(&data)?;
-        let mut binding = serde_json::to_value(edge_app)?;
-        let edge_app_json = binding.as_object_mut().ok_or(CommandError::Serde)?;
+        let _: EdgeAppManifest = serde_yaml::from_str(&data)?;
+        let mut payload: HashMap<String, String> = serde_yaml::from_str(&data)?;
 
         // Id can not be empty when posting. Depending on what we decide I should either raise an error
         // or we allow users to supply an id.
-        if edge_app_json.contains_key("id")
-            && edge_app_json["id"]
-                .as_str()
-                .ok_or(CommandError::Serde)?
-                .is_empty()
-        {
-            edge_app_json.remove("id");
+        if payload.contains_key("id") && !payload["id"].is_empty() {
+            return Err(CommandError::InvalidManifestValue(
+                "id can't be non-empty when publishing manifest".to_owned(),
+            ));
         }
 
-        edge_app_json.remove("created_at");
-        edge_app_json.remove("created_by");
-        edge_app_json.remove("updated_at");
-        edge_app_json.remove("permissions");
+        payload.remove("id");
+        payload.remove("created_at");
+        payload.remove("created_by");
+        payload.remove("updated_at");
+        payload.remove("permissions");
 
-        let mut payload = HashMap::<String, String>::new();
+        //let mut payload = HashMap::<String, String>::new();
         // for now all values are fields in the manifest are required to be non-empty.
         // if we change that we will need to have a list of required non-empty values.
         debug!("Edge app headers: ");
-        for (k, v) in edge_app_json {
-            debug!("{k}: {v:?}");
-            let value = v.as_str().ok_or(CommandError::MissingField)?;
-            if value.is_empty() {
+        for (k, v) in &payload {
+            debug!("{k}: {v}");
+            if v.is_empty() {
                 return Err(CommandError::InvalidManifestValue(k.to_string()));
             };
-
-            payload.insert(k.to_owned(), value.to_owned());
         }
 
         let mut headers = HeaderMap::new();
@@ -155,10 +150,17 @@ mod tests {
         let p = tmp_dir.path().join("screenly.yml");
         assert!(command.init(Path::new(p.to_str().unwrap())).is_ok());
 
+        let expected = r#"homepage_url: ''
+author: ''
+icon: ''
+version: ''
+description: ''
+name: ''
+"#;
+
         assert_eq!(
-            EdgeAppManifest::default(),
-            serde_yaml::from_str(&fs::read_to_string(Path::new(p.to_str().unwrap())).unwrap())
-                .unwrap()
+            expected,
+            &fs::read_to_string(Path::new(p.to_str().unwrap())).unwrap()
         );
     }
 
