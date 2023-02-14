@@ -181,7 +181,7 @@ pub enum AssetCommands {
     },
     /// Shortcut for setting up bearer authentication headers.
     BearerAuth {
-        /// UUID of the web asset to set up basic authentication for.
+        /// UUID of the web asset to set up bearer authentication for.
         uuid: String,
         /// Bearer token.
         token: String,
