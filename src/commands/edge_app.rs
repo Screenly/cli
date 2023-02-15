@@ -16,14 +16,6 @@ use std::path::Path;
 pub struct EdgeAppManifest {
     #[serde(default)]
     pub id: String,
-    #[serde(default)]
-    pub created_at: String,
-    #[serde(default)]
-    pub created_by: String,
-    #[serde(default)]
-    pub permissions: Vec<String>,
-    #[serde(default)]
-    pub updated_at: String,
     pub name: String,
     pub version: String,
     pub description: String,
@@ -47,10 +39,6 @@ impl EdgeAppCommand {
 
         // following fields will be generated server side when publishing.
         map.remove("id");
-        map.remove("created_at");
-        map.remove("created_by");
-        map.remove("updated_at");
-        map.remove("permissions");
 
         let yaml = serde_yaml::to_string(map)?;
         let input = File::create(path)?;
@@ -60,41 +48,35 @@ impl EdgeAppCommand {
     }
 
     pub fn publish(self, path: &Path) -> Result<EdgeAppManifest, CommandError> {
-        let url = format!("{}/v4/edge_apps", &self.authentication.config.url);
+        let url = format!(
+            "{}/v4/edge_apps?select=id,name,version,description,icon,author,homepage_url",
+            &self.authentication.config.url
+        );
 
         let data = fs::read_to_string(path)?;
+
         // by converting to struct we make sure there no extra fields and all required fields are present
-        let edge_app: EdgeAppManifest = serde_yaml::from_str(&data)?;
-        let mut binding = serde_json::to_value(edge_app)?;
-        let edge_app_json = binding.as_object_mut().ok_or(CommandError::Serde)?;
+        let _: EdgeAppManifest = serde_yaml::from_str(&data)?;
+        let mut payload: HashMap<String, String> = serde_yaml::from_str(&data)?;
 
         // Id can not be empty when posting. Depending on what we decide I should either raise an error
         // or we allow users to supply an id.
-        if edge_app_json.contains_key("id")
-            && edge_app_json["id"]
-                .as_str()
-                .ok_or(CommandError::Serde)?
-                .is_empty()
-        {
-            edge_app_json.remove("id");
+        if payload.contains_key("id") && !payload["id"].is_empty() {
+            return Err(CommandError::InvalidManifestValue(
+                "Only empty id accepted when publishing manifest".to_owned(),
+            ));
         }
 
-        edge_app_json.remove("created_at");
-        edge_app_json.remove("created_by");
-        edge_app_json.remove("updated_at");
-        edge_app_json.remove("permissions");
+        payload.remove("id");
 
-        let mut payload = HashMap::<String, String>::new();
         // for now all values are fields in the manifest are required to be non-empty.
         // if we change that we will need to have a list of required non-empty values.
-        for (k, v) in edge_app_json {
-            debug!("{k}{v:?}");
-            let value = v.as_str().ok_or(CommandError::MissingField)?;
-            if value.is_empty() {
+        debug!("Edge app headers: ");
+        for (k, v) in &payload {
+            debug!("{k}: {v}");
+            if v.is_empty() {
                 return Err(CommandError::InvalidManifestValue(k.to_string()));
             };
-
-            payload.insert(k.to_owned(), value.to_owned());
         }
 
         let mut headers = HeaderMap::new();
@@ -154,10 +136,20 @@ mod tests {
         let p = tmp_dir.path().join("screenly.yml");
         assert!(command.init(Path::new(p.to_str().unwrap())).is_ok());
 
+        let expected = r#"homepage_url: ''
+name: ''
+author: ''
+icon: ''
+version: ''
+description: ''
+"#;
+
         assert_eq!(
-            EdgeAppManifest::default(),
-            serde_yaml::from_str(&fs::read_to_string(Path::new(p.to_str().unwrap())).unwrap())
-                .unwrap()
+            serde_yaml::from_str::<EdgeAppManifest>(expected).unwrap(),
+            serde_yaml::from_str::<EdgeAppManifest>(
+                &fs::read_to_string(Path::new(p.to_str().unwrap())).unwrap()
+            )
+            .unwrap()
         );
     }
 
@@ -169,11 +161,6 @@ mod tests {
         fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
         let manifest = EdgeAppManifest {
             id: "".to_string(),
-            created_at: "".to_string(),
-            created_by: "".to_string(),
-            permissions: vec![],
-            updated_at: "".to_string(),
-
             name: "Test".to_string(),
             version: "100".to_string(),
             description: "Best".to_string(),
@@ -184,21 +171,12 @@ mod tests {
 
         let published_manifest = vec![EdgeAppManifest {
             id: "01GS5H2CX6Y10ZRJHEDQPEWN4E".to_string(),
-            created_at: "2023-02-13T13:57:43+00:00".to_string(),
-            created_by: "01D0C6YJA8000A7JEN0230MWGF".to_string(),
-            updated_at: "2023-02-13T13:57:43.97356+00:00".to_string(),
-            permissions: vec![],
-
             ..manifest.clone()
         }];
 
-        let mut b = serde_json::to_value(&manifest).unwrap();
-        let manifest_object = b.as_object_mut().unwrap();
+        let mut binding = serde_json::to_value(&manifest).unwrap();
+        let manifest_object = binding.as_object_mut().unwrap();
         manifest_object.remove("id");
-        manifest_object.remove("created_at");
-        manifest_object.remove("created_by");
-        manifest_object.remove("updated_at");
-        manifest_object.remove("permissions");
 
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
@@ -219,7 +197,7 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let command = EdgeAppCommand::new(authentication);
 
-        let p = tmp_dir.path().join("screenly.yml");
+        let path = tmp_dir.path().join("screenly.yml");
 
         let mut object = serde_yaml::to_value(&manifest).unwrap();
         let map = object.as_mapping_mut().unwrap();
@@ -232,10 +210,18 @@ mod tests {
         map.remove("permissions");
 
         let yaml = serde_yaml::to_string(map).unwrap();
-        let input = File::create(Path::new(p.to_str().unwrap())).unwrap();
+        let input = File::create(Path::new(path.to_str().unwrap())).unwrap();
         write!(&input, "{yaml}").unwrap();
 
-        let manifest_from_server = command.publish(Path::new(p.to_str().unwrap())).unwrap();
+        let manifest_from_server = command.publish(Path::new(path.to_str().unwrap())).unwrap();
         assert_eq!(manifest_from_server, published_manifest[0]);
+
+        // also check that file was updated
+        let manifest_from_file = serde_yaml::from_str::<EdgeAppManifest>(
+            &fs::read_to_string(Path::new(path.to_str().unwrap())).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(manifest_from_file, manifest_from_server);
     }
 }
