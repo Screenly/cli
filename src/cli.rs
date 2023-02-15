@@ -5,6 +5,7 @@ use crate::commands::{CommandError, Formatter, OutputType};
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
 use log::{error, info};
+use reqwest::StatusCode;
 use rpassword::read_password;
 use std::io::Write;
 use std::path::PathBuf;
@@ -177,6 +178,13 @@ pub enum AssetCommands {
         /// Basic authentication credentials in "user=password" form.
         #[arg(value_parser = parse_key_val)]
         credentials: (String, String),
+    },
+    /// Shortcut for setting up bearer authentication headers.
+    BearerAuth {
+        /// UUID of the web asset to set up basic authentication for.
+        uuid: String,
+        /// Bearer token.
+        token: String,
     },
 }
 
@@ -454,8 +462,8 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             let js_code = if path.starts_with("http://") || path.starts_with("https://") {
                 match reqwest::blocking::get(path) {
                     Ok(response) => {
-                        match response.status().as_u16() {
-                            200 => response.text().unwrap_or_default(),
+                        match response.status() {
+                            StatusCode::OK => response.text().unwrap_or_default(),
                             status => {
                                 error!("Failed to retrieve JS injection code. Wrong response status: {}", status);
                                 std::process::exit(1);
@@ -518,6 +526,21 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
         AssetCommands::UpdateHeaders { uuid, headers } => {
             let asset_command = commands::asset::AssetCommand::new(authentication);
             match asset_command.update_web_asset_headers(uuid, headers.headers.clone()) {
+                Ok(()) => {
+                    info!("Asset updated successfully.");
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        AssetCommands::BearerAuth { uuid, token } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            match asset_command.update_web_asset_headers(
+                uuid,
+                vec![("Authorization".to_owned(), format!("Bearer {token}"))],
+            ) {
                 Ok(()) => {
                     info!("Asset updated successfully.");
                 }
