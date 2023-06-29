@@ -277,9 +277,11 @@ pub enum EdgeAppCommands {
         json: Option<bool>,
     },
 
+    /// Version commands.
     #[command(subcommand)]
     Version(EdgeAppVersionCommands),
 
+    /// Settings commands.
     #[command(subcommand)]
     Settings(EdgeAppSettingsCommands),
 
