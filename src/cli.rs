@@ -285,11 +285,6 @@ pub enum EdgeAppCommands {
     #[command(subcommand)]
     Settings(EdgeAppSettingsCommands),
 
-    /// Creates a new version of the edge app.
-    Promote {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        path: Option<String>,
-    },
     /// Uploads assets and settings of the edge app.
     Upload {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
@@ -305,16 +300,6 @@ pub enum EdgeAppVersionCommands {
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
-    },
-    /// Creates a new version of the edge app.
-    Promote {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        path: Option<String>,
-    },
-    /// Uploads assets and settings of the edge app.
-    Upload {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        path: Option<String>,
     },
 }
 
@@ -747,14 +732,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         EdgeAppCommands::List { json } => {
             handle_command_execution_result(edge_app_command.list(), json);
         }
-        EdgeAppCommands::Promote { path: _ } => {}
         EdgeAppCommands::Upload { path } => {
             match edge_app_command.upload(transform_edge_app_path_to_manifest(path).as_path()) {
                 Ok(()) => {
-                    println!("Edge app assets successfully uploaded.");
+                    println!("Edge app successfully uploaded.");
                 }
                 Err(e) => {
-                    println!("Failed to upload assets: {e}.");
+                    println!("Failed to upload edge app: {e}.");
                 }
             }
         }
