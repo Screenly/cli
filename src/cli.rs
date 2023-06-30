@@ -750,8 +750,6 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     json,
                 );
             }
-            EdgeAppVersionCommands::Promote { .. } => {}
-            EdgeAppVersionCommands::Upload { .. } => {}
         },
         EdgeAppCommands::Settings(command) => match command {
             EdgeAppSettingsCommands::List { path, json } => {
