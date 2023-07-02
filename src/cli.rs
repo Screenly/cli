@@ -697,6 +697,21 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
             }
         }
         AssetCommands::BearerAuth { uuid, token } => {
+            let asset_command = commands::asset::AssetCommand::new(authentication);
+            match asset_command.update_web_asset_headers(
+                uuid,
+                vec![("Authorization".to_owned(), format!("Bearer {token}"))],
+            ) {
+                Ok(()) => {
+                    info!("Asset updated successfully.");
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
+        AssetCommands::BearerAuth { uuid, token } => {
             match asset_command.update_web_asset_headers(
                 uuid,
                 vec![("Authorization".to_owned(), format!("Bearer {token}"))],
