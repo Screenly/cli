@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <script src="screenly.js"></script>
+    <title>Hello world</title>
+  </head>
+  <body>
+    <p id="message">Hello world from <span id="hostname-placeholder"></span></p>
+    <script>
+      fetch(screenlyMetadataEndpoint())
+        .then((response) => response.json())
+        .then((data) => {
+          const hostname = data.hostname;
+          const hostnamePlaceholder = document.getElementById("hostname-placeholder");
+          hostnamePlaceholder.innerText = hostname;
+        });
+    </script>
+  </body>
+</html>

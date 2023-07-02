@@ -1,65 +1,17 @@
 use crate::authentication::Authentication;
 use crate::commands;
-use crate::commands::{CommandError, Formatter, OutputType};
+use crate::commands::{Assets, CommandError};
 use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, info};
-use prettytable::{row, Table};
+
 use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
 
-#[derive(Debug)]
-pub struct Assets {
-    pub value: serde_json::Value,
-}
-
 pub struct AssetCommand {
     authentication: Authentication,
-}
-
-impl Assets {
-    pub fn new(value: serde_json::Value) -> Self {
-        Self { value }
-    }
-}
-
-impl Formatter for Assets {
-    fn format(&self, output_type: OutputType) -> String {
-        match output_type {
-            OutputType::HumanReadable => {
-                let mut table = Table::new();
-                table.add_row(row!("Id", "Title", "Type", "Status",));
-
-                if !self.value.is_array() {
-                    return "".to_owned();
-                }
-
-                if let Some(assets) = self.value.as_array() {
-                    for asset in assets {
-                        // TODO: actually use dimensions for videos and images?
-                        let _dimensions = match (asset["width"].as_str(), asset["height"].as_str())
-                        {
-                            (Some(width), Some(height)) => format!("{width}x{height}"),
-                            _ => "N/A".to_owned(),
-                        };
-
-                        table.add_row(row!(
-                            asset["id"].as_str().unwrap_or("N/A"),
-                            asset["title"].as_str().unwrap_or("N/A"),
-                            asset["type"].as_str().unwrap_or("N/A"),
-                            asset["status"].as_str().unwrap_or("N/A"),
-                        ));
-                    }
-                }
-                table.to_string()
-            }
-            OutputType::Json => {
-                serde_json::to_string_pretty(&self.value).unwrap_or_else(|_| "{}".to_string())
-            }
-        }
-    }
 }
 
 impl AssetCommand {
@@ -205,6 +157,7 @@ impl AssetCommand {
 mod tests {
     use super::*;
     use crate::authentication::Config;
+    use crate::commands::{Formatter, OutputType};
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
@@ -215,10 +168,8 @@ mod tests {
 
     #[test]
     fn test_list_assets_should_return_correct_asset_list() {
-        let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let asset_list = json!([{
           "asset_group_id": null,
           "asset_url": "https://us-assets.screenlyapp.com/test13",
@@ -281,8 +232,7 @@ mod tests {
     fn test_add_asset_when_local_asset_should_send_correct_request() {
         let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _test = set_env(OsString::from("API_TOKEN"), "token");
         fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
 
         let new_asset = json!([
@@ -308,7 +258,7 @@ mod tests {
         ]);
 
         let mock_server = MockServer::start();
-        mock_server.mock(|when, then| {
+        let post_mock = mock_server.mock(|when, then| {
             // TODO: figure out how to check the body for multiform content
 
             when.method(POST)
@@ -324,10 +274,11 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
-        let v = asset_command
-            .add(tmp_dir.path().join("1.html").to_str().unwrap(), "test")
-            .unwrap();
-        assert_eq!(v.value, new_asset);
+        let v = asset_command.add(tmp_dir.path().join("1.html").to_str().unwrap(), "test");
+        post_mock.assert();
+
+        assert!(v.is_ok());
+        assert_eq!(v.unwrap().value, new_asset);
     }
 
     #[test]
@@ -361,7 +312,7 @@ mod tests {
         ]);
 
         let mock_server = MockServer::start();
-        mock_server.mock(|when, then| {
+        let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/assets")
                 .header("Authorization", "Token token")
@@ -376,16 +327,16 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
-        let v = asset_command.add("https://google.com", "test").unwrap();
-        assert_eq!(v.value, new_asset);
+        let v = asset_command.add("https://google.com", "test");
+        assert!(v.is_ok());
+        post_mock.assert();
+        assert_eq!(v.unwrap().value, new_asset);
     }
 
     #[test]
     fn test_get_asset_should_return_asset() {
-        let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _test = set_env(OsString::from("API_TOKEN"), "token");
 
         let asset = json!(  [{
           "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
@@ -408,7 +359,7 @@ mod tests {
         }]);
 
         let mock_server = MockServer::start();
-        mock_server.mock(|when, then| {
+        let get_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/assets")
                 .query_param("id", "eq.017b0187-d887-3c79-7b67-18c94098345d")
@@ -424,20 +375,18 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
 
-        let v = asset_command
-            .get("017b0187-d887-3c79-7b67-18c94098345d")
-            .unwrap();
-        assert_eq!(v.value, asset);
+        let v = asset_command.get("017b0187-d887-3c79-7b67-18c94098345d");
+        get_mock.assert();
+        assert!(v.is_ok());
+        assert_eq!(v.unwrap().value, asset);
     }
 
     #[test]
     fn test_delete_asset_should_send_correct_request() {
-        let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
-        mock_server.mock(|when, then| {
+        let delete_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
                 .path("/v4/assets")
                 .query_param("id", "eq.test-id")
@@ -452,7 +401,9 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
-        assert!(asset_command.delete("test-id").is_ok());
+        let result = asset_command.delete("test-id");
+        delete_mock.assert();
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -493,12 +444,10 @@ mod tests {
 
     #[test]
     fn test_inject_js_should_send_correct_request() {
-        let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
-        mock_server.mock(|when, then| {
+        let patch_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
                 .path("/v4/assets")
                 .query_param("id", "eq.test-id")
@@ -514,17 +463,17 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
-        assert!(asset_command.inject_js("test-id", "console.log(1)").is_ok());
+        let result = asset_command.inject_js("test-id", "console.log(1)");
+        patch_mock.assert();
+        assert!(result.is_ok());
     }
 
     #[test]
     fn test_set_headers_should_send_correct_request() {
-        let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
-        mock_server.mock(|when, then| {
+        let patch_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
                 .path("/v4/assets")
                 .query_param("id", "eq.test-id")
@@ -541,17 +490,15 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
         let headers = vec![("k".to_owned(), "v".to_owned())];
-        assert!(asset_command
-            .set_web_asset_headers("test-id", headers)
-            .is_ok());
+        let result = asset_command.set_web_asset_headers("test-id", headers);
+        patch_mock.assert();
+        assert!(result.is_ok());
     }
 
     #[test]
     fn test_update_headers_should_send_correct_request() {
-        let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let asset = json!(  [{
           "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
@@ -573,7 +520,7 @@ mod tests {
           "width": 0
         }]);
 
-        mock_server.mock(|when, then| {
+        let get_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/assets")
                 .query_param("id", "eq.test-id")
@@ -585,7 +532,7 @@ mod tests {
             then.status(200).json_body(asset);
         });
 
-        mock_server.mock(|when, then| {
+        let patch_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
                 .path("/v4/assets")
                 .query_param("id", "eq.test-id")
@@ -602,8 +549,11 @@ mod tests {
         let authentication = Authentication::new_with_config(config);
         let asset_command = AssetCommand::new(authentication);
         let headers = vec![("k".to_owned(), "v".to_owned())];
-        assert!(asset_command
-            .update_web_asset_headers("test-id", headers)
-            .is_ok());
+        let result = asset_command.update_web_asset_headers("test-id", headers);
+
+        get_mock.assert();
+        patch_mock.assert();
+
+        assert!(result.is_ok());
     }
 }
