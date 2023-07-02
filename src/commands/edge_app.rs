@@ -84,7 +84,7 @@ impl EdgeAppCommand {
     pub fn list(&self) -> Result<EdgeApps, CommandError> {
         Ok(EdgeApps::new(commands::get(
             &self.authentication,
-            "v4/edge-apps",
+            "v4/edge-apps?select=id,name",
         )?))
     }
 
