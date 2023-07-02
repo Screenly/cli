@@ -17,6 +17,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+
 use std::time::Duration;
 
 use crate::commands::edge_app_utils::{
@@ -268,7 +269,16 @@ impl EdgeAppCommand {
         manifest: &EdgeAppManifest,
     ) -> Result<(), CommandError> {
         const SLEEP_TIME: u64 = 2;
+        const MAX_WAIT_TIME: u64 = 20; // 20 seconds
+        let mut total_duration = 0;
+
         loop {
+            // TODO: we are not handling possible errors in asset processing here.
+            // Which are unlikely to happen, because we upload assets as they are, but still
+            if total_duration > MAX_WAIT_TIME {
+                return Err(CommandError::AssetProcessingTimeout);
+            }
+
             let value = commands::get(
                 &self.authentication,
                 &format!(
@@ -284,6 +294,7 @@ impl EdgeAppCommand {
                 }
             }
             thread::sleep(Duration::from_secs(SLEEP_TIME));
+            total_duration += SLEEP_TIME;
         }
         Ok(())
     }

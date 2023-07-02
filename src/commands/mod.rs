@@ -99,6 +99,8 @@ pub enum CommandError {
     StripPrefixError(#[from] std::path::StripPrefixError),
     #[error("Filesystem error: {0}")]
     FileSystemError(String),
+    #[error("Asset processing timeout")]
+    AssetProcessingTimeout,
 }
 
 pub fn get(
