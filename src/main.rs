@@ -9,7 +9,6 @@ extern crate prettytable;
 use crate::authentication::{Authentication, AuthenticationError};
 use clap::Parser;
 use simple_logger::SimpleLogger;
-use sentry_anyhow::capture_anyhow;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
