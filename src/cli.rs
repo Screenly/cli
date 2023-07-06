@@ -10,7 +10,7 @@ use reqwest::StatusCode;
 use rpassword::read_password;
 use thiserror::Error;
 
-use crate::authentication::{Authentication, AuthenticationError};
+use crate::authentication::{Authentication, AuthenticationError, Config};
 use crate::commands;
 use crate::commands::playlist::{PlaylistCommand, PlaylistFile};
 use crate::commands::{CommandError, EdgeAppManifest, Formatter, OutputType};
@@ -388,7 +388,7 @@ pub fn get_asset_title(
 }
 
 pub fn handle_cli(cli: &Cli) {
-    let authentication = Authentication::new();
+    let authentication = Authentication::new_with_config(Config::default(), "");
     match &cli.command {
         Commands::Login {} => {
             print!("Enter your API Token: ");
@@ -440,7 +440,7 @@ fn get_user_input() -> String {
 }
 
 pub fn handle_cli_screen_command(command: &ScreenCommands) {
-    let authentication = Authentication::new();
+    let authentication = Authentication::new().expect("Failed to load authentication.");
     let screen_command = commands::screen::ScreenCommand::new(authentication);
 
     match command {
@@ -484,7 +484,8 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
 }
 
 pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
-    let playlist_command = PlaylistCommand::new(Authentication::new());
+    let playlist_command =
+        PlaylistCommand::new(Authentication::new().expect("Failed to load authentication."));
     match command {
         PlaylistCommands::Create {
             json,
@@ -571,7 +572,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
 }
 
 pub fn handle_cli_asset_command(command: &AssetCommands) {
-    let authentication = Authentication::new();
+    let authentication = Authentication::new().expect("Failed to load authentication.");
     let asset_command = commands::asset::AssetCommand::new(authentication);
 
     match command {
@@ -714,7 +715,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
 }
 
 pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
-    let authentication = Authentication::new();
+    let authentication = Authentication::new().expect("Failed to load authentication.");
     let edge_app_command = commands::edge_app::EdgeAppCommand::new(authentication);
 
     match command {
@@ -766,11 +767,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 }
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
-    use std::fs;
 
-    use envtestkit::lock::lock_test;
-    use envtestkit::set_env;
     use httpmock::{Method::GET, MockServer};
     use tempdir::TempDir;
 
@@ -781,10 +778,7 @@ mod tests {
     #[test]
     fn test_get_screen_name_should_return_correct_screen_name() {
         let _tmp_dir = TempDir::new("test").unwrap();
-        let tmp_dir = TempDir::new("test").unwrap();
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let _tmp_dir = TempDir::new("test").unwrap();
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
@@ -798,7 +792,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let screen_command = commands::screen::ScreenCommand::new(authentication);
         let name =
             get_screen_name("017a5104-524b-33d8-8026-9087b59e7eb5", &screen_command).unwrap();

@@ -33,6 +33,7 @@ pub enum AuthenticationError {
 
 pub struct Authentication {
     pub config: Config,
+    pub token: String,
 }
 
 impl Config {
@@ -49,13 +50,14 @@ impl Config {
 }
 
 impl Authentication {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Result<Self, AuthenticationError> {
+        Ok(Self {
             config: Config::default(),
-        }
+            token: Self::read_token()?,
+        })
     }
 
-    pub fn read_token() -> Result<String, AuthenticationError> {
+    fn read_token() -> Result<String, AuthenticationError> {
         if let Ok(token) = env::var("API_TOKEN") {
             return Ok(token);
         }
@@ -68,9 +70,11 @@ impl Authentication {
         }
     }
 
-    #[cfg(test)]
-    pub fn new_with_config(config: Config) -> Self {
-        Self { config }
+    pub fn new_with_config(config: Config, token: &str) -> Self {
+        Self {
+            config,
+            token: token.to_string(),
+        }
     }
 
     pub fn verify_and_store_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
@@ -104,7 +108,7 @@ impl Authentication {
     }
 
     pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {
-        let token = Authentication::read_token()?;
+        let token = self.token.clone();
         let secret = format!("Token {token}");
         let mut default_headers = HeaderMap::new();
         default_headers.insert(header::AUTHORIZATION, secret.parse()?);
@@ -142,6 +146,7 @@ mod tests {
         let tmp_dir = TempDir::new("test").unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
@@ -151,7 +156,8 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "");
+
         assert!(authentication
             .verify_and_store_token("correct_token")
             .is_ok());
@@ -165,8 +171,6 @@ mod tests {
     #[test]
     fn test_verify_and_store_token_when_token_is_invalid() {
         let tmp_dir = TempDir::new("invalid").unwrap();
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
@@ -175,7 +179,8 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let mut authentication = Authentication::new().unwrap();
+        authentication.config = config;
         assert!(authentication
             .verify_and_store_token("wrong_token")
             .is_err());

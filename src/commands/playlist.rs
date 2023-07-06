@@ -208,7 +208,7 @@ impl PlaylistCommand {
 mod tests {
     use super::*;
     use crate::authentication::Config;
-    use envtestkit::lock::lock_test;
+
     use envtestkit::set_env;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
@@ -216,9 +216,6 @@ mod tests {
 
     #[test]
     fn test_create_playlist_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let new_playlist_request = json!({
             "title": "Best playlist",
             "predicate": "FALSE",
@@ -246,7 +243,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result = command.create("Best playlist", "FALSE");
         post_mock.assert();
@@ -255,7 +252,6 @@ mod tests {
 
     #[test]
     fn test_list_playlists_should_send_correct_request() {
-        let _lock = lock_test();
         let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let playlists_mock = mock_server.mock(|when, then| {
@@ -270,7 +266,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result = command.list();
         playlists_mock.assert();
@@ -279,9 +275,6 @@ mod tests {
 
     #[test]
     fn test_get_playlist_file_should_send_correct_request_and_return_playlist_file() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let playlist_items_response = json!([
           {
             "asset_id": "01AWJ47DP0000FXX7R00C5KX3F",
@@ -311,7 +304,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result = command.get_playlist_file("testuuid");
 
@@ -341,9 +334,6 @@ mod tests {
 
     #[test]
     fn test_update_playlist_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let updated_playlist = json!({
           "predicate": "FALSE",
           "playlist_id": "test-playlist-id",
@@ -412,7 +402,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result =
             command.update(&serde_json::from_value::<PlaylistFile>(updated_playlist).unwrap());
@@ -426,9 +416,6 @@ mod tests {
 
     #[test]
     fn test_delete_playlist_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let mock_server = MockServer::start();
         let delete_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
@@ -443,7 +430,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result = command.delete("test-id");
         delete_mock.assert();
@@ -452,9 +439,6 @@ mod tests {
 
     #[test]
     fn test_append_asset_to_playlist_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let items_request = json!([
           {
             "position": 300000,
@@ -488,7 +472,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result = command.append_asset("test-playlist-id", "test-asset-id", 100);
 
@@ -499,9 +483,6 @@ mod tests {
 
     #[test]
     fn test_prepend_asset_to_playlist_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let _updated_playlist = json!({
           "predicate": "TRUE",
           "playlist_id": "test-playlist-id",
@@ -583,7 +564,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result = command.prepend_asset("test-playlist-id", "test-asset-id", 100);
 

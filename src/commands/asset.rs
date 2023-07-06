@@ -158,18 +158,15 @@ mod tests {
     use super::*;
     use crate::authentication::Config;
     use crate::commands::{Formatter, OutputType};
-    use envtestkit::lock::lock_test;
-    use envtestkit::set_env;
+
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
-    use std::ffi::OsString;
+
     use std::fs;
     use tempdir::TempDir;
 
     #[test]
     fn test_list_assets_should_return_correct_asset_list() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let asset_list = json!([{
           "asset_group_id": null,
           "asset_url": "https://us-assets.screenlyapp.com/test13",
@@ -222,7 +219,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
         let v = asset_command.list().unwrap();
         assert_eq!(v.value, asset_list);
@@ -231,8 +228,6 @@ mod tests {
     #[test]
     fn test_add_asset_when_local_asset_should_send_correct_request() {
         let tmp_dir = TempDir::new("test").unwrap();
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
 
         let new_asset = json!([
@@ -272,7 +267,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
         let v = asset_command.add(tmp_dir.path().join("1.html").to_str().unwrap(), "test");
         post_mock.assert();
@@ -284,9 +279,6 @@ mod tests {
     #[test]
     fn test_add_asset_when_web_asset_should_send_correct_request() {
         let tmp_dir = TempDir::new("test").unwrap();
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
         fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
 
         let new_asset = json!([
@@ -325,7 +317,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
         let v = asset_command.add("https://google.com", "test");
         assert!(v.is_ok());
@@ -335,9 +327,6 @@ mod tests {
 
     #[test]
     fn test_get_asset_should_return_asset() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let asset = json!(  [{
           "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
           "asset_url": "https://vimeo.com/1084537",
@@ -372,7 +361,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
 
         let v = asset_command.get("017b0187-d887-3c79-7b67-18c94098345d");
@@ -383,8 +372,6 @@ mod tests {
 
     #[test]
     fn test_delete_asset_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let delete_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
@@ -399,7 +386,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
         let result = asset_command.delete("test-id");
         delete_mock.assert();
@@ -444,8 +431,6 @@ mod tests {
 
     #[test]
     fn test_inject_js_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let patch_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
@@ -461,7 +446,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
         let result = asset_command.inject_js("test-id", "console.log(1)");
         patch_mock.assert();
@@ -470,8 +455,6 @@ mod tests {
 
     #[test]
     fn test_set_headers_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let patch_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
@@ -487,7 +470,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
         let headers = vec![("k".to_owned(), "v".to_owned())];
         let result = asset_command.set_web_asset_headers("test-id", headers);
@@ -497,8 +480,6 @@ mod tests {
 
     #[test]
     fn test_update_headers_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let asset = json!(  [{
           "asset_group_id": "017b0187-d887-3c79-7b67-18c94098345d",
@@ -546,7 +527,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let asset_command = AssetCommand::new(authentication);
         let headers = vec![("k".to_owned(), "v".to_owned())];
         let result = asset_command.update_web_asset_headers("test-id", headers);
