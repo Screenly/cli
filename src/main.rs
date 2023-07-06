@@ -13,9 +13,9 @@ use simple_logger::SimpleLogger;
 fn main() {
     SimpleLogger::new().init().unwrap();
 
-    let _sentry_dns = "https://cf4fbc3a05024138ad8ef56f218fbb0e@o1402263.ingest.sentry.io/4505391836233728";
+    let _sentry_dsn = "https://891eb4b6f8ff4f959fd76a587d9ab302@o4505481987489792.ingest.sentry.io/4505482139140096";
 
-    let _guard = sentry::init((_sentry_dns, sentry::ClientOptions {
+    let _guard = sentry::init((_sentry_dsn, sentry::ClientOptions {
         release: sentry::release_name!(),
         ..Default::default()
     }));
