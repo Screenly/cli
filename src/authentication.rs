@@ -70,40 +70,11 @@ impl Authentication {
         }
     }
 
+    #[cfg(test)]
     pub fn new_with_config(config: Config, token: &str) -> Self {
         Self {
             config,
             token: token.to_string(),
-        }
-    }
-
-    pub fn verify_and_store_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
-        self.verify_token(token)?;
-
-        match dirs::home_dir() {
-            Some(home) => {
-                fs::write(home.join(".screenly"), token)?;
-                Ok(())
-            }
-            None => Err(AuthenticationError::MissingHomeDir()),
-        }
-    }
-
-    fn verify_token(&self, token: &str) -> anyhow::Result<(), AuthenticationError> {
-        // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
-        let url = format!("{}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/", &self.config.url);
-        let secret = format!("Token {token}");
-        let client = reqwest::blocking::Client::builder().build()?;
-
-        let res = client
-            .get(url)
-            .header(header::AUTHORIZATION, &secret)
-            .send()?;
-
-        match res.status() {
-            StatusCode::UNAUTHORIZED => Err(AuthenticationError::WrongCredentials),
-            StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(AuthenticationError::Unknown),
         }
     }
 
@@ -121,6 +92,39 @@ impl Authentication {
             .default_headers(default_headers)
             .build()
             .map_err(AuthenticationError::Request)
+    }
+}
+
+pub fn verify_and_store_token(
+    token: &str,
+    api_url: &str,
+) -> anyhow::Result<(), AuthenticationError> {
+    verify_token(token, api_url)?;
+
+    match dirs::home_dir() {
+        Some(home) => {
+            fs::write(home.join(".screenly"), token)?;
+            Ok(())
+        }
+        None => Err(AuthenticationError::MissingHomeDir()),
+    }
+}
+
+fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), AuthenticationError> {
+    // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
+    let url = format!("{}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/", api_url);
+    let secret = format!("Token {token}");
+    let client = reqwest::blocking::Client::builder().build()?;
+
+    let res = client
+        .get(url)
+        .header(header::AUTHORIZATION, &secret)
+        .send()?;
+
+    match res.status() {
+        StatusCode::UNAUTHORIZED => Err(AuthenticationError::WrongCredentials),
+        StatusCode::NOT_FOUND => Ok(()),
+        _ => Err(AuthenticationError::Unknown),
     }
 }
 
@@ -157,10 +161,7 @@ mod tests {
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "");
-
-        assert!(authentication
-            .verify_and_store_token("correct_token")
-            .is_ok());
+        assert!(verify_and_store_token("correct_token", &authentication.config.url).is_ok());
         let path = tmp_dir.path().join(".screenly");
         assert!(path.exists());
         let contents = fs::read_to_string(path).unwrap();
@@ -170,10 +171,11 @@ mod tests {
 
     #[test]
     fn test_verify_and_store_token_when_token_is_invalid() {
+        let tmp_dir = TempDir::new("invalid").unwrap();
+
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
 
-        let tmp_dir = TempDir::new("invalid").unwrap();
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
@@ -182,12 +184,9 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let mut authentication = Authentication::new().unwrap();
-        authentication.config = config;
-        assert!(authentication
-            .verify_and_store_token("wrong_token")
-            .is_err());
+        assert!(verify_and_store_token("wrong_token", &config.url).is_err());
         let path = tmp_dir.path().join(".screenly");
+
         assert!(!path.exists());
     }
 

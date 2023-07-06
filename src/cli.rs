@@ -10,7 +10,7 @@ use reqwest::StatusCode;
 use rpassword::read_password;
 use thiserror::Error;
 
-use crate::authentication::{Authentication, AuthenticationError, Config};
+use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
 use crate::commands;
 use crate::commands::playlist::{PlaylistCommand, PlaylistFile};
 use crate::commands::{CommandError, EdgeAppManifest, Formatter, OutputType};
@@ -388,13 +388,12 @@ pub fn get_asset_title(
 }
 
 pub fn handle_cli(cli: &Cli) {
-    let authentication = Authentication::new_with_config(Config::default(), "");
     match &cli.command {
         Commands::Login {} => {
             print!("Enter your API Token: ");
             std::io::stdout().flush().unwrap();
             let token = read_password().unwrap();
-            match authentication.verify_and_store_token(&token) {
+            match verify_and_store_token(&token, &Config::default().url) {
                 Ok(()) => {
                     info!("Login credentials have been saved.");
                     std::process::exit(0);
