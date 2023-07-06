@@ -170,6 +170,9 @@ mod tests {
 
     #[test]
     fn test_verify_and_store_token_when_token_is_invalid() {
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+
         let tmp_dir = TempDir::new("invalid").unwrap();
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
