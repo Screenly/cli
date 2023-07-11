@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::{fs, io};
+use std::{env, fs, io};
 
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
@@ -419,7 +419,11 @@ pub fn handle_cli(cli: &Cli) {
 }
 
 fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
-    let mut result = PathBuf::from(path.as_ref().map(String::as_str).unwrap_or(""));
+    let mut result = match path {
+        Some(path) => PathBuf::from(path),
+        None => env::current_dir().unwrap(),
+    };
+
     result.push("screenly.yml");
     result
 }
@@ -796,5 +800,32 @@ mod tests {
         let name =
             get_screen_name("017a5104-524b-33d8-8026-9087b59e7eb5", &screen_command).unwrap();
         assert_eq!(name, "Test name");
+    }
+
+    #[test]
+    fn test_transform_edge_app_path_to_manifest_with_path_should_return_correct_path() {
+        let dir = TempDir::new("test").unwrap();
+        let dir_path = dir.path().to_str().unwrap().to_string();
+        let path = Some(dir_path.clone());
+
+        let new_path = transform_edge_app_path_to_manifest(&path);
+
+        assert_eq!(
+            new_path,
+            PathBuf::from(format!("{}/screenly.yml", dir_path))
+        );
+    }
+
+    #[test]
+    fn test_transform_edge_app_path_to_manifest_without_path_should_return_correct_path() {
+        let dir = TempDir::new("test").unwrap();
+        let dir_path = dir.path();
+
+        // Change current directory to tempdir
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let new_path = transform_edge_app_path_to_manifest(&None);
+
+        assert_eq!(new_path, dir_path.join("screenly.yml"));
     }
 }
