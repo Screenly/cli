@@ -481,18 +481,14 @@ impl EdgeAppCommand {
 mod tests {
     use super::*;
     use crate::authentication::Config;
-    use envtestkit::lock::lock_test;
-    use envtestkit::set_env;
+
     use httpmock::Method::{GET, PATCH, POST};
     use httpmock::MockServer;
-    use std::ffi::OsString;
+
     use tempdir::TempDir;
 
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let tmp_dir = TempDir::new("test").unwrap();
 
         let mock_server = MockServer::start();
@@ -508,7 +504,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
 
         let result = command.create(
@@ -533,8 +529,6 @@ mod tests {
 
     #[test]
     fn test_list_edge_apps_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -548,7 +542,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
         let result = command.list();
         edge_apps_mock.assert();
@@ -557,8 +551,6 @@ mod tests {
 
     #[test]
     fn test_list_versions_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -572,7 +564,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
@@ -596,8 +588,6 @@ mod tests {
 
     #[test]
     fn test_list_settings_should_send_correct_request() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
         let mock_server = MockServer::start();
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -613,7 +603,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
@@ -634,9 +624,6 @@ mod tests {
 
     #[test]
     fn test_upload_should_send_correct_requests() {
-        let _lock = lock_test();
-        let _test = set_env(OsString::from("API_TOKEN"), "token");
-
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
             root_asset_id: "".to_string(),
@@ -770,7 +757,7 @@ mod tests {
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
         let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config);
+        let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
         let result = command.upload(temp_dir.path().join("screenly.yml").as_path());
 

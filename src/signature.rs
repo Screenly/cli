@@ -7,7 +7,7 @@ use sha2::Digest;
 use sha2::Sha256;
 use std::fs::File;
 
-use std::io::{Read};
+use std::io::Read;
 use std::path::Path;
 
 pub fn sig_to_hex(signature: &Signature) -> String {
