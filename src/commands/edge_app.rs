@@ -114,6 +114,46 @@ impl EdgeAppCommand {
         )?))
     }
 
+    pub fn set_setting(
+        &self,
+        manifest: &EdgeAppManifest,
+        setting_key: &str,
+        setting_value: &str,
+    ) -> Result<(), CommandError> {
+        if manifest.root_asset_id.is_empty() {
+            eprintln!("No root asset id found in manifest. Please run `edge-app upload` first.");
+            return Err(CommandError::MissingField);
+        }
+
+        let response = commands::get(
+            &self.authentication,
+            &format!("v4/assets?id=eq.{}&select=metadata", manifest.root_asset_id),
+        )?;
+
+        let mut settings: Vec<HashMap<String, serde_json::Value>> =
+            serde_json::from_value(serde_json::json!(response))?;
+        let hash_map = settings.get_mut(0).ok_or(CommandError::MissingField)?;
+
+        let metadata = hash_map.get_mut("metadata").ok_or_else(|| {
+            eprintln!("Metadata field not found.");
+            CommandError::MissingField
+        })?;
+
+        let setting_val = metadata.get_mut(setting_key).ok_or_else(|| {
+            eprintln!("Setting with key '{}' not found.", setting_key);
+            CommandError::MissingField
+        })?;
+
+        *setting_val = serde_json::json!(setting_value.to_owned());
+
+        commands::patch(
+            &self.authentication,
+            &format!("v4/assets?id=eq.{}", manifest.root_asset_id),
+            &json!(settings[0]),
+        )?;
+        Ok(())
+    }
+
     pub fn upload(self, path: &Path) -> Result<(), CommandError> {
         let data = fs::read_to_string(path)?;
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
@@ -619,6 +659,57 @@ mod tests {
 
         let result = command.list_settings(&manifest);
         edge_apps_mock.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_setting_should_send_correct_request() {
+        let mock_server = MockServer::start();
+        let asset_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("id", "eq.test-id")
+                .query_param("select", "metadata");
+            then.status(200)
+                .json_body(json!([{"metadata": {"best_setting": "best_value"}}]));
+        });
+
+        let patch_asset_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("id", "eq.test-id")
+                .json_body(json!({"metadata": {"best_setting": "best_value"}}));
+            then.status(200);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            root_asset_id: "test-id".to_string(),
+            user_version: "1".to_string(),
+            revision: 7,
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![], // does not matter if it's not set here if it already exists for this version
+        };
+
+        let result = command.set_setting(&manifest, "best_setting", "best_value");
+        asset_mock.assert();
+        patch_asset_mock.assert();
         assert!(result.is_ok());
     }
 

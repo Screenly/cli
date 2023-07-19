@@ -1,55 +1,11 @@
 use crate::authentication::Authentication;
 use crate::commands;
-use crate::commands::{CommandError, PlaylistItems, Playlists};
-use serde::{Deserialize, Deserializer, Serialize};
-
+use crate::commands::{CommandError, PlaylistFile, PlaylistItem, PlaylistItems, Playlists};
 use serde_json::json;
 
 const POSITION_MULTIPLIER: u64 = 100000;
 pub struct PlaylistCommand {
     authentication: Authentication,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PlaylistItem {
-    pub asset_id: String,
-    #[serde(deserialize_with = "deserialize_float_to_u32")]
-    pub duration: u32,
-    #[serde(skip_serializing, default = "default_pos_value")]
-    pub position: u64,
-}
-
-fn default_pos_value() -> u64 {
-    0
-}
-
-fn deserialize_float_to_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let float_value: f64 = Deserialize::deserialize(deserializer)?;
-    Ok(float_value as u32)
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PlaylistFile {
-    predicate: String,
-    playlist_id: String,
-    items: Vec<PlaylistItem>,
-}
-
-impl PlaylistFile {
-    pub fn new(
-        predicate: String,
-        playlist_id: String,
-        items: serde_json::Value,
-    ) -> Result<Self, CommandError> {
-        Ok(Self {
-            predicate,
-            playlist_id,
-            items: serde_json::from_value(items)?,
-        })
-    }
 }
 
 impl PlaylistCommand {
