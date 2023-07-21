@@ -1,6 +1,5 @@
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::{env, fs, io};
 
 use clap::{Parser, Subcommand};
@@ -12,8 +11,8 @@ use thiserror::Error;
 
 use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
 use crate::commands;
-use crate::commands::playlist::{PlaylistCommand, PlaylistFile};
-use crate::commands::{CommandError, EdgeAppManifest, Formatter, OutputType};
+use crate::commands::playlist::PlaylistCommand;
+use crate::commands::{CommandError, EdgeAppManifest, Formatter, OutputType, PlaylistFile};
 
 const DEFAULT_ASSET_DURATION: u32 = 15;
 
@@ -128,9 +127,6 @@ pub enum PlaylistCommands {
     },
     /// Gets a single playlist by id.
     Get {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// UUID of the playlist.
         uuid: String,
     },
@@ -164,13 +160,7 @@ pub enum PlaylistCommands {
         duration: Option<u32>,
     },
     /// Patches a given playlist.
-    Update {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-        /// Path to the directory containing playlist.json. If not specified it will look for playlist.json in the current directory.
-        path: Option<String>,
-    },
+    Update {},
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -311,6 +301,15 @@ pub enum EdgeAppSettingsCommands {
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
+    },
+
+    Set {
+        /// Key of the setting to be set.
+        key: String,
+        /// Value of the setting to be set.
+        value: String,
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
     },
 }
 
@@ -503,14 +502,12 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
         PlaylistCommands::List { json } => {
             handle_command_execution_result(playlist_command.list(), json);
         }
-        PlaylistCommands::Get { json: _, uuid } => {
+        PlaylistCommands::Get { uuid } => {
             let playlist_file = playlist_command.get_playlist_file(uuid);
             match playlist_file {
                 Ok(playlist) => {
                     let pretty_playlist_file = serde_json::to_string_pretty(&playlist).unwrap();
-                    let file = File::create("playlist.json").unwrap();
-                    write!(&file, "{pretty_playlist_file}").unwrap();
-                    println!("Playlist saved to playlist.json. You can modify and upload it with the update command.");
+                    println!("{}", pretty_playlist_file);
                 }
                 Err(e) => {
                     println!("Error occurred when getting playlist: {e:?}")
@@ -555,13 +552,14 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                 json,
             );
         }
-        PlaylistCommands::Update { json: _, path } => {
-            let path_to_playlist_json =
-                Path::new(&path.clone().unwrap_or(".".to_owned())).join("playlist.json");
-            let playlist_content = std::fs::read_to_string(path_to_playlist_json)
-                .expect("Unable to read playlist file");
+        PlaylistCommands::Update {} => {
+            let mut input = String::new();
+            io::stdin()
+                .read_to_string(&mut input)
+                .expect("Unable to read stdin.");
+
             let playlist: PlaylistFile =
-                serde_json::from_str(&playlist_content).expect("Unable to parse playlist file.");
+                serde_json::from_str(&input).expect("Unable to parse playlist file.");
             match playlist_command.update(&playlist) {
                 Ok(_) => {
                     println!("Playlist updated successfully.");
@@ -764,6 +762,21 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     ),
                     json,
                 );
+            }
+            EdgeAppSettingsCommands::Set { key, value, path } => {
+                match edge_app_command.set_setting(
+                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
+                        .unwrap(),
+                    key,
+                    value,
+                ) {
+                    Ok(()) => {
+                        println!("Edge app setting successfully set.");
+                    }
+                    Err(e) => {
+                        println!("Failed to set edge app setting: {e}.");
+                    }
+                }
             }
         },
     }

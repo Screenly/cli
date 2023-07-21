@@ -262,6 +262,48 @@ impl EdgeAppManifest {
     }
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct PlaylistItem {
+    pub asset_id: String,
+    #[serde(deserialize_with = "deserialize_float_to_u32")]
+    pub duration: u32,
+    #[serde(skip_serializing, default = "default_pos_value")]
+    pub position: u64,
+}
+
+fn default_pos_value() -> u64 {
+    0
+}
+
+fn deserialize_float_to_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let float_value: f64 = Deserialize::deserialize(deserializer)?;
+    Ok(float_value as u32)
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct PlaylistFile {
+    predicate: String,
+    playlist_id: String,
+    items: Vec<PlaylistItem>,
+}
+
+impl PlaylistFile {
+    pub fn new(
+        predicate: String,
+        playlist_id: String,
+        items: serde_json::Value,
+    ) -> Result<Self, CommandError> {
+        Ok(Self {
+            predicate,
+            playlist_id,
+            items: serde_json::from_value(items)?,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub struct EdgeApps {
     pub value: serde_json::Value,
@@ -314,13 +356,13 @@ impl Formatter for EdgeAppVersions {
             vec!["revision", "description", "published"],
             self,
             Some(|field_name: &str, field_value: &serde_json::Value| {
-                if field_name.eq("version") {
+                if field_name.eq("revision") {
                     let version = field_value.as_u64().unwrap_or(0);
                     let str_version = version.to_string();
                     Cell::new(if version > 0 { &str_version } else { "N/A" })
                 } else if field_name.eq("published") {
                     let published = field_value.as_bool().unwrap_or(false);
-                    Cell::new(if published { "✅" } else { "-" })
+                    Cell::new(if published { "✅" } else { "❌" })
                 } else {
                     Cell::new(field_value.as_str().unwrap_or("N/A"))
                 }
