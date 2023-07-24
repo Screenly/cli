@@ -201,7 +201,7 @@ impl EdgeAppCommand {
         };
         let response = commands::post(
             &self.authentication,
-            &format!("v4/edge-apps/promote"),
+            "v4/edge-apps/promote",
             &payload,
         )?;
 
