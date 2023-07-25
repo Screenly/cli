@@ -205,13 +205,15 @@ impl EdgeAppCommand {
             &payload,
         )?;
 
-        if let Some(dict) = response.as_object() {
-            if let Some(revision) = dict.get("updated") {
-                if let Some(revision_value) = revision.as_i64() {
-                    return Ok(revision_value as i32);
-                }
-            }
-        };
+        let updated_amount = response
+            .as_object()
+            .and_then(|dict| dict.get("updated"))
+            .and_then(|_updated| _updated.as_i64())
+            .map(|_updated| _updated as i32);
+
+        if let Some(amount) = updated_amount {
+            return Ok(amount);
+        }
 
         Err(CommandError::MissingField)
     }
