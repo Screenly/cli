@@ -225,6 +225,30 @@ impl EdgeAppCommand {
         Ok(())
     }
 
+    pub fn promote(&self, manifest: &EdgeAppManifest) -> Result<i32, CommandError> {
+        let response = commands::post(
+            &self.authentication,
+            "v4/edge-apps/promote",
+            &json!(
+                {
+                    "revision": manifest.revision,
+                    "app_id": manifest.app_id.clone(),
+                }),
+        )?;
+
+        let updated_amount = response
+            .as_object()
+            .and_then(|dict| dict.get("updated"))
+            .and_then(|_updated| _updated.as_i64())
+            .map(|_updated| _updated as i32);
+
+        if let Some(amount) = updated_amount {
+            return Ok(amount);
+        }
+
+        Err(CommandError::MissingField)
+    }
+
     fn create_version(
         &self,
         manifest: &EdgeAppManifest,
@@ -862,5 +886,46 @@ mod tests {
         get_root_asset_mock.assert();
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_promote_should_send_correct_request() {
+        let mock_server = MockServer::start();
+        let edge_apps_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/promote")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "revision": 7,
+                }));
+            then.status(201)
+                .json_body(json!({"updated": 2}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            root_asset_id: "".to_string(),
+            user_version: "1".to_string(),
+            revision: 7,
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let result = command.promote(&manifest);
+        edge_apps_mock.assert();
+
+        assert!(&result.is_ok());
+        assert_eq!(&result.unwrap(), &2);
     }
 }
