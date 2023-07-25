@@ -294,7 +294,7 @@ pub enum EdgeAppCommands {
     Promote {
         /// Edge app revision to promote.
         #[arg(short, long)]
-        revision: Option<i32>,
+        revision: Option<u32>,
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
     },
@@ -775,12 +775,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         },
         EdgeAppCommands::Promote{path, revision} => {
-            if let Some(_revision) = revision {
-                println!("Revision not specified. Latest revision will be used to promote.");
+            let mut manifest = EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
+            if revision.is_some() {
+                manifest.revision = revision.unwrap();
+
             }
             match edge_app_command.promote(
-                &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap(),
-                revision
+                &manifest
             ) {
                 Ok(updated) => {
                     println!("Edge app successfully promoted. Updated playlist items: {updated}.");

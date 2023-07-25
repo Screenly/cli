@@ -92,7 +92,6 @@ impl Authentication {
         );
 
         reqwest::blocking::Client::builder()
-            //.danger_accept_invalid_certs(true)
             .default_headers(default_headers)
             .build()
             .map_err(AuthenticationError::Request)
@@ -119,7 +118,6 @@ fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), Authentication
     let url = format!("{}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/", api_url);
     let secret = format!("Token {token}");
     let client = reqwest::blocking::Client::builder()
-        //.danger_accept_invalid_certs(true)
         .build()?;
 
     let res = client
