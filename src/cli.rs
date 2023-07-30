@@ -77,6 +77,8 @@ pub struct Cli {
 pub enum Commands {
     /// Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token.
     Login {},
+    /// Logouts and removes stored token.
+    Logout {},
     /// Screen related commands.
     #[command(subcommand)]
     Screen(ScreenCommands),
@@ -452,6 +454,11 @@ pub fn handle_cli(cli: &Cli) {
         Commands::Asset(command) => handle_cli_asset_command(command),
         Commands::EdgeApp(command) => handle_cli_edge_app_command(command),
         Commands::Playlist(command) => handle_cli_playlist_command(command),
+        Commands::Logout {} => {
+            Authentication::remove_token().expect("Failed to remove token.");
+            info!("Logout successful.");
+            std::process::exit(0);
+        }
     }
 }
 
