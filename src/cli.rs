@@ -42,6 +42,21 @@ fn parse_headers(s: &str) -> Result<Headers, ParseError> {
     Ok(Headers { headers })
 }
 
+fn parse_secrets(s: &str) -> Result<Secrets, ParseError> {
+    if s.is_empty() {
+        return Ok(Secrets {
+            secrets: Vec::new(),
+        });
+    }
+
+    let mut secrets = Vec::new();
+    let secret_pairs = s.split(',');
+    for secret_pair in secret_pairs {
+        secrets.push(parse_key_val(secret_pair)?);
+    }
+    Ok(Secrets { secrets })
+}
+
 #[derive(Parser)]
 #[command(
     version,
@@ -170,6 +185,13 @@ pub struct Headers {
     headers: Vec<(String, String)>,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct Secrets {
+    // this struct is only needed because I was getting panic from clap when trying to directly use Vec<(String, String)> and parse it.
+    // it really did not want to deal with vector when argaction was not set to Append.
+    secrets: Vec<(String, String)>,
+}
+
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AssetCommands {
     /// Lists your assets.
@@ -273,7 +295,11 @@ pub enum EdgeAppCommands {
 
     /// Settings commands.
     #[command(subcommand)]
-    Settings(EdgeAppSettingsCommands),
+    Setting(EdgeAppSettingsCommands),
+
+    /// Secrets commands.
+    #[command(subcommand)]
+    Secret(EdgeAppSecretsCommands),
 
     /// Uploads assets and settings of the edge app.
     Upload {
@@ -308,6 +334,18 @@ pub enum EdgeAppSettingsCommands {
         key: String,
         /// Value of the setting to be set.
         value: String,
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EdgeAppSecretsCommands {
+    Set {
+        /// Secret key, value paris in the following form `secret1=value1[,secret2=value2[,...]]`. This command
+        /// replaces all secret values of the edge app with the given pairs
+        #[arg(value_parser = parse_secrets)]
+        secret_pairs: Secrets,
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
     },
@@ -753,7 +791,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 );
             }
         },
-        EdgeAppCommands::Settings(command) => match command {
+        EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List { path, json } => {
                 handle_command_execution_result(
                     edge_app_command.list_settings(
@@ -775,6 +813,22 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                     Err(e) => {
                         println!("Failed to set edge app setting: {e}.");
+                    }
+                }
+            }
+        },
+        EdgeAppCommands::Secret(command) => match command {
+            EdgeAppSecretsCommands::Set { secret_pairs, path } => {
+                match edge_app_command.set_secrets(
+                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
+                        .unwrap(),
+                    secret_pairs.secrets.clone(),
+                ) {
+                    Ok(()) => {
+                        println!("Edge app secrets successfully set.");
+                    }
+                    Err(e) => {
+                        println!("Failed to set edge app secrets: {e}.");
                     }
                 }
             }

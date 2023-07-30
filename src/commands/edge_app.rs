@@ -5,7 +5,7 @@ use crate::commands::{
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::{str, thread};
 
 use reqwest::header::HeaderMap;
@@ -104,14 +104,46 @@ impl EdgeAppCommand {
         &self,
         manifest: &EdgeAppManifest,
     ) -> Result<EdgeAppSettings, CommandError> {
-        Ok(EdgeAppSettings::new(commands::get(
+        let value = commands::get(
             &self.authentication,
-            &format!(
-                "v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc",
-                manifest.app_id,
-                manifest.revision
-            ),
-        )?))
+            &format!("v4/assets?select=metadata&id=eq.{}", manifest.root_asset_id,),
+        )?;
+        let mut settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(value)?;
+        let hash_map = settings.get_mut(0).ok_or(CommandError::MissingField)?;
+
+        let metadata = hash_map.get_mut("metadata").ok_or_else(|| {
+            eprintln!("Metadata field not found.");
+            CommandError::MissingField
+        })?;
+
+        let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
+    &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc",
+        manifest.app_id,
+        manifest.revision
+    ))?)?;
+
+        // Iterate over app settings and add values from metadata
+        for setting in app_settings.iter_mut() {
+            // Get the title of the setting, return an error if it does not exist
+            let title = setting
+                .get("title")
+                .and_then(|t| t.as_str())
+                .ok_or_else(|| {
+                    eprintln!("Title field not found in the setting.");
+                    CommandError::MissingField
+                })?;
+
+            // Get the value from metadata, continue to the next iteration if it does not exist
+            let value = match metadata.get(title) {
+                Some(v) => v,
+                None => continue,
+            };
+
+            // Add the value from metadata to the setting
+            setting.insert("value".to_string(), value.clone());
+        }
+
+        Ok(EdgeAppSettings::new(serde_json::to_value(app_settings)?))
     }
 
     pub fn set_setting(
@@ -131,7 +163,7 @@ impl EdgeAppCommand {
         )?;
 
         let mut settings: Vec<HashMap<String, serde_json::Value>> =
-            serde_json::from_value(serde_json::json!(response))?;
+            serde_json::from_value(response)?;
         let hash_map = settings.get_mut(0).ok_or(CommandError::MissingField)?;
 
         let metadata = hash_map.get_mut("metadata").ok_or_else(|| {
@@ -146,11 +178,67 @@ impl EdgeAppCommand {
 
         *setting_val = serde_json::json!(setting_value.to_owned());
 
-        commands::patch(
+        commands::post(
             &self.authentication,
-            &format!("v4/assets?id=eq.{}", manifest.root_asset_id),
-            &json!(settings[0]),
+            "v4/assets-settings",
+            &json!({"asset-id": manifest.root_asset_id, "metadata": metadata}),
         )?;
+
+        Ok(())
+    }
+
+    pub fn set_secrets(
+        &self,
+        manifest: &EdgeAppManifest,
+        secrets: Vec<(String, String)>,
+    ) -> Result<(), CommandError> {
+        if manifest.root_asset_id.is_empty() {
+            eprintln!("No root asset id found in manifest. Please run `edge-app upload` first.");
+            return Err(CommandError::MissingField);
+        }
+
+        let app_secrets: Vec<HashMap<String, serde_json::Value>> =
+            serde_json::from_value(commands::get(
+                &self.authentication,
+                &format!(
+                "v4/edge-apps/settings?select=title&app_id=eq.{}&app_revision=eq.{}&type=eq.secret",
+                manifest.app_id,
+                manifest.revision,
+            ),
+            )?)?;
+
+        let app_secret_titles: HashSet<String> = app_secrets
+            .iter()
+            .map(|secret| {
+                secret
+                    .get("title")
+                    .and_then(|title| title.as_str().map(String::from))
+            })
+            .collect::<Option<_>>()
+            .unwrap_or_default();
+
+        let submitted_secret_titles: HashSet<String> =
+            secrets.iter().map(|(title, _)| title.clone()).collect();
+
+        if !app_secret_titles.is_subset(&submitted_secret_titles) {
+            let missing_secrets: Vec<String> = app_secret_titles
+                .difference(&submitted_secret_titles)
+                .cloned()
+                .collect();
+            eprintln!(
+                "Error: The following secrets are missing: {:?}",
+                missing_secrets
+            );
+            return Err(CommandError::MissingField);
+        }
+
+        let secret_payload: HashMap<String, String> = secrets.into_iter().collect();
+        commands::post(
+            &self.authentication,
+            "v4/assets-secrets",
+            &json!({"asset-id": manifest.root_asset_id, "secrets": secret_payload}),
+        )?;
+
         Ok(())
     }
 
@@ -166,8 +254,11 @@ impl EdgeAppCommand {
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
-        let remote_settings =
-            serde_json::from_value::<Vec<Setting>>(self.list_settings(&manifest)?.value)?;
+        let remote_settings = if manifest.root_asset_id.is_empty() {
+            Vec::new()
+        } else {
+            serde_json::from_value::<Vec<Setting>>(self.list_settings(&manifest)?.value)?
+        };
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
         let old_file_tree = self.get_file_tree(&manifest);
@@ -245,7 +336,6 @@ impl EdgeAppCommand {
             "v4/edge-apps/versions?select=revision",
             &json,
         )?;
-
         if let Some(arr) = response.as_array() {
             if let Some(obj) = arr.get(0) {
                 if let Some(revision) = obj["revision"].as_u64() {
@@ -676,20 +766,21 @@ mod tests {
                 .query_param("id", "eq.test-id")
                 .query_param("select", "metadata");
             then.status(200)
-                .json_body(json!([{"metadata": {"best_setting": "best_value"}}]));
+                .json_body(json!([{"metadata": {"best_setting": "worst_value"}}]));
         });
 
-        let patch_asset_mock = mock_server.mock(|when, then| {
-            when.method(PATCH)
-                .path("/v4/assets")
+        let post_asset_settings_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets-settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("id", "eq.test-id")
-                .json_body(json!({"metadata": {"best_setting": "best_value"}}));
-            then.status(200);
+                .json_body(
+                    json!({"asset-id": "test-id", "metadata": {"best_setting": "best_value"}}),
+                );
+            then.status(200).json_body(json!({}));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -709,7 +800,57 @@ mod tests {
 
         let result = command.set_setting(&manifest, "best_setting", "best_value");
         asset_mock.assert();
-        patch_asset_mock.assert();
+        post_asset_settings_mock.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_secrets_should_send_correct_request() {
+        let mock_server = MockServer::start();
+        let settings_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200).json_body(json!([{"title": "test"}]));
+        });
+
+        let post_asset_secrets_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets-secrets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"asset-id": "test-id", "secrets": {"test": "best_value"}}));
+            then.status(200).json_body(json!({}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            root_asset_id: "test-id".to_string(),
+            user_version: "1".to_string(),
+            revision: 7,
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![], // does not matter if it's not set here if it already exists for this version
+        };
+
+        let result = command.set_secrets(
+            &manifest,
+            vec![("test".to_owned(), "best_value".to_owned())],
+        );
+        settings_mock.assert();
+        post_asset_secrets_mock.assert();
         assert!(result.is_ok());
     }
 

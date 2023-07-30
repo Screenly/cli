@@ -391,8 +391,22 @@ impl Formatter for EdgeAppSettings {
     fn format(&self, output_type: OutputType) -> String {
         format_value(
             output_type,
-            vec!["Title", "Default value", "Optional", "Type", "Help text"],
-            vec!["title", "default_value", "optional", "type", "help_text"],
+            vec![
+                "Title",
+                "Value",
+                "Default value",
+                "Optional",
+                "Type",
+                "Help text",
+            ],
+            vec![
+                "title",
+                "value",
+                "default_value",
+                "optional",
+                "type",
+                "help_text",
+            ],
             self,
             Some(
                 |field_name: &str, field_value: &serde_json::Value| -> Cell {
