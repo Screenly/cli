@@ -332,10 +332,9 @@ pub enum EdgeAppSettingsCommands {
     },
 
     Set {
-        /// Key of the setting to be set.
-        key: String,
-        /// Value of the setting to be set.
-        value: String,
+        /// Key value pair of the setting to be set in the form of `key=value`.
+        #[arg(value_parser = parse_key_val)]
+        setting_pair: (String, String),
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
     },
@@ -808,12 +807,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     json,
                 );
             }
-            EdgeAppSettingsCommands::Set { key, value, path } => {
+            EdgeAppSettingsCommands::Set { setting_pair, path } => {
                 match edge_app_command.set_setting(
                     &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
                         .unwrap(),
-                    key,
-                    value,
+                    &setting_pair.0,
+                    &setting_pair.1,
                 ) {
                     Ok(()) => {
                         println!("Edge app setting successfully set.");

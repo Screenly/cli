@@ -177,11 +177,14 @@ impl EdgeAppCommand {
         })?;
 
         *setting_val = serde_json::json!(setting_value.to_owned());
-
+        debug!(
+            "Payload: {}",
+            json!({"asset_id": manifest.root_asset_id, "settings": metadata})
+        );
         commands::post(
             &self.authentication,
             "v4/assets-settings",
-            &json!({"asset-id": manifest.root_asset_id, "metadata": metadata}),
+            &json!({"asset_id": manifest.root_asset_id, "settings": metadata}),
         )?;
 
         Ok(())
@@ -217,6 +220,8 @@ impl EdgeAppCommand {
             .collect::<Option<_>>()
             .unwrap_or_default();
 
+        debug!("App secret titles: {:?}", app_secret_titles);
+
         let submitted_secret_titles: HashSet<String> =
             secrets.iter().map(|(title, _)| title.clone()).collect();
 
@@ -233,10 +238,15 @@ impl EdgeAppCommand {
         }
 
         let secret_payload: HashMap<String, String> = secrets.into_iter().collect();
+        debug!(
+            "{}",
+            json!({"asset_id": manifest.root_asset_id, "secrets": secret_payload})
+        );
+
         commands::post(
             &self.authentication,
             "v4/assets-secrets",
-            &json!({"asset-id": manifest.root_asset_id, "secrets": secret_payload}),
+            &json!({"asset_id": manifest.root_asset_id, "secrets": secret_payload}),
         )?;
 
         Ok(())
@@ -778,9 +788,9 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .json_body(
-                    json!({"asset-id": "test-id", "metadata": {"best_setting": "best_value"}}),
+                    json!({"asset_id": "test-id", "settings": {"best_setting": "best_value"}}),
                 );
-            then.status(200).json_body(json!({}));
+            then.status(204).json_body(json!({}));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -826,8 +836,8 @@ mod tests {
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .json_body(json!({"asset-id": "test-id", "secrets": {"test": "best_value"}}));
-            then.status(200).json_body(json!({}));
+                .json_body(json!({"asset_id": "test-id", "secrets": {"test": "best_value"}}));
+            then.status(204).json_body(json!({}));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -851,6 +861,7 @@ mod tests {
         );
         settings_mock.assert();
         post_asset_secrets_mock.assert();
+        debug!("result: {:?}", result);
         assert!(result.is_ok());
     }
 

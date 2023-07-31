@@ -143,10 +143,14 @@ pub fn post<T: Serialize + ?Sized>(
         .send()?;
 
     let status = response.status();
-    // Ok is acceptable because some of our RPC code returns that.
-    if ![StatusCode::CREATED, StatusCode::OK].contains(&status) {
+
+    // Ok, No_Content are acceptable because some of our RPC code returns that.
+    if ![StatusCode::CREATED, StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
         debug!("Response: {:?}", &response.text()?);
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
+    }
+    if status == StatusCode::NO_CONTENT {
+        return Ok(serde_json::Value::Null);
     }
 
     Ok(serde_json::from_str(&response.text()?)?)
