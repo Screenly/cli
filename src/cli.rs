@@ -42,6 +42,21 @@ fn parse_headers(s: &str) -> Result<Headers, ParseError> {
     Ok(Headers { headers })
 }
 
+fn parse_secrets(s: &str) -> Result<Secrets, ParseError> {
+    if s.is_empty() {
+        return Ok(Secrets {
+            secrets: Vec::new(),
+        });
+    }
+
+    let mut secrets = Vec::new();
+    let secret_pairs = s.split(',');
+    for secret_pair in secret_pairs {
+        secrets.push(parse_key_val(secret_pair)?);
+    }
+    Ok(Secrets { secrets })
+}
+
 #[derive(Parser)]
 #[command(
     version,
@@ -62,6 +77,8 @@ pub struct Cli {
 pub enum Commands {
     /// Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token.
     Login {},
+    /// Logouts and removes stored token.
+    Logout {},
     /// Screen related commands.
     #[command(subcommand)]
     Screen(ScreenCommands),
@@ -170,6 +187,13 @@ pub struct Headers {
     headers: Vec<(String, String)>,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct Secrets {
+    // this struct is only needed because I was getting panic from clap when trying to directly use Vec<(String, String)> and parse it.
+    // it really did not want to deal with vector when argaction was not set to Append.
+    secrets: Vec<(String, String)>,
+}
+
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AssetCommands {
     /// Lists your assets.
@@ -273,7 +297,11 @@ pub enum EdgeAppCommands {
 
     /// Settings commands.
     #[command(subcommand)]
-    Settings(EdgeAppSettingsCommands),
+    Setting(EdgeAppSettingsCommands),
+
+    /// Secrets commands.
+    #[command(subcommand)]
+    Secret(EdgeAppSecretsCommands),
 
     /// Uploads assets and settings of the edge app.
     Upload {
@@ -312,10 +340,21 @@ pub enum EdgeAppSettingsCommands {
     },
 
     Set {
-        /// Key of the setting to be set.
-        key: String,
-        /// Value of the setting to be set.
-        value: String,
+        /// Key value pair of the setting to be set in the form of `key=value`.
+        #[arg(value_parser = parse_key_val)]
+        setting_pair: (String, String),
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EdgeAppSecretsCommands {
+    Set {
+        /// Secret key, value paris in the following form `secret1=value1[,secret2=value2[,...]]`. This command
+        /// replaces all secret values of the edge app with the given pairs
+        #[arg(value_parser = parse_secrets)]
+        secret_pairs: Secrets,
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
     },
@@ -422,6 +461,11 @@ pub fn handle_cli(cli: &Cli) {
         Commands::Asset(command) => handle_cli_asset_command(command),
         Commands::EdgeApp(command) => handle_cli_edge_app_command(command),
         Commands::Playlist(command) => handle_cli_playlist_command(command),
+        Commands::Logout {} => {
+            Authentication::remove_token().expect("Failed to remove token.");
+            info!("Logout successful.");
+            std::process::exit(0);
+        }
     }
 }
 
@@ -761,7 +805,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 );
             }
         },
-        EdgeAppCommands::Settings(command) => match command {
+        EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List { path, json } => {
                 handle_command_execution_result(
                     edge_app_command.list_settings(
@@ -771,12 +815,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     json,
                 );
             }
-            EdgeAppSettingsCommands::Set { key, value, path } => {
+            EdgeAppSettingsCommands::Set { setting_pair, path } => {
                 match edge_app_command.set_setting(
                     &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
                         .unwrap(),
-                    key,
-                    value,
+                    &setting_pair.0,
+                    &setting_pair.1,
                 ) {
                     Ok(()) => {
                         println!("Edge app setting successfully set.");
@@ -787,15 +831,29 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
-        EdgeAppCommands::Promote{path, revision} => {
-            let mut manifest = EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
+        EdgeAppCommands::Secret(command) => match command {
+            EdgeAppSecretsCommands::Set { secret_pairs, path } => {
+                match edge_app_command.set_secrets(
+                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
+                        .unwrap(),
+                    secret_pairs.secrets.clone(),
+                ) {
+                    Ok(()) => {
+                        println!("Edge app secrets successfully set.");
+                    }
+                    Err(e) => {
+                        println!("Failed to set edge app secrets: {e}.");
+                    }
+                }
+            }
+        },
+        EdgeAppCommands::Promote { path, revision } => {
+            let mut manifest =
+                EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
             if revision.is_some() {
                 manifest.revision = revision.unwrap();
-
             }
-            match edge_app_command.promote(
-                &manifest
-            ) {
+            match edge_app_command.promote(&manifest) {
                 Ok(updated) => {
                     println!("Edge app successfully promoted. Updated playlist items: {updated}.");
                 }
@@ -803,9 +861,10 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     println!("Failed to promote edge app: {e}.");
                 }
             }
-        },
+        }
     }
 }
+
 #[cfg(test)]
 mod tests {
 

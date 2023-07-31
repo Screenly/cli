@@ -5,7 +5,7 @@ use crate::commands::{
 };
 use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::{str, thread};
 
 use reqwest::header::HeaderMap;
@@ -104,14 +104,46 @@ impl EdgeAppCommand {
         &self,
         manifest: &EdgeAppManifest,
     ) -> Result<EdgeAppSettings, CommandError> {
-        Ok(EdgeAppSettings::new(commands::get(
+        let value = commands::get(
             &self.authentication,
-            &format!(
-                "v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc",
-                manifest.app_id,
-                manifest.revision
-            ),
-        )?))
+            &format!("v4/assets?select=metadata&id=eq.{}", manifest.root_asset_id,),
+        )?;
+        let mut settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(value)?;
+        let hash_map = settings.get_mut(0).ok_or(CommandError::MissingField)?;
+
+        let metadata = hash_map.get_mut("metadata").ok_or_else(|| {
+            eprintln!("Metadata field not found.");
+            CommandError::MissingField
+        })?;
+
+        let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
+                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc",
+                                                                                                                      manifest.app_id,
+                                                                                                                      manifest.revision
+                                                                                                             ))?)?;
+
+        // Iterate over app settings and add values from metadata
+        for setting in app_settings.iter_mut() {
+            // Get the title of the setting, return an error if it does not exist
+            let title = setting
+                .get("title")
+                .and_then(|t| t.as_str())
+                .ok_or_else(|| {
+                    eprintln!("Title field not found in the setting.");
+                    CommandError::MissingField
+                })?;
+
+            // Get the value from metadata, continue to the next iteration if it does not exist
+            let value = match metadata.get(title) {
+                Some(v) => v,
+                None => continue,
+            };
+
+            // Add the value from metadata to the setting
+            setting.insert("value".to_string(), value.clone());
+        }
+
+        Ok(EdgeAppSettings::new(serde_json::to_value(app_settings)?))
     }
 
     pub fn set_setting(
@@ -131,7 +163,7 @@ impl EdgeAppCommand {
         )?;
 
         let mut settings: Vec<HashMap<String, serde_json::Value>> =
-            serde_json::from_value(serde_json::json!(response))?;
+            serde_json::from_value(response)?;
         let hash_map = settings.get_mut(0).ok_or(CommandError::MissingField)?;
 
         let metadata = hash_map.get_mut("metadata").ok_or_else(|| {
@@ -145,12 +177,78 @@ impl EdgeAppCommand {
         })?;
 
         *setting_val = serde_json::json!(setting_value.to_owned());
-
-        commands::patch(
+        debug!(
+            "Payload: {}",
+            json!({"asset_id": manifest.root_asset_id, "settings": metadata})
+        );
+        commands::post(
             &self.authentication,
-            &format!("v4/assets?id=eq.{}", manifest.root_asset_id),
-            &json!(settings[0]),
+            "v4/assets-settings",
+            &json!({"asset_id": manifest.root_asset_id, "settings": metadata}),
         )?;
+
+        Ok(())
+    }
+
+    pub fn set_secrets(
+        &self,
+        manifest: &EdgeAppManifest,
+        secrets: Vec<(String, String)>,
+    ) -> Result<(), CommandError> {
+        if manifest.root_asset_id.is_empty() {
+            eprintln!("No root asset id found in manifest. Please run `edge-app upload` first.");
+            return Err(CommandError::MissingField);
+        }
+
+        let app_secrets: Vec<HashMap<String, serde_json::Value>> =
+            serde_json::from_value(commands::get(
+                &self.authentication,
+                &format!(
+                    "v4/edge-apps/settings?select=title&app_id=eq.{}&app_revision=eq.{}&type=eq.secret",
+                    manifest.app_id,
+                    manifest.revision,
+                ),
+            )?)?;
+
+        let app_secret_titles: HashSet<String> = app_secrets
+            .iter()
+            .map(|secret| {
+                secret
+                    .get("title")
+                    .and_then(|title| title.as_str().map(String::from))
+            })
+            .collect::<Option<_>>()
+            .unwrap_or_default();
+
+        debug!("App secret titles: {:?}", app_secret_titles);
+
+        let submitted_secret_titles: HashSet<String> =
+            secrets.iter().map(|(title, _)| title.clone()).collect();
+
+        if !app_secret_titles.is_subset(&submitted_secret_titles) {
+            let missing_secrets: Vec<String> = app_secret_titles
+                .difference(&submitted_secret_titles)
+                .cloned()
+                .collect();
+            eprintln!(
+                "Error: The following secrets are missing: {:?}",
+                missing_secrets
+            );
+            return Err(CommandError::MissingField);
+        }
+
+        let secret_payload: HashMap<String, String> = secrets.into_iter().collect();
+        debug!(
+            "{}",
+            json!({"asset_id": manifest.root_asset_id, "secrets": secret_payload})
+        );
+
+        commands::post(
+            &self.authentication,
+            "v4/assets-secrets",
+            &json!({"asset_id": manifest.root_asset_id, "secrets": secret_payload}),
+        )?;
+
         Ok(())
     }
 
@@ -166,8 +264,18 @@ impl EdgeAppCommand {
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
-        let remote_settings =
-            serde_json::from_value::<Vec<Setting>>(self.list_settings(&manifest)?.value)?;
+        let remote_settings = if manifest.root_asset_id.is_empty() {
+            Vec::new()
+        } else {
+            serde_json::from_value::<Vec<Setting>>(commands::get(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc",
+                manifest.app_id,
+                manifest.revision
+            ),
+        )?)?
+        };
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
         let old_file_tree = self.get_file_tree(&manifest);
@@ -230,10 +338,10 @@ impl EdgeAppCommand {
             &self.authentication,
             "v4/edge-apps/promote",
             &json!(
-                {
-                    "revision": manifest.revision,
-                    "app_id": manifest.app_id.clone(),
-                }),
+            {
+                "revision": manifest.revision,
+                "app_id": manifest.app_id.clone(),
+            }),
         )?;
 
         let updated_amount = response
@@ -269,7 +377,6 @@ impl EdgeAppCommand {
             "v4/edge-apps/versions?select=revision",
             &json,
         )?;
-
         if let Some(arr) = response.as_array() {
             if let Some(obj) = arr.get(0) {
                 if let Some(revision) = obj["revision"].as_u64() {
@@ -653,6 +760,20 @@ mod tests {
     #[test]
     fn test_list_settings_should_send_correct_request() {
         let mock_server = MockServer::start();
+
+        let asset_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "metadata")
+                .query_param("id", "eq.1");
+            then.status(200).json_body(json!([{"metadata": {}}]));
+        });
+
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/settings")
@@ -661,8 +782,11 @@ mod tests {
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
+                .query_param("select", "type,default_value,optional,title,help_text")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("app_revision", "eq.7");
+                .query_param("app_revision", "eq.7")
+                .query_param("order", "title.asc");
+
             then.status(200).json_body(json!([]));
         });
 
@@ -671,7 +795,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "".to_string(),
+            root_asset_id: "1".to_string(),
             user_version: "1".to_string(),
             revision: 7,
             description: "asdf".to_string(),
@@ -682,6 +806,7 @@ mod tests {
         };
 
         let result = command.list_settings(&manifest);
+        asset_mock.assert();
         edge_apps_mock.assert();
         assert!(result.is_ok());
     }
@@ -700,20 +825,21 @@ mod tests {
                 .query_param("id", "eq.test-id")
                 .query_param("select", "metadata");
             then.status(200)
-                .json_body(json!([{"metadata": {"best_setting": "best_value"}}]));
+                .json_body(json!([{"metadata": {"best_setting": "worst_value"}}]));
         });
 
-        let patch_asset_mock = mock_server.mock(|when, then| {
-            when.method(PATCH)
-                .path("/v4/assets")
+        let post_asset_settings_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets-settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("id", "eq.test-id")
-                .json_body(json!({"metadata": {"best_setting": "best_value"}}));
-            then.status(200);
+                .json_body(
+                    json!({"asset_id": "test-id", "settings": {"best_setting": "best_value"}}),
+                );
+            then.status(204).json_body(json!({}));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -733,7 +859,58 @@ mod tests {
 
         let result = command.set_setting(&manifest, "best_setting", "best_value");
         asset_mock.assert();
-        patch_asset_mock.assert();
+        post_asset_settings_mock.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_secrets_should_send_correct_request() {
+        let mock_server = MockServer::start();
+        let settings_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200).json_body(json!([{"title": "test"}]));
+        });
+
+        let post_asset_secrets_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets-secrets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({"asset_id": "test-id", "secrets": {"test": "best_value"}}));
+            then.status(204).json_body(json!({}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            root_asset_id: "test-id".to_string(),
+            user_version: "1".to_string(),
+            revision: 7,
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![], // does not matter if it's not set here if it already exists for this version
+        };
+
+        let result = command.set_secrets(
+            &manifest,
+            vec![("test".to_owned(), "best_value".to_owned())],
+        );
+        settings_mock.assert();
+        post_asset_secrets_mock.assert();
+        debug!("result: {:?}", result);
         assert!(result.is_ok());
     }
 
@@ -753,7 +930,6 @@ mod tests {
 
         let mock_server = MockServer::start();
         // "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
-
         let assets_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/assets")
@@ -769,26 +945,7 @@ mod tests {
             then.status(200).json_body(json!([{"signature": "sig"}]));
         });
 
-        let settings_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/settings")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("app_revision", "eq.7")
-                .query_param("select", "type,default_value,optional,title,help_text");
-            then.status(200).json_body(json!([           {
-                    "type": "text".to_string(),
-                    "default_value": "5".to_string(),
-                    "title": "display_time".to_string(),
-                    "optional": true,
-                    "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
-                }]));
-        });
-
+        // v4/edge-apps/versions?select=file_tree&app_id=eq.{}&revision=eq.{}
         let file_tree_from_version_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/versions")
@@ -801,6 +958,28 @@ mod tests {
                 .query_param("revision", "eq.7")
                 .query_param("select", "file_tree");
             then.status(200).json_body(json!([{"index.html": "sig"}]));
+        });
+
+        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc
+        let _settings_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_revision", "eq.7")
+                .query_param("select", "type,default_value,optional,title,help_text")
+                .query_param("order", "title.asc");  
+            then.status(200).json_body(json!([           {
+                    "type": "text".to_string(),
+                    "default_value": "5".to_string(),
+                    "title": "display_time".to_string(),
+                    "optional": true,
+                    "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                }]));
         });
 
         let create_version_mock = mock_server.mock(|when, then| {
@@ -877,8 +1056,9 @@ mod tests {
         let result = command.upload(temp_dir.path().join("screenly.yml").as_path());
 
         assets_mock.assert();
-        settings_mock.assert();
         file_tree_from_version_mock.assert();
+        //settings_mock.assert();
+
         create_version_mock.assert();
         upload_assets_mock.assert();
         finished_processing_mock.assert();
@@ -903,8 +1083,7 @@ mod tests {
                     "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                     "revision": 7,
                 }));
-            then.status(201)
-                .json_body(json!({"updated": 2}));
+            then.status(201).json_body(json!({"updated": 2}));
         });
 
         let config = Config::new(mock_server.base_url());

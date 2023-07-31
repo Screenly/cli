@@ -60,6 +60,16 @@ impl Authentication {
         })
     }
 
+    pub fn remove_token() -> Result<(), AuthenticationError> {
+        match dirs::home_dir() {
+            Some(home) => {
+                fs::remove_file(home.join(".screenly"))?;
+                Ok(())
+            }
+            None => Err(AuthenticationError::MissingHomeDir()),
+        }
+    }
+
     fn read_token() -> Result<String, AuthenticationError> {
         if let Ok(token) = env::var("API_TOKEN") {
             return Ok(token);
@@ -117,8 +127,7 @@ fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), Authentication
     // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
     let url = format!("{}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/", api_url);
     let secret = format!("Token {token}");
-    let client = reqwest::blocking::Client::builder()
-        .build()?;
+    let client = reqwest::blocking::Client::builder().build()?;
 
     let res = client
         .get(url)
@@ -213,5 +222,16 @@ mod tests {
         fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
 
         assert_eq!(Authentication::read_token().unwrap(), "token");
+    }
+
+    #[test]
+    fn test_remove_token_should_remove_token_from_storage() {
+        let tmp_dir = TempDir::new("test").unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+
+        Authentication::remove_token().unwrap();
+        assert!(!tmp_dir.path().join(".screenly").exists());
     }
 }
