@@ -127,8 +127,7 @@ fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), Authentication
     // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
     let url = format!("{}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/", api_url);
     let secret = format!("Token {token}");
-    let client = reqwest::blocking::Client::builder()
-        .build()?;
+    let client = reqwest::blocking::Client::builder().build()?;
 
     let res = client
         .get(url)
