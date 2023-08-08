@@ -78,7 +78,7 @@ impl EdgeAppCommand {
                 title: "username".to_string(),
                 type_: "text".to_string(),
                 default_value: "stranger".to_string(),
-                optional: false,
+                optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string()
             }],
             ..Default::default()
@@ -708,7 +708,7 @@ mod tests {
             title: "username".to_string(),
             type_: "text".to_string(),
             default_value: "stranger".to_string(),
-            optional: false,
+            optional: true,
             help_text: "An example of a setting that is used in index.html".to_string()
         }]);
 
