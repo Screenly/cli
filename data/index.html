@@ -6,10 +6,11 @@
     <script src="screenly.js?version=1"></script>
   </head>
   <body>
-    <p id="message">Hello world from <span id="username-placeholder"></span></p>
+    <p>Hi <span id="username"></span>,</p>
+    <p>I'm <span id="screen-name"></span>.</p>
   </body>
   <script>
-    const usernamePlaceholder = document.getElementById("username-placeholder");
-    usernamePlaceholder.innerText = screenly.settings.username;
+    document.getElementById("username").innerText = screenly.settings.username;
+    document.getElementById("screen-name").innerText = screenly.metadata.screen_name;
   </script>
 </html>

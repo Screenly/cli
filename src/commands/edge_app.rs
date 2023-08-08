@@ -40,6 +40,18 @@ impl EdgeAppCommand {
     }
 
     pub fn create(&self, name: &str, path: &Path) -> Result<(), CommandError> {
+        let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
+            "Can not obtain edge app root directory.".to_owned(),
+        ))?;
+        let index_html_path = parent_dir_path.join("index.html");
+
+        if Path::new(&path).exists() || Path::new(&index_html_path).exists() {
+            return Err(CommandError::FileSystemError(format!(
+                "The directory {} already contains a screenly.yml or index.html file",
+                parent_dir_path.display()
+            )));
+        }
+
         let response = commands::post(
             &self.authentication,
             "v4/edge-apps?select=id,name",
@@ -65,7 +77,7 @@ impl EdgeAppCommand {
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: "text".to_string(),
-                default_value: "screenly".to_string(),
+                default_value: "stranger".to_string(),
                 optional: false,
                 help_text: "An example of a setting that is used in index.html".to_string()
             }],
@@ -77,13 +89,7 @@ impl EdgeAppCommand {
         write!(&manifest_file, "{yaml}")?;
 
         let index_html_template = include_str!("../../data/index.html");
-        let index_html_file = File::create(
-            path.parent()
-                .ok_or(CommandError::FileSystemError(
-                    "Can not obtain edge app root directory.".to_owned(),
-                ))?
-                .join("index.html"),
-        )?;
+        let index_html_file = File::create(&index_html_path)?;
         write!(&index_html_file, "{index_html_template}")?;
 
         Ok(())
@@ -701,7 +707,7 @@ mod tests {
         assert_eq!(manifest.settings, vec![Setting {
             title: "username".to_string(),
             type_: "text".to_string(),
-            default_value: "screenly".to_string(),
+            default_value: "stranger".to_string(),
             optional: false,
             help_text: "An example of a setting that is used in index.html".to_string()
         }]);
@@ -710,6 +716,37 @@ mod tests {
         assert_eq!(data_index_html, include_str!("../../data/index.html"));
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_edge_app_create_when_manifest_or_index_html_exist_should_return_error() {
+        let command = EdgeAppCommand::new(Authentication::new_with_config(
+            Config::new("http://localhost".to_string()),
+            "token",
+        ));
+
+        let tmp_dir = TempDir::new("test").unwrap();
+        File::create(tmp_dir.path().join("screenly.yml")).unwrap();
+
+        let result = command.create(
+            "Best app ever",
+            tmp_dir.path().join("screenly.yml").as_path(),
+        );
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already contains a screenly.yml or index.html file"));
+
+        fs::remove_file(tmp_dir.path().join("screenly.yml")).unwrap();
+
+        File::create(tmp_dir.path().join("index.html")).unwrap();
+
+        let result = command.create(
+            "Best app ever",
+            tmp_dir.path().join("screenly.yml").as_path(),
+        );
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already contains a screenly.yml or index.html file"));
     }
 
     #[test]
