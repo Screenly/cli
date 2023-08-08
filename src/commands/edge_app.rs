@@ -62,6 +62,13 @@ impl EdgeAppCommand {
 
         let manifest = EdgeAppManifest {
             app_id,
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: "text".to_string(),
+                default_value: "screenly".to_string(),
+                optional: false,
+                help_text: "An example of a setting that is used in index.html".to_string()
+            }],
             ..Default::default()
         };
 
@@ -691,6 +698,13 @@ mod tests {
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
         assert_eq!(manifest.app_id, "test-id");
+        assert_eq!(manifest.settings, vec![Setting {
+            title: "username".to_string(),
+            type_: "text".to_string(),
+            default_value: "screenly".to_string(),
+            optional: false,
+            help_text: "An example of a setting that is used in index.html".to_string()
+        }]);
 
         let data_index_html = fs::read_to_string(tmp_dir.path().join("index.html")).unwrap();
         assert_eq!(data_index_html, include_str!("../../data/index.html"));

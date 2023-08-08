@@ -2,19 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <script src="screenly.js"></script>
     <title>Hello world</title>
+    <script src="screenly.js?version=1"></script>
   </head>
   <body>
-    <p id="message">Hello world from <span id="hostname-placeholder"></span></p>
-    <script>
-      fetch(screenlyMetadataEndpoint())
-        .then((response) => response.json())
-        .then((data) => {
-          const hostname = data.hostname;
-          const hostnamePlaceholder = document.getElementById("hostname-placeholder");
-          hostnamePlaceholder.innerText = hostname;
-        });
-    </script>
+    <p id="message">Hello world from <span id="username-placeholder"></span></p>
   </body>
+  <script>
+    const usernamePlaceholder = document.getElementById("username-placeholder");
+    usernamePlaceholder.innerText = screenly.settings.username;
+  </script>
 </html>
