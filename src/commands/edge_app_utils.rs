@@ -114,6 +114,8 @@ pub fn detect_changed_settings(
     manifest: &EdgeAppManifest,
     remote_settings: &[Setting],
 ) -> Result<SettingChanges, CommandError> {
+    // This function compares remote and local settings
+    // And returns if there are any new local settings missing from the remote
     let new_settings = &manifest.settings;
 
     let mut creates = Vec::new();
@@ -127,26 +129,21 @@ pub fn detect_changed_settings(
             std::cmp::Ordering::Equal => {
                 if remote_setting != new_setting {
                     changes_detected = true;
+                    // TODO: patch existing setting
                 }
                 remote_iter.next();
                 new_iter.next();
+
             }
             std::cmp::Ordering::Less => {
+                remote_iter.next();
+            }
+            std::cmp::Ordering::Greater => {
                 creates.push(new_setting.clone());
                 new_iter.next();
                 changes_detected = true;
             }
-            std::cmp::Ordering::Greater => {
-                remote_iter.next();
-                changes_detected = true;
-            }
         }
-    }
-
-    // Handle remaining elements in remote_settings
-    for remote_setting in remote_iter {
-        creates.push(remote_setting.clone());
-        changes_detected = true;
     }
 
     creates.extend(new_iter.cloned());
@@ -154,7 +151,7 @@ pub fn detect_changed_settings(
 
     Ok(SettingChanges {
         creates: if changes_detected {
-            manifest.settings.clone()
+            creates
         } else {
             Vec::new()
         },
@@ -241,7 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_changes_settings_when_setting_removed_should_detect_changes() {
+    fn test_detect_changes_settings_when_setting_removed_should_not_detect_changes() {
         // Arrange
         let manifest = create_manifest();
 
@@ -275,12 +272,12 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert!(changes.changes_detected);
-        assert_eq!(changes.creates.len(), 2);
+        assert!(!changes.changes_detected);
+        assert_eq!(changes.creates.len(), 0);
     }
 
     #[test]
-    fn test_detect_changed_settings_when_setting_are_modified_should_detect_changes() {
+    fn test_detect_changes_settings_when_local_setting_added_should_detect_changes() {
         // Arrange
         let manifest = create_manifest();
 
@@ -292,13 +289,6 @@ mod tests {
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
-            Setting {
-                type_: "secret".to_string(),
-                default_value: "7".to_string(), // Modified default value
-                title: "google_maps_api_key".to_string(),
-                optional: true,
-                help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
-            },
         ];
 
         // Act
@@ -308,8 +298,42 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert!(changes.changes_detected);
-        assert_eq!(changes.creates.len(), 2);
+        assert_eq!(changes.creates.len(), 1);
+        assert_eq!(changes.creates[0].title, "google_maps_api_key");
     }
+
+    // TODO: Update test, when patching is implemented
+    // #[test]
+    // fn test_detect_changed_settings_when_setting_are_modified_should_detect_changes() {
+    //     // Arrange
+    //     let manifest = create_manifest();
+    //
+    //     let remote_settings = vec![
+    //         Setting {
+    //             type_: "text".to_string(),
+    //             default_value: "5".to_string(),
+    //             title: "display_time".to_string(),
+    //             optional: true,
+    //             help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+    //         },
+    //         Setting {
+    //             type_: "secret".to_string(),
+    //             default_value: "7".to_string(), // Modified default value
+    //             title: "google_maps_api_key".to_string(),
+    //             optional: true,
+    //             help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
+    //         },
+    //     ];
+    //
+    //     // Act
+    //     let result = detect_changed_settings(&manifest, &remote_settings);
+    //
+    //     // Assert
+    //     assert!(result.is_ok());
+    //     let changes = result.unwrap();
+    //     assert!(changes.changes_detected);
+    //     assert_eq!(changes.creates.len(), 2);
+    // }
 
     #[test]
     fn test_detect_changed_settings_when_no_remote_settings_should_detect_changes() {
