@@ -303,37 +303,38 @@ mod tests {
     }
 
     // TODO: Update test, when patching is implemented
-    // #[test]
-    // fn test_detect_changed_settings_when_setting_are_modified_should_detect_changes() {
-    //     // Arrange
-    //     let manifest = create_manifest();
-    //
-    //     let remote_settings = vec![
-    //         Setting {
-    //             type_: "text".to_string(),
-    //             default_value: "5".to_string(),
-    //             title: "display_time".to_string(),
-    //             optional: true,
-    //             help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
-    //         },
-    //         Setting {
-    //             type_: "secret".to_string(),
-    //             default_value: "7".to_string(), // Modified default value
-    //             title: "google_maps_api_key".to_string(),
-    //             optional: true,
-    //             help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
-    //         },
-    //     ];
-    //
-    //     // Act
-    //     let result = detect_changed_settings(&manifest, &remote_settings);
-    //
-    //     // Assert
-    //     assert!(result.is_ok());
-    //     let changes = result.unwrap();
-    //     assert!(changes.changes_detected);
-    //     assert_eq!(changes.creates.len(), 2);
-    // }
+    #[ignore]
+    #[test]
+    fn test_detect_changed_settings_when_setting_are_modified_should_detect_changes() {
+        // Arrange
+        let manifest = create_manifest();
+
+        let remote_settings = vec![
+            Setting {
+                type_: "text".to_string(),
+                default_value: "5".to_string(),
+                title: "display_time".to_string(),
+                optional: true,
+                help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+            },
+            Setting {
+                type_: "secret".to_string(),
+                default_value: "7".to_string(), // Modified default value
+                title: "google_maps_api_key".to_string(),
+                optional: true,
+                help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
+            },
+        ];
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert!(changes.changes_detected);
+        assert_eq!(changes.creates.len(), 2);
+    }
 
     #[test]
     fn test_detect_changed_settings_when_no_remote_settings_should_detect_changes() {
