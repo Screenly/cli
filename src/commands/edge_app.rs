@@ -284,7 +284,10 @@ impl EdgeAppCommand {
                 manifest.app_id
             ),
         )?)?;
+
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
+        self.upload_changed_settings(&manifest, &changed_settings)?;
+
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
         let old_file_tree = self.get_file_tree(&manifest);
 
@@ -294,7 +297,7 @@ impl EdgeAppCommand {
         };
 
         debug!("File tree changed: {}", file_tree_changed);
-        if !self.requires_upload(&changed_settings, &changed_files) && !file_tree_changed {
+        if !self.requires_upload(&changed_files) && !file_tree_changed {
             return Err(CommandError::NoChangesToUpload(
                 "No changes detected".to_owned(),
             ));
@@ -309,8 +312,6 @@ impl EdgeAppCommand {
             ..manifest
         };
         EdgeAppManifest::save_to_file(&manifest, path)?;
-
-        self.upload_changed_settings(&manifest, &changed_settings)?;
 
         self.upload_changed_files(edge_app_dir, &manifest, &changed_files)?;
         debug!("Files uploaded");
@@ -416,10 +417,9 @@ impl EdgeAppCommand {
 
     fn requires_upload(
         &self,
-        changed_settings: &SettingChanges,
         changed_files: &FileChanges,
     ) -> bool {
-        changed_settings.has_changes() || changed_files.has_changes()
+        changed_files.has_changes()
     }
 
     fn get_version_asset_signatures(
@@ -500,6 +500,9 @@ impl EdgeAppCommand {
         for setting in &changed_settings.creates {
             self.create_setting(manifest, setting)?;
         }
+        for setting in &changed_settings.updates {
+            self.update_setting(manifest, setting)?;
+        }
         Ok(())
     }
 
@@ -544,6 +547,30 @@ impl EdgeAppCommand {
             )?;
             debug!("Existing settings: {:?}", c);
             return Err(CommandError::NoChangesToUpload("".to_owned()));
+        }
+
+        Ok(())
+    }
+
+    fn update_setting(
+        &self,
+        manifest: &EdgeAppManifest,
+        setting: &Setting,
+    ) -> Result<(), CommandError> {
+        let value = serde_json::to_value(setting)?;
+        let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
+
+        debug!("Updating setting: {:?}", &payload);
+
+        let _response = commands::patch(
+            &self.authentication,
+            &format!("v4/edge-apps/settings?app_id=eq.{id}&title=eq.{title}", id = manifest.app_id, title = setting.title),
+            &payload
+        );
+
+        if _response.is_err() {
+            debug!("Failed to update setting: {}", setting.title);
+            return _response;
         }
 
         Ok(())
@@ -1040,7 +1067,7 @@ mod tests {
         });
 
         //  v4/edge-apps/settings?app_id=eq.{}
-        let settings_mock_a = mock_server.mock(|when, then| {
+        let settings_mock_create = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/edge-apps/settings")
                 .header("Authorization", "Token token")
@@ -1062,6 +1089,35 @@ mod tests {
                     "type": "text",
                     "default_value": "",
                     "title": "asetting",
+                    "optional": false,
+                    "help_text": "",
+                }])
+            );
+        });
+
+        let settings_mock_patch = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("title", "eq.nsetting")
+                .json_body(json!({
+                    "type": "text",
+                    "default_value": "",
+                    "title": "nsetting",
+                    "optional": false,
+                    "help_text": "",
+                }));
+            then.status(200).json_body(json!(
+                [{
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "type": "text",
+                    "default_value": "",
+                    "title": "nsetting",
                     "optional": false,
                     "help_text": "",
                 }])
@@ -1149,7 +1205,8 @@ mod tests {
         file_tree_from_version_mock.assert();
         settings_mock.assert();
         create_version_mock.assert();
-        settings_mock_a.assert();
+        settings_mock_create.assert();
+        settings_mock_patch.assert();
         upload_assets_mock.assert();
         finished_processing_mock.assert();
         publish_mock.assert();
