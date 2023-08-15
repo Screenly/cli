@@ -558,7 +558,7 @@ impl EdgeAppCommand {
         setting: &Setting,
     ) -> Result<(), CommandError> {
         let value = serde_json::to_value(setting)?;
-        let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
+        let payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
 
         debug!("Updating setting: {:?}", &payload);
 
@@ -646,7 +646,7 @@ impl EdgeAppCommand {
     }
 
     fn install_edge_app(&self, manifest: &EdgeAppManifest) -> Result<String, CommandError> {
-        let mut payload = json!({
+        let payload = json!({
             "app_id": manifest.app_id,
             "name": "Edge app cli installation",
         });
