@@ -114,7 +114,7 @@ pub fn detect_changed_settings(
     let new_settings = &manifest.settings;
 
     let mut creates = Vec::new();
-    let mut updates = Vec:: new();
+    let mut updates = Vec::new();
 
     let mut remote_iter = remote_settings.iter().peekable();
     let mut new_iter = new_settings.iter().peekable();
@@ -127,7 +127,6 @@ pub fn detect_changed_settings(
                 }
                 remote_iter.next();
                 new_iter.next();
-
             }
             std::cmp::Ordering::Less => {
                 remote_iter.next();
@@ -141,10 +140,7 @@ pub fn detect_changed_settings(
 
     creates.extend(new_iter.cloned());
 
-    Ok(SettingChanges {
-        creates,
-        updates
-    })
+    Ok(SettingChanges { creates, updates })
 }
 
 pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<String, String> {

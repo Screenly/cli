@@ -42,21 +42,6 @@ fn parse_headers(s: &str) -> Result<Headers, ParseError> {
     Ok(Headers { headers })
 }
 
-fn parse_secrets(s: &str) -> Result<Secrets, ParseError> {
-    if s.is_empty() {
-        return Ok(Secrets {
-            secrets: Vec::new(),
-        });
-    }
-
-    let mut secrets = Vec::new();
-    let secret_pairs = s.split(',');
-    for secret_pair in secret_pairs {
-        secrets.push(parse_key_val(secret_pair)?);
-    }
-    Ok(Secrets { secrets })
-}
-
 #[derive(Parser)]
 #[command(
     version,
@@ -351,10 +336,9 @@ pub enum EdgeAppSettingsCommands {
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppSecretsCommands {
     Set {
-        /// Secret key, value paris in the following form `secret1=value1[,secret2=value2[,...]]`. This command
-        /// replaces all secret values of the edge app with the given pairs
-        #[arg(value_parser = parse_secrets)]
-        secret_pairs: Secrets,
+        /// Key value pair of the secret to be set in the form of `key=value`.
+        #[arg(value_parser = parse_key_val)]
+        secret_pair: (String, String),
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
     },
@@ -832,17 +816,18 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         },
         EdgeAppCommands::Secret(command) => match command {
-            EdgeAppSecretsCommands::Set { secret_pairs, path } => {
-                match edge_app_command.set_secrets(
+            EdgeAppSecretsCommands::Set { secret_pair, path } => {
+                match edge_app_command.set_secret(
                     &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
                         .unwrap(),
-                    secret_pairs.secrets.clone(),
+                    &secret_pair.0,
+                    &secret_pair.1,
                 ) {
                     Ok(()) => {
-                        println!("Edge app secrets successfully set.");
+                        println!("Edge app secret successfully set.");
                     }
                     Err(e) => {
-                        println!("Failed to set edge app secrets: {e}.");
+                        println!("Failed to set edge app secret: {e}.");
                     }
                 }
             }
