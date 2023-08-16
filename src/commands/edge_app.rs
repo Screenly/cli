@@ -562,15 +562,15 @@ impl EdgeAppCommand {
 
         debug!("Updating setting: {:?}", &payload);
 
-        let _response = commands::patch(
+        let response = commands::patch(
             &self.authentication,
             &format!("v4/edge-apps/settings?app_id=eq.{id}&title=eq.{title}", id = manifest.app_id, title = setting.title),
             &payload
         );
 
-        if _response.is_err() {
+        if response.is_err() {
             debug!("Failed to update setting: {}", setting.title);
-            return _response;
+            return response;
         }
 
         Ok(())
