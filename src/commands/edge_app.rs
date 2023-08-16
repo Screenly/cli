@@ -277,18 +277,13 @@ impl EdgeAppCommand {
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
-        let remote_settings = if manifest.root_asset_id.is_empty() {
-            Vec::new()
-        } else {
-            serde_json::from_value::<Vec<Setting>>(commands::get(
+        let remote_settings = serde_json::from_value::<Vec<Setting>>(commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc",
-                manifest.app_id,
-                manifest.revision
+                "v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc",
+                manifest.app_id
             ),
-        )?)?
-        };
+        )?)?;
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
         let old_file_tree = self.get_file_tree(&manifest);
@@ -325,23 +320,15 @@ impl EdgeAppCommand {
         self.publish(&manifest)?;
         debug!("Edge app published.");
 
-        let root_asset_id = match self.get_root_edge_app_asset(&manifest) {
-            Ok(asset_id) => {
-                debug!("Found root edge app asset. No need to install.");
-                asset_id
+        match self.check_installation_exists(&manifest) {
+            Ok(()) => {
+                debug!("Found installation. No need to install.");
             }
             Err(_) => {
-                debug!("No root edge app asset found. Installing...");
-                self.install_edge_app(&manifest)?
+                debug!("No installation found. Installing...");
+                self.install_edge_app(&manifest)?;
             }
         };
-
-        let manifest = EdgeAppManifest {
-            root_asset_id,
-            ..manifest
-        };
-
-        EdgeAppManifest::save_to_file(&manifest, path)?;
 
         Ok(())
     }
@@ -483,26 +470,26 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn get_root_edge_app_asset(&self, manifest: &EdgeAppManifest) -> Result<String, CommandError> {
+    fn check_installation_exists(&self, manifest: &EdgeAppManifest) -> Result<(), CommandError> {
         let v = commands::get(
             &self.authentication,
             &format!(
-                "v4/assets?select=id&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app",
-                manifest.app_id, manifest.revision
+                "v4/edge-apps/installations?select=id&app_id=eq.{}&name=eq.Edge app cli installation",
+                manifest.app_id
             ),
         )?;
 
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct Asset {
+        struct Installation {
             id: String,
         }
 
-        let asset = serde_json::from_value::<Vec<Asset>>(v)?;
-        if asset.is_empty() {
+        let installation = serde_json::from_value::<Vec<Installation>>(v)?;
+        if installation.is_empty() {
             return Err(CommandError::MissingField);
         }
 
-        Ok(asset[0].id.clone())
+        Ok(())
     }
 
     fn upload_changed_settings(
@@ -543,7 +530,6 @@ impl EdgeAppCommand {
         let value = serde_json::to_value(setting)?;
         let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
         payload.insert("app_id".to_owned(), json!(manifest.app_id));
-        payload.insert("app_revision".to_owned(), json!(manifest.revision));
 
         debug!("Creating setting: {:?}", &payload);
 
@@ -552,8 +538,8 @@ impl EdgeAppCommand {
             let c = commands::get(
                 &self.authentication,
                 &format!(
-                    "v4/edge-apps/settings?app_id=eq.{}&app_revision=eq.{}",
-                    manifest.app_id, manifest.revision
+                    "v4/edge-apps/settings?app_id=eq.{}",
+                    manifest.app_id
                 ),
             )?;
             debug!("Existing settings: {:?}", c);
@@ -635,15 +621,10 @@ impl EdgeAppCommand {
     fn install_edge_app(&self, manifest: &EdgeAppManifest) -> Result<String, CommandError> {
         let mut payload = json!({
             "app_id": manifest.app_id,
-            "revision": manifest.revision,
+            "name": "Edge app cli installation",
         });
 
-        for setting in &manifest.settings {
-            // if default value is not set we are fine for now with setting it to empty string
-            payload[setting.title.clone()] = json!(setting.default_value);
-        }
-
-        let response = commands::post(&self.authentication, "v4/edge-apps/install", &payload)?;
+        let response = commands::post(&self.authentication, "v4/edge-apps/installations", &payload)?;
         Ok(response.as_str().unwrap_or_default().to_string())
     }
 
@@ -976,7 +957,22 @@ mod tests {
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
             homepage_url: "asdfasdf".to_string(),
-            settings: vec![],
+            settings: vec![
+                Setting{
+                    type_: "text".to_string(),
+                    title: "asetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+                Setting{
+                    type_: "text".to_string(),
+                    title: "nsetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                }
+            ]
         };
 
         let mock_server = MockServer::start();
@@ -1011,8 +1007,8 @@ mod tests {
             then.status(200).json_body(json!([{"index.html": "sig"}]));
         });
 
-        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc
-        let _settings_mock = mock_server.mock(|when, then| {
+        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
+        let settings_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/settings")
                 .header("Authorization", "Token token")
@@ -1021,16 +1017,15 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("app_revision", "eq.7")
                 .query_param("select", "type,default_value,optional,title,help_text")
-                .query_param("order", "title.asc");  
-            then.status(200).json_body(json!([           {
-                    "type": "text".to_string(),
-                    "default_value": "5".to_string(),
-                    "title": "display_time".to_string(),
-                    "optional": true,
-                    "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
-                }]));
+                .query_param("order", "title.asc");
+            then.status(200).json_body(json!([{
+                "type": "text".to_string(),
+                "default_value": "5".to_string(),
+                "title": "nsetting".to_string(),
+                "optional": true,
+                "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+            }]));
         });
 
         let create_version_mock = mock_server.mock(|when, then| {
@@ -1042,6 +1037,35 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 );
             then.status(201).json_body(json!([{"revision": 8}]));
+        });
+
+        //  v4/edge-apps/settings?app_id=eq.{}
+        let settings_mock_a = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "type": "text",
+                    "default_value": "",
+                    "title": "asetting",
+                    "optional": false,
+                    "help_text": "",
+                }));
+            then.status(201).json_body(json!(
+                [{
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "type": "text",
+                    "default_value": "",
+                    "title": "asetting",
+                    "optional": false,
+                    "help_text": "",
+                }])
+            );
         });
 
         let upload_assets_mock = mock_server.mock(|when, then| {
@@ -1077,9 +1101,9 @@ mod tests {
 
         // get root edge app asset
         //   "v4/assets?select=id&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app",
-        let get_root_asset_mock = mock_server.mock(|when, then| {
+        let installation_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/assets")
+                .path("/v4/edge-apps/installations")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1087,10 +1111,25 @@ mod tests {
                 )
                 .query_param("select", "id")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("app_revision", "eq.8")
-                .query_param("type", "eq.edge-app");
+                .query_param("name", "eq.Edge app cli installation");
 
-            then.status(200).json_body(json!([{"id": "ASSET_ID"}]));
+            then.status(200).json_body(json!([]));
+        });
+
+        let installation_mock_create = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "name": "Edge app cli installation",
+                }));
+
+            then.status(200).json_body(json!([]));
         });
 
         let temp_dir = TempDir::new("test").unwrap();
@@ -1108,13 +1147,14 @@ mod tests {
 
         assets_mock.assert();
         file_tree_from_version_mock.assert();
-        //settings_mock.assert();
-
+        settings_mock.assert();
         create_version_mock.assert();
+        settings_mock_a.assert();
         upload_assets_mock.assert();
         finished_processing_mock.assert();
         publish_mock.assert();
-        get_root_asset_mock.assert();
+        installation_mock.assert();
+        installation_mock_create.assert();
 
         assert!(result.is_ok());
     }
