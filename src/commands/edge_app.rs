@@ -5,7 +5,7 @@ use crate::commands::{
 };
 use indicatif::ProgressBar;
 use log::debug;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::{str, thread};
 
 use reqwest::header::HeaderMap;
@@ -167,16 +167,7 @@ impl EdgeAppCommand {
         setting_key: &str,
         setting_value: &str,
     ) -> Result<(), CommandError> {
-        let installation_id = match self.get_installation(manifest) {
-            Ok(installation) => {
-                debug!("Found installation. No need to install.");
-                installation
-            }
-            Err(_) => {
-                debug!("No installation found. Installing...");
-                self.install_edge_app(manifest)?
-            }
-        };
+        let installation_id = self.get_or_create_installation(manifest)?;
 
         let response = commands::get(
             &self.authentication,
@@ -222,63 +213,24 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn set_secrets(
+    pub fn set_secret(
         &self,
         manifest: &EdgeAppManifest,
-        secrets: Vec<(String, String)>,
+        secret_key: &str,
+        secret_value: &str,
     ) -> Result<(), CommandError> {
-        if manifest.root_asset_id.is_empty() {
-            eprintln!("No root asset id found in manifest. Please run `edge-app upload` first.");
-            return Err(CommandError::MissingField);
-        }
-
-        let app_secrets: Vec<HashMap<String, serde_json::Value>> =
-            serde_json::from_value(commands::get(
-                &self.authentication,
-                &format!(
-                    "v4/edge-apps/settings?select=title&app_id=eq.{}&app_revision=eq.{}&type=eq.secret",
-                    manifest.app_id,
-                    manifest.revision,
-                ),
-            )?)?;
-
-        let app_secret_titles: HashSet<String> = app_secrets
-            .iter()
-            .map(|secret| {
-                secret
-                    .get("title")
-                    .and_then(|title| title.as_str().map(String::from))
-            })
-            .collect::<Option<_>>()
-            .unwrap_or_default();
-
-        debug!("App secret titles: {:?}", app_secret_titles);
-
-        let submitted_secret_titles: HashSet<String> =
-            secrets.iter().map(|(title, _)| title.clone()).collect();
-
-        if !app_secret_titles.is_subset(&submitted_secret_titles) {
-            let missing_secrets: Vec<String> = app_secret_titles
-                .difference(&submitted_secret_titles)
-                .cloned()
-                .collect();
-            eprintln!(
-                "Error: The following secrets are missing: {:?}",
-                missing_secrets
-            );
-            return Err(CommandError::MissingField);
-        }
-
-        let secret_payload: HashMap<String, String> = secrets.into_iter().collect();
-        debug!(
-            "{}",
-            json!({"asset_id": manifest.root_asset_id, "secrets": secret_payload})
-        );
+        let installation_id = self.get_or_create_installation(manifest)?;
 
         commands::post(
             &self.authentication,
-            "v4/assets-secrets",
-            &json!({"asset_id": manifest.root_asset_id, "secrets": secret_payload}),
+            "v4/edge-apps/secrets/values",
+            &json!(
+                {
+                    "installation_id": installation_id,
+                    "title": secret_key,
+                    "value": secret_value,
+                }
+            ),
         )?;
 
         Ok(())
@@ -340,15 +292,7 @@ impl EdgeAppCommand {
         self.publish(&manifest)?;
         debug!("Edge app published.");
 
-        match self.get_installation(&manifest) {
-            Ok(_) => {
-                debug!("Found installation. No need to install.");
-            }
-            Err(_) => {
-                debug!("No installation found. Installing...");
-                self.install_edge_app(&manifest)?;
-            }
-        };
+        self.get_or_create_installation(&manifest)?;
 
         Ok(())
     }
@@ -486,6 +430,24 @@ impl EdgeAppCommand {
         Ok(())
     }
 
+    fn get_or_create_installation(
+        &self,
+        manifest: &EdgeAppManifest,
+    ) -> Result<String, CommandError> {
+        let installation_id = match self.get_installation(manifest) {
+            Ok(installation) => {
+                debug!("Found installation. No need to install.");
+                installation
+            }
+            Err(_) => {
+                debug!("No installation found. Installing...");
+                self.install_edge_app(manifest)?
+            }
+        };
+
+        Ok(installation_id)
+    }
+
     fn get_installation(&self, manifest: &EdgeAppManifest) -> Result<String, CommandError> {
         let v = commands::get(
             &self.authentication,
@@ -558,8 +520,8 @@ impl EdgeAppCommand {
 
         debug!("Creating setting: {:?}", &payload);
 
-        let _response = commands::post(&self.authentication, "v4/edge-apps/settings", &payload);
-        if _response.is_err() {
+        let response = commands::post(&self.authentication, "v4/edge-apps/settings", &payload);
+        if response.is_err() {
             let c = commands::get(
                 &self.authentication,
                 &format!("v4/edge-apps/settings?app_id=eq.{}", manifest.app_id),
@@ -1112,26 +1074,60 @@ mod tests {
     #[test]
     fn test_set_secrets_should_send_correct_request() {
         let mock_server = MockServer::start();
-        let settings_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/settings")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(200).json_body(json!([{"title": "test"}]));
-        });
 
-        let post_asset_secrets_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4/assets-secrets")
+        let installation_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/installations")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .json_body(json!({"asset_id": "test-id", "secrets": {"test": "best_value"}}));
+                .query_param("select", "id")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.Edge app cli installation");
+
+            then.status(200).json_body(json!([]));
+        });
+
+        let installation_mock_create = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "id")
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "name": "Edge app cli installation",
+                }));
+
+            then.status(201).json_body(json!([
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                }
+            ]));
+        });
+
+        // "v4/edge-apps/secrets/values"
+
+        let secrets_values_mock_post = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/secrets/values")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!(
+                    {
+                        "title": "best_secret_setting",
+                        "value": "best_secret_value",
+                        "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"
+                    }
+                ));
             then.status(204).json_body(json!({}));
         });
 
@@ -1147,15 +1143,13 @@ mod tests {
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
             homepage_url: "asdfasdf".to_string(),
-            settings: vec![], // does not matter if it's not set here if it already exists for this version
+            settings: vec![],
         };
 
-        let result = command.set_secrets(
-            &manifest,
-            vec![("test".to_owned(), "best_value".to_owned())],
-        );
-        settings_mock.assert();
-        post_asset_secrets_mock.assert();
+        let result = command.set_secret(&manifest, "best_secret_setting", "best_secret_value");
+        installation_mock.assert();
+        installation_mock_create.assert();
+        secrets_values_mock_post.assert();
         debug!("result: {:?}", result);
         assert!(result.is_ok());
     }
