@@ -3,7 +3,7 @@ use crate::commands;
 use crate::commands::{
     CommandError, EdgeAppManifest, EdgeAppSettings, EdgeAppVersions, EdgeApps, Setting,
 };
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
 use std::{str, thread};
@@ -16,8 +16,10 @@ use serde_yaml;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::time::Duration;
 
 use crate::commands::edge_app_utils::{
@@ -489,14 +491,20 @@ impl EdgeAppCommand {
         changed_files: &FileChanges,
     ) -> Result<(), CommandError> {
         debug!("Changed files: {:#?}", changed_files);
+
         if !changed_files.copies.is_empty() {
             self.copy_edge_app_assets(manifest, &changed_files.copies)?;
         }
 
         debug!("Uploading edge app assets");
-        for file in &changed_files.uploads {
-            self.upload_edge_app_asset(manifest, edge_app_dir.join(file.path.clone()).as_path())?;
-        }
+
+        let file_paths: Vec<PathBuf> = changed_files
+            .uploads
+            .iter()
+            .map(|file| edge_app_dir.join(&file.path))
+            .collect();
+
+        self.upload_edge_app_assets(manifest, &file_paths)?;
 
         Ok(())
     }
@@ -570,10 +578,30 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn upload_edge_app_asset(
+    fn upload_edge_app_assets(
+        &self,
+        manifest: &EdgeAppManifest,
+        paths: &[PathBuf],
+    ) -> Result<(), CommandError> {
+        let pb = ProgressBar::new(paths.len() as u64);
+        pb.set_message("Files uploaded:");
+        let shared_pb = Arc::new(Mutex::new(pb));
+
+        paths.par_iter().try_for_each(|path| {
+            let result = self.upload_single_asset(manifest, path, &shared_pb);
+            if result.is_ok() {
+                let locked_pb = shared_pb.lock().unwrap();
+                locked_pb.inc(1);
+            }
+            result
+        })
+    }
+
+    fn upload_single_asset(
         &self,
         manifest: &EdgeAppManifest,
         path: &Path,
+        _pb: &Arc<Mutex<ProgressBar>>,
     ) -> Result<(), CommandError> {
         let url = format!("{}/v4/assets", &self.authentication.config.url);
 
@@ -581,16 +609,8 @@ impl EdgeAppCommand {
         headers.insert("Prefer", "return=representation".parse()?);
 
         let file = File::open(path)?;
-        let file_size = file.metadata()?.len();
-        let pb = ProgressBar::new(file_size);
+        let part = reqwest::blocking::multipart::Part::reader(file).file_name("file");
 
-        if let Ok(template) = ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:160.cyan/blue} {percent}% ETA: {eta}",
-        ) {
-            pb.set_style(template);
-        }
-
-        let part = reqwest::blocking::multipart::Part::reader(pb.wrap_read(file)).file_name("file");
         debug!("Uploading file: {:?}", path);
         let form = reqwest::blocking::multipart::Form::new()
             .text(
@@ -613,6 +633,7 @@ impl EdgeAppCommand {
             .multipart(form)
             .headers(headers)
             .send()?;
+
         let status = response.status();
         if status != StatusCode::CREATED {
             debug!("Response: {:?}", &response.text());
