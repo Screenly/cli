@@ -512,8 +512,8 @@ impl EdgeAppCommand {
 
         debug!("Creating setting: {:?}", &payload);
 
-        let _response = commands::post(&self.authentication, "v4/edge-apps/settings", &payload);
-        if _response.is_err() {
+        let response = commands::post(&self.authentication, "v4/edge-apps/settings", &payload);
+        if response.is_err() {
             let c = commands::get(
                 &self.authentication,
                 &format!("v4/edge-apps/settings?app_id=eq.{}", manifest.app_id),
