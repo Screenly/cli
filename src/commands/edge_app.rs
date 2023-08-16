@@ -3,7 +3,7 @@ use crate::commands;
 use crate::commands::{
     CommandError, EdgeAppManifest, EdgeAppSettings, EdgeAppVersions, EdgeApps, Setting,
 };
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar};
 use log::debug;
 use std::collections::{HashMap, HashSet};
 use std::{str, thread};
@@ -628,7 +628,7 @@ impl EdgeAppCommand {
         paths.par_iter().try_for_each(|path| {
             let result = self.upload_single_asset(manifest, path, &shared_pb);
             if result.is_ok() {
-                let mut locked_pb = shared_pb.lock().unwrap();
+                let locked_pb = shared_pb.lock().unwrap();
                 locked_pb.inc(1); // Increment the progress bar after each successful upload
             }
             result
@@ -639,7 +639,7 @@ impl EdgeAppCommand {
         &self,
         manifest: &EdgeAppManifest,
         path: &Path,
-        pb: &Arc<Mutex<ProgressBar>>,
+        _pb: &Arc<Mutex<ProgressBar>>,
     ) -> Result<(), CommandError> {
         let url = format!("{}/v4/assets", &self.authentication.config.url);
 
