@@ -16,8 +16,10 @@ use serde_yaml;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::time::Duration;
 
 use crate::commands::edge_app_utils::{
@@ -79,7 +81,7 @@ impl EdgeAppCommand {
                 type_: "text".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
-                help_text: "An example of a setting that is used in index.html".to_string()
+                help_text: "An example of a setting that is used in index.html".to_string(),
             }],
             ..Default::default()
         };
@@ -165,12 +167,11 @@ impl EdgeAppCommand {
         setting_key: &str,
         setting_value: &str,
     ) -> Result<(), CommandError> {
-
         let installation_id = match self.get_installation(manifest) {
             Ok(installation) => {
                 debug!("Found installation. No need to install.");
                 installation
-            },
+            }
             Err(_) => {
                 debug!("No installation found. Installing...");
                 self.install_edge_app(manifest)?
@@ -181,8 +182,7 @@ impl EdgeAppCommand {
             &self.authentication,
             &format!(
                 "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}",
-                installation_id,
-                setting_key,
+                installation_id, setting_key,
             ),
         )?;
 
@@ -204,14 +204,12 @@ impl EdgeAppCommand {
                     }
                 ),
             )?;
-        }
-        else {
+        } else {
             commands::patch(
                 &self.authentication,
                 &format!(
                     "v4/edge-apps/settings/values?installation_id=eq.{}&title=eq.{}",
-                    installation_id,
-                    setting_key,
+                    installation_id, setting_key,
                 ),
                 &json!(
                     {
@@ -436,10 +434,7 @@ impl EdgeAppCommand {
         Ok(file_tree[0].file_tree.clone())
     }
 
-    fn requires_upload(
-        &self,
-        changed_files: &FileChanges,
-    ) -> bool {
+    fn requires_upload(&self, changed_files: &FileChanges) -> bool {
         changed_files.has_changes()
     }
 
@@ -534,14 +529,20 @@ impl EdgeAppCommand {
         changed_files: &FileChanges,
     ) -> Result<(), CommandError> {
         debug!("Changed files: {:#?}", changed_files);
+
         if !changed_files.copies.is_empty() {
             self.copy_edge_app_assets(manifest, &changed_files.copies)?;
         }
 
         debug!("Uploading edge app assets");
-        for file in &changed_files.uploads {
-            self.upload_edge_app_asset(manifest, edge_app_dir.join(file.path.clone()).as_path())?;
-        }
+
+        let file_paths: Vec<PathBuf> = changed_files
+            .uploads
+            .iter()
+            .map(|file| edge_app_dir.join(&file.path))
+            .collect();
+
+        self.upload_edge_app_assets(manifest, &file_paths)?;
 
         Ok(())
     }
@@ -561,10 +562,7 @@ impl EdgeAppCommand {
         if _response.is_err() {
             let c = commands::get(
                 &self.authentication,
-                &format!(
-                    "v4/edge-apps/settings?app_id=eq.{}",
-                    manifest.app_id
-                ),
+                &format!("v4/edge-apps/settings?app_id=eq.{}", manifest.app_id),
             )?;
             debug!("Existing settings: {:?}", c);
             return Err(CommandError::NoChangesToUpload("".to_owned()));
@@ -585,8 +583,12 @@ impl EdgeAppCommand {
 
         let response = commands::patch(
             &self.authentication,
-            &format!("v4/edge-apps/settings?app_id=eq.{id}&title=eq.{title}", id = manifest.app_id, title = setting.title),
-            &payload
+            &format!(
+                "v4/edge-apps/settings?app_id=eq.{id}&title=eq.{title}",
+                id = manifest.app_id,
+                title = setting.title
+            ),
+            &payload,
         );
 
         if response.is_err() {
@@ -614,10 +616,30 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn upload_edge_app_asset(
+    fn upload_edge_app_assets(
+        &self,
+        manifest: &EdgeAppManifest,
+        paths: &[PathBuf], // adjusted to accept multiple paths
+    ) -> Result<(), CommandError> {
+        let pb = ProgressBar::new(paths.len() as u64); // Total number of files
+        pb.set_message("Files uploaded:");
+        let shared_pb = Arc::new(Mutex::new(pb));
+
+        paths.par_iter().try_for_each(|path| {
+            let result = self.upload_single_asset(manifest, path, &shared_pb);
+            if result.is_ok() {
+                let mut locked_pb = shared_pb.lock().unwrap();
+                locked_pb.inc(1); // Increment the progress bar after each successful upload
+            }
+            result
+        })
+    }
+
+    fn upload_single_asset(
         &self,
         manifest: &EdgeAppManifest,
         path: &Path,
+        pb: &Arc<Mutex<ProgressBar>>,
     ) -> Result<(), CommandError> {
         let url = format!("{}/v4/assets", &self.authentication.config.url);
 
@@ -625,16 +647,8 @@ impl EdgeAppCommand {
         headers.insert("Prefer", "return=representation".parse()?);
 
         let file = File::open(path)?;
-        let file_size = file.metadata()?.len();
-        let pb = ProgressBar::new(file_size);
+        let part = reqwest::blocking::multipart::Part::reader(file).file_name("file");
 
-        if let Ok(template) = ProgressStyle::with_template(
-            "[{elapsed_precise}] {bar:160.cyan/blue} {percent}% ETA: {eta}",
-        ) {
-            pb.set_style(template);
-        }
-
-        let part = reqwest::blocking::multipart::Part::reader(pb.wrap_read(file)).file_name("file");
         debug!("Uploading file: {:?}", path);
         let form = reqwest::blocking::multipart::Form::new()
             .text(
@@ -657,6 +671,7 @@ impl EdgeAppCommand {
             .multipart(form)
             .headers(headers)
             .send()?;
+
         let status = response.status();
         if status != StatusCode::CREATED {
             debug!("Response: {:?}", &response.text());
@@ -672,7 +687,11 @@ impl EdgeAppCommand {
             "name": "Edge app cli installation",
         });
 
-        let response = commands::post(&self.authentication, "v4/edge-apps/installations?select=id", &payload)?;
+        let response = commands::post(
+            &self.authentication,
+            "v4/edge-apps/installations?select=id",
+            &payload,
+        )?;
 
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
         struct Installation {
@@ -744,13 +763,16 @@ mod tests {
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
         assert_eq!(manifest.app_id, "test-id");
-        assert_eq!(manifest.settings, vec![Setting {
-            title: "username".to_string(),
-            type_: "text".to_string(),
-            default_value: "stranger".to_string(),
-            optional: true,
-            help_text: "An example of a setting that is used in index.html".to_string()
-        }]);
+        assert_eq!(
+            manifest.settings,
+            vec![Setting {
+                title: "username".to_string(),
+                type_: "text".to_string(),
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string()
+            }]
+        );
 
         let data_index_html = fs::read_to_string(tmp_dir.path().join("index.html")).unwrap();
         assert_eq!(data_index_html, include_str!("../../data/index.html"));
@@ -774,7 +796,10 @@ mod tests {
         );
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("already contains a screenly.yml or index.html file"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("already contains a screenly.yml or index.html file"));
 
         fs::remove_file(tmp_dir.path().join("screenly.yml")).unwrap();
 
@@ -786,7 +811,10 @@ mod tests {
         );
 
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("already contains a screenly.yml or index.html file"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("already contains a screenly.yml or index.html file"));
     }
 
     #[test]
@@ -954,8 +982,7 @@ mod tests {
                 .query_param("title", "eq.best_setting")
                 .query_param("select", "title")
                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200)
-                .json_body(json!([]));
+            then.status(200).json_body(json!([]));
         });
 
         let setting_values_mock_post = mock_server.mock(|when, then| {
@@ -966,15 +993,13 @@ mod tests {
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .json_body(
-                    json!(
-                        {
-                            "title": "best_setting",
-                            "value": "best_value",
-                            "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"
-                        }
-                    ),
-                );
+                .json_body(json!(
+                    {
+                        "title": "best_setting",
+                        "value": "best_value",
+                        "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"
+                    }
+                ));
             then.status(204).json_body(json!({}));
         });
 
@@ -1036,13 +1061,12 @@ mod tests {
                 .query_param("title", "eq.best_setting")
                 .query_param("select", "title")
                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200)
-                .json_body(json!([
-                    {
-                        "title": "best_setting",
-                        "value": "best_value",
-                    }
-                ]));
+            then.status(200).json_body(json!([
+                {
+                    "title": "best_setting",
+                    "value": "best_value",
+                }
+            ]));
         });
 
         let setting_values_mock_patch = mock_server.mock(|when, then| {
@@ -1055,13 +1079,11 @@ mod tests {
                 )
                 .query_param("title", "eq.best_setting")
                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .json_body(
-                    json!(
-                        {
-                            "value": "best_value1",
-                        }
-                    ),
-                );
+                .json_body(json!(
+                    {
+                        "value": "best_value1",
+                    }
+                ));
             then.status(200).json_body(json!({}));
         });
 
@@ -1150,21 +1172,21 @@ mod tests {
             author: "asdf".to_string(),
             homepage_url: "asdfasdf".to_string(),
             settings: vec![
-                Setting{
+                Setting {
                     type_: "text".to_string(),
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
-                Setting{
+                Setting {
                     type_: "text".to_string(),
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
-                }
-            ]
+                },
+            ],
         };
 
         let mock_server = MockServer::start();
@@ -1249,15 +1271,14 @@ mod tests {
                     "help_text": "",
                 }));
             then.status(201).json_body(json!(
-                [{
-                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "type": "text",
-                    "default_value": "",
-                    "title": "asetting",
-                    "optional": false,
-                    "help_text": "",
-                }])
-            );
+            [{
+                "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                "type": "text",
+                "default_value": "",
+                "title": "asetting",
+                "optional": false,
+                "help_text": "",
+            }]));
         });
 
         let settings_mock_patch = mock_server.mock(|when, then| {
@@ -1278,15 +1299,14 @@ mod tests {
                     "help_text": "",
                 }));
             then.status(200).json_body(json!(
-                [{
-                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "type": "text",
-                    "default_value": "",
-                    "title": "nsetting",
-                    "optional": false,
-                    "help_text": "",
-                }])
-            );
+            [{
+                "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                "type": "text",
+                "default_value": "",
+                "title": "nsetting",
+                "optional": false,
+                "help_text": "",
+            }]));
         });
 
         let upload_assets_mock = mock_server.mock(|when, then| {

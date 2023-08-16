@@ -34,6 +34,7 @@ thiserror = "1.0.37"
 walkdir = "2.3.3"
 sentry = "0.31.5"
 sentry-anyhow = "0.31.5"
+rayon = "1.7.0"
 
 [dev-dependencies]
 httpmock = "0.6"
