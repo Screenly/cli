@@ -3,7 +3,7 @@ use crate::commands;
 use crate::commands::{
     CommandError, EdgeAppManifest, EdgeAppSettings, EdgeAppVersions, EdgeApps, Setting,
 };
-use indicatif::{ProgressBar};
+use indicatif::ProgressBar;
 use log::debug;
 use std::collections::{HashMap, HashSet};
 use std::{str, thread};
@@ -619,9 +619,9 @@ impl EdgeAppCommand {
     fn upload_edge_app_assets(
         &self,
         manifest: &EdgeAppManifest,
-        paths: &[PathBuf], // adjusted to accept multiple paths
+        paths: &[PathBuf],
     ) -> Result<(), CommandError> {
-        let pb = ProgressBar::new(paths.len() as u64); // Total number of files
+        let pb = ProgressBar::new(paths.len() as u64);
         pb.set_message("Files uploaded:");
         let shared_pb = Arc::new(Mutex::new(pb));
 
@@ -629,7 +629,7 @@ impl EdgeAppCommand {
             let result = self.upload_single_asset(manifest, path, &shared_pb);
             if result.is_ok() {
                 let locked_pb = shared_pb.lock().unwrap();
-                locked_pb.inc(1); // Increment the progress bar after each successful upload
+                locked_pb.inc(1);
             }
             result
         })
