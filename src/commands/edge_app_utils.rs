@@ -16,13 +16,7 @@ pub struct EdgeAppFile {
 #[derive(Debug)]
 pub struct SettingChanges {
     pub creates: Vec<Setting>,
-    pub changes_detected: bool,
-}
-
-impl SettingChanges {
-    pub fn has_changes(&self) -> bool {
-        self.changes_detected
-    }
+    pub updates: Vec<Setting>,
 }
 
 #[derive(Debug)]
@@ -116,10 +110,11 @@ pub fn detect_changed_settings(
 ) -> Result<SettingChanges, CommandError> {
     // This function compares remote and local settings
     // And returns if there are any new local settings missing from the remote
+    // And changed settings to update
     let new_settings = &manifest.settings;
 
     let mut creates = Vec::new();
-    let mut changes_detected = false;
+    let mut updates = Vec:: new();
 
     let mut remote_iter = remote_settings.iter().peekable();
     let mut new_iter = new_settings.iter().peekable();
@@ -128,8 +123,7 @@ pub fn detect_changed_settings(
         match remote_setting.title.cmp(&new_setting.title) {
             std::cmp::Ordering::Equal => {
                 if remote_setting != new_setting {
-                    changes_detected = true;
-                    // TODO: patch existing setting
+                    updates.push(new_setting.clone());
                 }
                 remote_iter.next();
                 new_iter.next();
@@ -141,21 +135,15 @@ pub fn detect_changed_settings(
             std::cmp::Ordering::Greater => {
                 creates.push(new_setting.clone());
                 new_iter.next();
-                changes_detected = true;
             }
         }
     }
 
     creates.extend(new_iter.cloned());
-    changes_detected = changes_detected || !creates.is_empty();
 
     Ok(SettingChanges {
-        creates: if changes_detected {
-            creates
-        } else {
-            Vec::new()
-        },
-        changes_detected,
+        creates,
+        updates
     })
 }
 
@@ -233,7 +221,6 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert!(!changes.changes_detected);
         assert_eq!(changes.creates.len(), 0);
     }
 
@@ -272,7 +259,6 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert!(!changes.changes_detected);
         assert_eq!(changes.creates.len(), 0);
     }
 
@@ -297,13 +283,11 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert!(changes.changes_detected);
         assert_eq!(changes.creates.len(), 1);
         assert_eq!(changes.creates[0].title, "google_maps_api_key");
     }
 
     // TODO: Update test, when patching is implemented
-    #[ignore]
     #[test]
     fn test_detect_changed_settings_when_setting_are_modified_should_detect_changes() {
         // Arrange
@@ -332,8 +316,10 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert!(changes.changes_detected);
-        assert_eq!(changes.creates.len(), 2);
+        assert_eq!(changes.creates.len(), 0);
+        assert_eq!(changes.updates.len(), 1);
+        assert_eq!(changes.updates[0].title, "google_maps_api_key");
+        assert_eq!(changes.updates[0].default_value, "6");
     }
 
     #[test]
@@ -349,7 +335,6 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert!(changes.changes_detected);
         assert_eq!(changes.creates.len(), 2);
     }
 
