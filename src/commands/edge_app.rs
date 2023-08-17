@@ -140,7 +140,7 @@ impl EdgeAppCommand {
                 .collect();
 
         let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
-                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc",
+                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc&type=eq.text",
                                                                                                                       manifest.app_id,
                                                                                                              ))?)?;
 
@@ -915,13 +915,6 @@ mod tests {
                     "optional": true,
                     "title": "Example setting3",
                     "help_text": "An example of a setting that is used in index.html"
-                },
-                {
-                    "type": "secret",
-                    "default_value": "stranger",
-                    "optional": true,
-                    "title": "Example secret",
-                    "help_text": "An example of a setting that is used in index.html"
                 }
             ]));
         });
@@ -997,13 +990,6 @@ mod tests {
                     "default_value": "stranger",
                     "optional": true,
                     "title": "Example setting3",
-                    "help_text": "An example of a setting that is used in index.html"
-                },
-                {
-                    "type": "secret",
-                    "default_value": "stranger",
-                    "optional": true,
-                    "title": "Example secret",
                     "help_text": "An example of a setting that is used in index.html"
                 }
             ])
