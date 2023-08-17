@@ -11,7 +11,7 @@ use std::{str, thread};
 use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use serde_yaml;
 use std::fs;
 use std::fs::File;
@@ -119,27 +119,33 @@ impl EdgeAppCommand {
         &self,
         manifest: &EdgeAppManifest,
     ) -> Result<EdgeAppSettings, CommandError> {
-        let value = commands::get(
+        let installation_id = self.get_or_create_installation(manifest)?;
+        let response = commands::get(
             &self.authentication,
-            &format!("v4/assets?select=metadata&id=eq.{}", manifest.root_asset_id,),
+            &format!(
+                "v4/edge-apps/settings/values?select=title,value&installation_id=eq.{}",
+                installation_id
+            ),
         )?;
-        let mut settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(value)?;
-        let hash_map = settings.get_mut(0).ok_or(CommandError::MissingField)?;
 
-        let metadata = hash_map.get_mut("metadata").ok_or_else(|| {
-            eprintln!("Metadata field not found.");
-            CommandError::MissingField
-        })?;
+        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        struct SettingValue {
+            title: String,
+            value: String,
+        }
+        let settings: HashMap<String, String> =
+            serde_json::from_value::<Vec<SettingValue>>(response)?
+                .into_iter()
+                .map(|setting| (setting.title, setting.value))
+                .collect();
 
         let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
-                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&app_revision=eq.{}&order=title.asc",
+                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc",
                                                                                                                       manifest.app_id,
-                                                                                                                      manifest.revision
                                                                                                              ))?)?;
 
-        // Iterate over app settings and add values from metadata
+        // Combine settings and values into one object
         for setting in app_settings.iter_mut() {
-            // Get the title of the setting, return an error if it does not exist
             let title = setting
                 .get("title")
                 .and_then(|t| t.as_str())
@@ -148,14 +154,12 @@ impl EdgeAppCommand {
                     CommandError::MissingField
                 })?;
 
-            // Get the value from metadata, continue to the next iteration if it does not exist
-            let value = match metadata.get(title) {
+            let value = match settings.get(title) {
                 Some(v) => v,
                 None => continue,
             };
 
-            // Add the value from metadata to the setting
-            setting.insert("value".to_string(), value.clone());
+            setting.insert("value".to_string(), Value::String(value.to_string()));
         }
 
         Ok(EdgeAppSettings::new(serde_json::to_value(app_settings)?))
@@ -842,20 +846,43 @@ mod tests {
     fn test_list_settings_should_send_correct_request() {
         let mock_server = MockServer::start();
 
-        let asset_mock = mock_server.mock(|when, then| {
+        let installation_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/assets")
+                .path("/v4/edge-apps/installations")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("select", "metadata")
-                .query_param("id", "eq.1");
-            then.status(200).json_body(json!([{"metadata": {}}]));
+                .query_param("select", "id")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.Edge app cli installation");
+
+            then.status(200).json_body(json!([]));
         });
 
-        let edge_apps_mock = mock_server.mock(|when, then| {
+        let installation_mock_create = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "id")
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "name": "Edge app cli installation",
+                }));
+
+            then.status(201).json_body(json!([
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                }
+            ]));
+        });
+
+        let settings_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/settings")
                 .header("Authorization", "Token token")
@@ -865,10 +892,61 @@ mod tests {
                 )
                 .query_param("select", "type,default_value,optional,title,help_text")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("app_revision", "eq.7")
                 .query_param("order", "title.asc");
 
-            then.status(200).json_body(json!([]));
+            then.status(200).json_body(json!([
+                {
+                    "type": "string",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example setting1",
+                    "help_text": "An example of a setting that is used in index.html"
+                },
+                {
+                    "type": "string",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example setting2",
+                    "help_text": "An example of a setting that is used in index.html"
+                },
+                {
+                    "type": "string",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example setting3",
+                    "help_text": "An example of a setting that is used in index.html"
+                },
+                {
+                    "type": "secret",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example secret",
+                    "help_text": "An example of a setting that is used in index.html"
+                }
+            ]));
+        });
+
+        let setting_values_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/settings/values")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "title,value")
+                .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
+
+            then.status(200).json_body(json!([
+                {
+                    "title": "Example setting1",
+                    "value": "stranger"
+                },
+                {
+                    "title": "Example setting2",
+                    "value": "stranger"
+                }
+            ]));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -887,9 +965,49 @@ mod tests {
         };
 
         let result = command.list_settings(&manifest);
-        asset_mock.assert();
-        edge_apps_mock.assert();
+
+        installation_mock.assert();
+        installation_mock_create.assert();
+        settings_mock.assert();
+        setting_values_mock.assert();
         assert!(result.is_ok());
+        let settings = result.unwrap();
+        let settings_json: Value = serde_json::from_value(settings.value).unwrap();
+        assert_eq!(
+            settings_json,
+            json!([
+                {
+                    "type": "string",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example setting1",
+                    "help_text": "An example of a setting that is used in index.html",
+                    "value": "stranger",
+                },
+                {
+                    "type": "string",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example setting2",
+                    "help_text": "An example of a setting that is used in index.html",
+                    "value": "stranger"
+                },
+                {
+                    "type": "string",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example setting3",
+                    "help_text": "An example of a setting that is used in index.html"
+                },
+                {
+                    "type": "secret",
+                    "default_value": "stranger",
+                    "optional": true,
+                    "title": "Example secret",
+                    "help_text": "An example of a setting that is used in index.html"
+                }
+            ])
+        );
     }
 
     #[test]
