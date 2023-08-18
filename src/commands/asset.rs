@@ -105,7 +105,8 @@ impl AssetCommand {
     ) -> anyhow::Result<(), CommandError> {
         let endpoint = format!("v4/assets?id=eq.{id}");
         let map: HashMap<_, _> = headers.into_iter().collect();
-        commands::patch(&self.authentication, &endpoint, &json!({ "headers": map }))
+        commands::patch(&self.authentication, &endpoint, &json!({ "headers": map }))?;
+        Ok(())
     }
 
     pub fn update_web_asset_headers(
@@ -144,7 +145,8 @@ impl AssetCommand {
             &self.authentication,
             &endpoint,
             &json!({ "js_injection": js_code }),
-        )
+        )?;
+        Ok(())
     }
 
     pub fn delete(&self, id: &str) -> anyhow::Result<(), CommandError> {

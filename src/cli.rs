@@ -293,14 +293,6 @@ pub enum EdgeAppCommands {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         path: Option<String>,
     },
-
-    Promote {
-        /// Edge app revision to promote.
-        #[arg(short, long)]
-        revision: Option<u32>,
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        path: Option<String>,
-    },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -311,6 +303,16 @@ pub enum EdgeAppVersionCommands {
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
+    },
+    Promote {
+        /// Edge app revision to promote.
+        #[arg(short, long)]
+        revision: u32,
+        /// Channel to promote to. Stable by default
+        #[arg(short, long, default_value = "stable")]
+        channel: String,
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        path: Option<String>,
     },
 }
 
@@ -788,6 +790,25 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     json,
                 );
             }
+            EdgeAppVersionCommands::Promote {
+                path,
+                revision,
+                channel,
+            } => {
+                match edge_app_command.promote_version(
+                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
+                        .unwrap(),
+                    revision,
+                    channel,
+                ) {
+                    Ok(()) => {
+                        println!("Edge app version successfully promoted.");
+                    }
+                    Err(e) => {
+                        println!("Failed to promote edge app version: {e}.");
+                    }
+                }
+            }
         },
         EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List { path, json } => {
@@ -832,21 +853,6 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
-        EdgeAppCommands::Promote { path, revision } => {
-            let mut manifest =
-                EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
-            if revision.is_some() {
-                manifest.revision = revision.unwrap();
-            }
-            match edge_app_command.promote(&manifest) {
-                Ok(updated) => {
-                    println!("Edge app successfully promoted. Updated playlist items: {updated}.");
-                }
-                Err(e) => {
-                    println!("Failed to promote edge app: {e}.");
-                }
-            }
-        }
     }
 }
 
