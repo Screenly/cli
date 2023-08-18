@@ -301,28 +301,25 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn promote(&self, manifest: &EdgeAppManifest) -> Result<i32, CommandError> {
-        let response = commands::post(
+    pub fn promote_version(
+        &self,
+        manifest: &EdgeAppManifest,
+        revision: &u32,
+        channel: &String,
+    ) -> Result<(), CommandError> {
+        commands::patch(
             &self.authentication,
-            "v4/edge-apps/promote",
+            &format!(
+                "v4/edge-apps/channels?channel=eq.{}&app_id=eq.{}",
+                channel, manifest.app_id
+            ),
             &json!(
             {
-                "revision": manifest.revision,
-                "app_id": manifest.app_id.clone(),
+                "app_revision": revision,
             }),
         )?;
 
-        let updated_amount = response
-            .as_object()
-            .and_then(|dict| dict.get("updated"))
-            .and_then(|_updated| _updated.as_i64())
-            .map(|_updated| _updated as i32);
-
-        if let Some(amount) = updated_amount {
-            return Ok(amount);
-        }
-
-        Err(CommandError::MissingField)
+        Ok(())
     }
 
     fn create_version(
@@ -1507,19 +1504,20 @@ mod tests {
     #[test]
     fn test_promote_should_send_correct_request() {
         let mock_server = MockServer::start();
-        let edge_apps_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4/edge-apps/promote")
+        let promote_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/edge-apps/channels")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("channel", "eq.public")
                 .json_body(json!({
-                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "revision": 7,
+                    "app_revision": 7,
                 }));
-            then.status(201).json_body(json!({"updated": 2}));
+            then.status(200).json_body(json!([]));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -1537,10 +1535,9 @@ mod tests {
             settings: vec![],
         };
 
-        let result = command.promote(&manifest);
-        edge_apps_mock.assert();
+        let result = command.promote_version(&manifest, &7, &"public".to_string());
+        promote_mock.assert();
 
         assert!(&result.is_ok());
-        assert_eq!(&result.unwrap(), &2);
     }
 }
