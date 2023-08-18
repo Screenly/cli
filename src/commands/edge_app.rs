@@ -307,10 +307,10 @@ impl EdgeAppCommand {
         revision: &u32,
         channel: &String,
     ) -> Result<(), CommandError> {
-        commands::patch(
+        let response = commands::patch(
             &self.authentication,
             &format!(
-                "v4/edge-apps/channels?channel=eq.{}&app_id=eq.{}",
+                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
                 channel, manifest.app_id
             ),
             &json!(
@@ -318,6 +318,20 @@ impl EdgeAppCommand {
                 "app_revision": revision,
             }),
         )?;
+
+        #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+        struct Channel {
+            app_revision: u32,
+            channel: String,
+        }
+
+        let channels = serde_json::from_value::<Vec<Channel>>(response)?;
+        if channels.is_empty() {
+            return Err(CommandError::MissingField);
+        }
+        if &channels[0].channel != channel || &channels[0].app_revision != revision {
+            return Err(CommandError::MissingField);
+        }
 
         Ok(())
     }
@@ -554,9 +568,9 @@ impl EdgeAppCommand {
             &payload,
         );
 
-        if response.is_err() {
+        if let Err(error) = response {
             debug!("Failed to update setting: {}", setting.title);
-            return response;
+            return Err(error);
         }
 
         Ok(())
@@ -1514,10 +1528,16 @@ mod tests {
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("channel", "eq.public")
+                .query_param("select", "channel,app_revision")
                 .json_body(json!({
                     "app_revision": 7,
                 }));
-            then.status(200).json_body(json!([]));
+            then.status(200).json_body(json!([
+                {
+                    "channel": "public",
+                    "app_revision": 7
+                }
+            ]));
         });
 
         let config = Config::new(mock_server.base_url());

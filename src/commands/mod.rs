@@ -171,7 +171,7 @@ pub fn patch<T: Serialize + ?Sized>(
     authentication: &Authentication,
     endpoint: &str,
     payload: &T,
-) -> anyhow::Result<(), CommandError> {
+) -> anyhow::Result<serde_json::Value, CommandError> {
     let url = format!("{}/{}", &authentication.config.url, endpoint);
     let mut headers = HeaderMap::new();
     headers.insert("Prefer", "return=representation".parse()?);
@@ -189,7 +189,14 @@ pub fn patch<T: Serialize + ?Sized>(
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
 
-    Ok(())
+    if status == StatusCode::NO_CONTENT {
+        return Ok(serde_json::Value::Null);
+    }
+
+    match serde_json::from_str(&response.text()?) {
+        Ok(v) => Ok(v),
+        Err(_) => Ok(serde_json::Value::Null),
+    }
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]

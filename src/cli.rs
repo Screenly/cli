@@ -306,6 +306,7 @@ pub enum EdgeAppVersionCommands {
     },
     Promote {
         /// Edge app revision to promote.
+        #[arg(short, long)]
         revision: u32,
         /// Channel to promote to. Stable by default
         #[arg(short, long, default_value = "stable")]
