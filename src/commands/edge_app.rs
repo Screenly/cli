@@ -612,9 +612,6 @@ impl EdgeAppCommand {
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
 
-        let file = File::open(path)?;
-        let part = reqwest::blocking::multipart::Part::reader(file).file_name("file");
-
         debug!("Uploading file: {:?}", path);
         let form = reqwest::blocking::multipart::Form::new()
             .text(
@@ -628,7 +625,7 @@ impl EdgeAppCommand {
             )
             .text("app_id", manifest.app_id.clone())
             .text("app_revision", manifest.revision.to_string())
-            .part("file", part);
+            .file("file", path)?;
 
         let response = self
             .authentication
