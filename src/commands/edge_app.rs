@@ -78,7 +78,7 @@ impl EdgeAppCommand {
             app_id,
             settings: vec![Setting {
                 title: "username".to_string(),
-                type_: "text".to_string(),
+                type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
@@ -741,7 +741,7 @@ mod tests {
             manifest.settings,
             vec![Setting {
                 title: "username".to_string(),
-                type_: "text".to_string(),
+                type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string()
@@ -1279,14 +1279,14 @@ mod tests {
             homepage_url: "asdfasdf".to_string(),
             settings: vec![
                 Setting {
-                    type_: "text".to_string(),
+                    type_: "string".to_string(),
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: "text".to_string(),
+                    type_: "string".to_string(),
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
@@ -1340,7 +1340,7 @@ mod tests {
                 .query_param("select", "type,default_value,optional,title,help_text")
                 .query_param("order", "title.asc");
             then.status(200).json_body(json!([{
-                "type": "text".to_string(),
+                "type": "string".to_string(),
                 "default_value": "5".to_string(),
                 "title": "nsetting".to_string(),
                 "optional": true,
@@ -1370,7 +1370,7 @@ mod tests {
                 )
                 .json_body(json!({
                     "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "type": "text",
+                    "type": "string",
                     "default_value": "",
                     "title": "asetting",
                     "optional": false,
@@ -1379,7 +1379,7 @@ mod tests {
             then.status(201).json_body(json!(
             [{
                 "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                "type": "text",
+                "type": "string",
                 "default_value": "",
                 "title": "asetting",
                 "optional": false,
@@ -1398,7 +1398,7 @@ mod tests {
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("title", "eq.nsetting")
                 .json_body(json!({
-                    "type": "text",
+                    "type": "string",
                     "default_value": "",
                     "title": "nsetting",
                     "optional": false,
@@ -1407,7 +1407,7 @@ mod tests {
             then.status(200).json_body(json!(
             [{
                 "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                "type": "text",
+                "type": "string",
                 "default_value": "",
                 "title": "nsetting",
                 "optional": false,
