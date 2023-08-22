@@ -440,7 +440,7 @@ fn get_actual_app_id(app_id: &Option<String>, path: &Option<String>) -> String {
         None => {
             let manifest =
                 EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
-            manifest.app_id.clone()
+            manifest.app_id
         }
     }
 }

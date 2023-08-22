@@ -86,9 +86,7 @@ impl EdgeAppCommand {
             ..Default::default()
         };
 
-        let yaml = serde_yaml::to_string(&manifest)?;
-        let manifest_file = File::create(path)?;
-        write!(&manifest_file, "{yaml}")?;
+        EdgeAppManifest::save_to_file(&manifest, path)?;
 
         let index_html_template = include_str!("../../data/index.html");
         let index_html_file = File::create(&index_html_path)?;
