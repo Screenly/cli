@@ -415,8 +415,11 @@ impl EdgeAppCommand {
         manifest: &EdgeAppManifest,
     ) -> Result<(), CommandError> {
         const SLEEP_TIME: u64 = 2;
-        const MAX_WAIT_TIME: u64 = 20; // 20 seconds
+        const MAX_WAIT_TIME: u64 = 1000; // 1000 seconds - it could take a while for assets to process
         let mut total_duration = 0;
+
+        let mut pb: Option<ProgressBar> = Option::None;
+        let mut assets_amount = 0;
 
         loop {
             // TODO: we are not handling possible errors in asset processing here.
@@ -428,7 +431,7 @@ impl EdgeAppCommand {
             let value = commands::get(
                 &self.authentication,
                 &format!(
-                    "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished&limit=1",
+                    "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
                     manifest.app_id, manifest.revision
                 ),
             )?;
@@ -436,8 +439,24 @@ impl EdgeAppCommand {
 
             if let Some(array) = value.as_array() {
                 if array.is_empty() {
+                    if let Some(_pb) = pb {
+                        _pb.finish_with_message("Assets processed");
+                    }
                     break;
                 }
+                match pb {
+                    Some(ref mut _pb) => {
+                        debug!("Length is {}", array.len());
+                        _pb.set_length(assets_amount - (array.len() as u64));
+                        _pb.set_message("Processing Items:");
+                    }
+                    None => {
+                        pb = Option::Some(ProgressBar::new(array.len() as u64));
+                        assets_amount = array.len() as u64;
+                    }
+                }
+
+                debug!("Amount of assets to process: {}", array.len());
             }
             thread::sleep(Duration::from_secs(SLEEP_TIME));
             total_duration += SLEEP_TIME;
@@ -1426,8 +1445,7 @@ mod tests {
                 .query_param("select", "status")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("app_revision", "eq.8")
-                .query_param("status", "neq.finished")
-                .query_param("limit", "1");
+                .query_param("status", "neq.finished");
             then.status(200).json_body(json!([]));
         });
 
