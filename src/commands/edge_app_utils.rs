@@ -172,7 +172,7 @@ mod tests {
             homepage_url: "asdfasdf".to_string(),
             settings: vec![
                 Setting {
-                    type_: "text".to_string(),
+                    type_: "string".to_string(),
                     default_value: "5".to_string(),
                     title: "display_time".to_string(),
                     optional: true,
@@ -196,7 +196,7 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "text".to_string(),
+                type_: "string".to_string(),
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
@@ -227,7 +227,7 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "text".to_string(),
+                type_: "string".to_string(),
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
@@ -241,7 +241,7 @@ mod tests {
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
             },
             Setting {
-                type_: "text".to_string(),
+                type_: "string".to_string(),
                 default_value: "10".to_string(),
                 title: "new_setting".to_string(),
                 optional: false,
@@ -265,7 +265,7 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "text".to_string(),
+                type_: "string".to_string(),
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
@@ -291,7 +291,7 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "text".to_string(),
+                type_: "string".to_string(),
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
