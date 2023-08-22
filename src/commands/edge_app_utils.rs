@@ -164,7 +164,6 @@ mod tests {
         EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
             user_version: "1".to_string(),
-            revision: 7,
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
             author: "asdf".to_string(),

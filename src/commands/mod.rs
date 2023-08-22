@@ -202,7 +202,6 @@ pub fn patch<T: Serialize + ?Sized>(
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EdgeAppManifest {
     pub app_id: String,
-    pub revision: u32,
     pub user_version: String,
     pub description: String,
     pub icon: String,
