@@ -446,7 +446,6 @@ impl EdgeAppCommand {
                 }
                 match pb {
                     Some(ref mut _pb) => {
-                        debug!("Length is {}", array.len());
                         _pb.set_length(assets_amount - (array.len() as u64));
                         _pb.set_message("Processing Items:");
                     }
@@ -455,8 +454,6 @@ impl EdgeAppCommand {
                         assets_amount = array.len() as u64;
                     }
                 }
-
-                debug!("Amount of assets to process: {}", array.len());
             }
             thread::sleep(Duration::from_secs(SLEEP_TIME));
             total_duration += SLEEP_TIME;
