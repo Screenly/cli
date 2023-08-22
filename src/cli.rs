@@ -264,6 +264,7 @@ pub enum EdgeAppCommands {
     /// Creates edge-app in the store.
     Create {
         /// Edge app name
+        #[arg(short, long)]
         name: String,
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
@@ -304,9 +305,14 @@ pub enum EdgeAppCommands {
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppVersionCommands {
     List {
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
+
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
@@ -318,6 +324,11 @@ pub enum EdgeAppVersionCommands {
         /// Channel to promote to. If not specified CLI will use stable channel.
         #[arg(short, long, default_value = "stable")]
         channel: String,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
@@ -826,24 +837,21 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         }
         EdgeAppCommands::Version(command) => match command {
-            EdgeAppVersionCommands::List { path, json } => {
+            EdgeAppVersionCommands::List { app_id, path, json } => {
+                let actual_app_id = get_actual_app_id(app_id, path);
                 handle_command_execution_result(
-                    edge_app_command
-                        .list_versions(transform_edge_app_path_to_manifest(path).as_path()),
+                    edge_app_command.list_versions(&actual_app_id),
                     json,
                 );
             }
             EdgeAppVersionCommands::Promote {
                 path,
                 revision,
+                app_id,
                 channel,
             } => {
-                match edge_app_command.promote_version(
-                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
-                        .unwrap(),
-                    revision,
-                    channel,
-                ) {
+                let actual_app_id = get_actual_app_id(app_id, path);
+                match edge_app_command.promote_version(&actual_app_id, revision, channel) {
                     Ok(()) => {
                         println!("Edge app version successfully promoted.");
                     }

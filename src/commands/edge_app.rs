@@ -104,13 +104,12 @@ impl EdgeAppCommand {
         )?))
     }
 
-    pub fn list_versions(&self, path: &Path) -> Result<EdgeAppVersions, CommandError> {
-        let manifest = EdgeAppManifest::new(path)?;
+    pub fn list_versions(&self, app_id: &str) -> Result<EdgeAppVersions, CommandError> {
         Ok(EdgeAppVersions::new(commands::get(
             &self.authentication,
             &format!(
                 "v4/edge-apps/versions?select=revision,user_version,description,published&app_id=eq.{}",
-                manifest.app_id
+                app_id
             ),
         )?))
     }
@@ -303,7 +302,7 @@ impl EdgeAppCommand {
 
     pub fn promote_version(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
         revision: &u32,
         channel: &String,
     ) -> Result<(), CommandError> {
@@ -311,7 +310,7 @@ impl EdgeAppCommand {
             &self.authentication,
             &format!(
                 "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
-                channel, manifest.app_id
+                channel, app_id
             ),
             &json!(
             {
@@ -856,20 +855,8 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = EdgeAppManifest {
-            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            user_version: "1".to_string(),
-            description: "asdf".to_string(),
-            icon: "asdf".to_string(),
-            author: "asdf".to_string(),
-            homepage_url: "asdfasdf".to_string(),
-            settings: vec![],
-        };
 
-        let tmp_dir = TempDir::new("test").unwrap();
-        EdgeAppManifest::save_to_file(&manifest, tmp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let result = command.list_versions(tmp_dir.path().join("screenly.yml").as_path());
+        let result = command.list_versions("01H2QZ6Z8WXWNDC0KQ198XCZEW");
         edge_apps_mock.assert();
         assert!(result.is_ok());
     }
@@ -1582,7 +1569,7 @@ mod tests {
             settings: vec![],
         };
 
-        let result = command.promote_version(&manifest, &7, &"public".to_string());
+        let result = command.promote_version(&manifest.app_id, &7, &"public".to_string());
         promote_mock.assert();
 
         assert!(&result.is_ok());
