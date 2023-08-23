@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::commands::edge_app_utils::{
     collect_paths_for_upload, detect_changed_files, detect_changed_settings,
@@ -416,15 +416,15 @@ impl EdgeAppCommand {
     ) -> Result<(), CommandError> {
         const SLEEP_TIME: u64 = 2;
         const MAX_WAIT_TIME: u64 = 1000; // 1000 seconds - it could take a while for assets to process
-        let mut total_duration = 0;
 
         let mut pb: Option<ProgressBar> = Option::None;
-        let mut assets_amount = 0;
+        let mut assets_to_process = 0;
+        let start_time = Instant::now();
 
         loop {
             // TODO: we are not handling possible errors in asset processing here.
             // Which are unlikely to happen, because we upload assets as they are, but still
-            if total_duration > MAX_WAIT_TIME {
+            if start_time.elapsed().as_secs() > MAX_WAIT_TIME {
                 return Err(CommandError::AssetProcessingTimeout);
             }
 
@@ -439,24 +439,23 @@ impl EdgeAppCommand {
 
             if let Some(array) = value.as_array() {
                 if array.is_empty() {
-                    if let Some(_pb) = pb {
-                        _pb.finish_with_message("Assets processed");
+                    if let Some(progress_bar) = pb.as_ref() {
+                        progress_bar.finish_with_message("Assets processed");
                     }
                     break;
                 }
-                match pb {
-                    Some(ref mut _pb) => {
-                        _pb.set_length(assets_amount - (array.len() as u64));
-                        _pb.set_message("Processing Items:");
+                match &mut pb {
+                    Some(ref mut progress_bar) => {
+                        progress_bar.set_length(assets_to_process - (array.len() as u64));
+                        progress_bar.set_message("Processing Items:");
                     }
                     None => {
                         pb = Option::Some(ProgressBar::new(array.len() as u64));
-                        assets_amount = array.len() as u64;
+                        assets_to_process = array.len() as u64;
                     }
                 }
             }
             thread::sleep(Duration::from_secs(SLEEP_TIME));
-            total_duration += SLEEP_TIME;
         }
         Ok(())
     }
