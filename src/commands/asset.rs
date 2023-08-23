@@ -9,6 +9,7 @@ use reqwest::StatusCode;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
+use std::time::Duration;
 
 pub struct AssetCommand {
     authentication: Authentication,
@@ -88,6 +89,7 @@ impl AssetCommand {
             .post(url)
             .multipart(form)
             .headers(headers)
+            .timeout(Duration::from_secs(3600))  // timeout is equal to server timeout
             .send()?;
 
         if response.status() != StatusCode::CREATED {
