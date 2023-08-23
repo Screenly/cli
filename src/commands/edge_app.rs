@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::commands::edge_app_utils::{
     collect_paths_for_upload, detect_changed_files, detect_changed_settings,
@@ -437,20 +437,23 @@ impl EdgeAppCommand {
         revision: u32,
     ) -> Result<(), CommandError> {
         const SLEEP_TIME: u64 = 2;
-        const MAX_WAIT_TIME: u64 = 20; // 20 seconds
-        let mut total_duration = 0;
+        const MAX_WAIT_TIME: u64 = 1000; // 1000 seconds - it could take a while for assets to process
+
+        let mut pb: Option<ProgressBar> = Option::None;
+        let mut assets_to_process = 0;
+        let start_time = Instant::now();
 
         loop {
             // TODO: we are not handling possible errors in asset processing here.
             // Which are unlikely to happen, because we upload assets as they are, but still
-            if total_duration > MAX_WAIT_TIME {
+            if start_time.elapsed().as_secs() > MAX_WAIT_TIME {
                 return Err(CommandError::AssetProcessingTimeout);
             }
 
             let value = commands::get(
                 &self.authentication,
                 &format!(
-                    "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished&limit=1",
+                    "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
                     app_id, revision
                 ),
             )?;
@@ -458,11 +461,23 @@ impl EdgeAppCommand {
 
             if let Some(array) = value.as_array() {
                 if array.is_empty() {
+                    if let Some(progress_bar) = pb.as_ref() {
+                        progress_bar.finish_with_message("Assets processed");
+                    }
                     break;
+                }
+                match &mut pb {
+                    Some(ref mut progress_bar) => {
+                        progress_bar.set_length(assets_to_process - (array.len() as u64));
+                        progress_bar.set_message("Processing Items:");
+                    }
+                    None => {
+                        pb = Some(ProgressBar::new(array.len() as u64));
+                        assets_to_process = array.len() as u64;
+                    }
                 }
             }
             thread::sleep(Duration::from_secs(SLEEP_TIME));
-            total_duration += SLEEP_TIME;
         }
         Ok(())
     }
@@ -667,6 +682,7 @@ impl EdgeAppCommand {
             .post(url)
             .multipart(form)
             .headers(headers)
+            .timeout(Duration::from_secs(3600))  // timeout is equal to server timeout
             .send()?;
 
         let status = response.status();
@@ -1442,8 +1458,7 @@ mod tests {
                 .query_param("select", "status")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("app_revision", "eq.8")
-                .query_param("status", "neq.finished")
-                .query_param("limit", "1");
+                .query_param("status", "neq.finished");
             then.status(200).json_body(json!([]));
         });
 
