@@ -202,17 +202,16 @@ pub fn patch<T: Serialize + ?Sized>(
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EdgeAppManifest {
     pub app_id: String,
-    #[serde(default)]
-    pub root_asset_id: String,
     pub user_version: String,
-    #[serde(default)]
-    pub revision: u32,
     pub description: String,
     pub icon: String,
     pub author: String,
     pub homepage_url: String,
-    #[serde(serialize_with = "serialize_settings")]
-    #[serde(deserialize_with = "deserialize_settings", default)]
+    #[serde(
+        serialize_with = "serialize_settings",
+        deserialize_with = "deserialize_settings",
+        default
+    )]
     pub settings: Vec<Setting>,
 }
 

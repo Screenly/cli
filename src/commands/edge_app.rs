@@ -86,9 +86,7 @@ impl EdgeAppCommand {
             ..Default::default()
         };
 
-        let yaml = serde_yaml::to_string(&manifest)?;
-        let manifest_file = File::create(path)?;
-        write!(&manifest_file, "{yaml}")?;
+        EdgeAppManifest::save_to_file(&manifest, path)?;
 
         let index_html_template = include_str!("../../data/index.html");
         let index_html_file = File::create(&index_html_path)?;
@@ -104,22 +102,18 @@ impl EdgeAppCommand {
         )?))
     }
 
-    pub fn list_versions(&self, path: &Path) -> Result<EdgeAppVersions, CommandError> {
-        let manifest = EdgeAppManifest::new(path)?;
+    pub fn list_versions(&self, app_id: &str) -> Result<EdgeAppVersions, CommandError> {
         Ok(EdgeAppVersions::new(commands::get(
             &self.authentication,
             &format!(
                 "v4/edge-apps/versions?select=revision,user_version,description,published&app_id=eq.{}",
-                manifest.app_id
+                app_id
             ),
         )?))
     }
 
-    pub fn list_settings(
-        &self,
-        manifest: &EdgeAppManifest,
-    ) -> Result<EdgeAppSettings, CommandError> {
-        let installation_id = self.get_or_create_installation(manifest)?;
+    pub fn list_settings(&self, app_id: &str) -> Result<EdgeAppSettings, CommandError> {
+        let installation_id = self.get_or_create_installation(app_id)?;
         let response = commands::get(
             &self.authentication,
             &format!(
@@ -141,7 +135,7 @@ impl EdgeAppCommand {
 
         let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
                                                                                                              &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc&type=eq.text",
-                                                                                                                      manifest.app_id,
+                                                                                                                      app_id,
                                                                                                              ))?)?;
 
         // Combine settings and values into one object
@@ -167,11 +161,11 @@ impl EdgeAppCommand {
 
     pub fn set_setting(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
         setting_key: &str,
         setting_value: &str,
     ) -> Result<(), CommandError> {
-        let installation_id = self.get_or_create_installation(manifest)?;
+        let installation_id = self.get_or_create_installation(app_id)?;
 
         let response = commands::get(
             &self.authentication,
@@ -219,11 +213,11 @@ impl EdgeAppCommand {
 
     pub fn set_secret(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
         secret_key: &str,
         secret_value: &str,
     ) -> Result<(), CommandError> {
-        let installation_id = self.get_or_create_installation(manifest)?;
+        let installation_id = self.get_or_create_installation(app_id)?;
 
         commands::post(
             &self.authentication,
@@ -240,15 +234,23 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn upload(self, path: &Path) -> Result<(), CommandError> {
+    pub fn upload(self, path: &Path, app_id: Option<String>) -> Result<u32, CommandError> {
         let data = fs::read_to_string(path)?;
-        let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+        let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+
+        // override app_id if user passed it
+        if let Some(id) = app_id {
+            manifest.app_id = id;
+        }
+
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
 
         let local_files = collect_paths_for_upload(edge_app_dir)?;
         ensure_edge_app_has_all_necessary_files(&local_files)?;
 
-        let remote_files = self.get_version_asset_signatures(&manifest)?;
+        let revision = self.get_latest_revision(&manifest.app_id).unwrap_or(0);
+
+        let remote_files = self.get_version_asset_signatures(&manifest.app_id, revision)?;
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
@@ -264,7 +266,8 @@ impl EdgeAppCommand {
         self.upload_changed_settings(&manifest, &changed_settings)?;
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
-        let old_file_tree = self.get_file_tree(&manifest);
+
+        let old_file_tree = self.get_file_tree(&manifest.app_id, revision);
 
         let file_tree_changed = match old_file_tree {
             Ok(tree) => file_tree != tree,
@@ -281,29 +284,23 @@ impl EdgeAppCommand {
         // now that we know we have changes, we can create a new version
         let revision =
             self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
-        debug!("Created new version: {}", revision);
-        let manifest = EdgeAppManifest {
-            revision,
-            ..manifest
-        };
-        EdgeAppManifest::save_to_file(&manifest, path)?;
 
-        self.upload_changed_files(edge_app_dir, &manifest, &changed_files)?;
+        self.upload_changed_files(edge_app_dir, &manifest.app_id, revision, &changed_files)?;
         debug!("Files uploaded");
 
-        self.ensure_assets_processing_finished(&manifest)?;
+        self.ensure_assets_processing_finished(&manifest.app_id, revision)?;
         // now we freeze it by publishing it
-        self.publish(&manifest)?;
+        self.publish(&manifest.app_id, revision)?;
         debug!("Edge app published.");
 
-        self.get_or_create_installation(&manifest)?;
+        self.get_or_create_installation(&manifest.app_id)?;
 
-        Ok(())
+        Ok(revision)
     }
 
     pub fn promote_version(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
         revision: &u32,
         channel: &String,
     ) -> Result<(), CommandError> {
@@ -311,7 +308,7 @@ impl EdgeAppCommand {
             &self.authentication,
             &format!(
                 "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
-                channel, manifest.app_id
+                channel, app_id
             ),
             &json!(
             {
@@ -368,15 +365,38 @@ impl EdgeAppCommand {
         Err(CommandError::MissingField)
     }
 
+    fn get_latest_revision(&self, app_id: &str) -> Result<u32, CommandError> {
+        let response = commands::get(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/versions?select=revision&order=revision.desc&limit=1&app_id=eq.{}",
+                app_id
+            ),
+        )?;
+
+        #[derive(Deserialize)]
+        struct EdgeAppVersion {
+            revision: u32,
+        }
+
+        let versions: Vec<EdgeAppVersion> = serde_json::from_value(response)?;
+        if let Some(version) = versions.get(0) {
+            Ok(version.revision)
+        } else {
+            Err(CommandError::MissingField)
+        }
+    }
+
     fn get_file_tree(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
+        revision: u32,
     ) -> Result<HashMap<String, String>, CommandError> {
         let response = commands::get(
             &self.authentication,
             &format!(
                 "v4/edge-apps/versions?select=file_tree&app_id=eq.{}&revision=eq.{}",
-                manifest.app_id, manifest.revision
+                app_id, revision
             ),
         )?;
 
@@ -399,20 +419,22 @@ impl EdgeAppCommand {
 
     fn get_version_asset_signatures(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
+        revision: u32,
     ) -> Result<Vec<AssetSignature>, CommandError> {
         Ok(serde_json::from_value(commands::get(
             &self.authentication,
             &format!(
                 "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
-                manifest.app_id, manifest.revision
+                app_id, revision
             ),
         )?)?)
     }
 
     fn ensure_assets_processing_finished(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
+        revision: u32,
     ) -> Result<(), CommandError> {
         const SLEEP_TIME: u64 = 2;
         const MAX_WAIT_TIME: u64 = 1000; // 1000 seconds - it could take a while for assets to process
@@ -432,7 +454,7 @@ impl EdgeAppCommand {
                 &self.authentication,
                 &format!(
                     "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
-                    manifest.app_id, manifest.revision
+                    app_id, revision
                 ),
             )?;
             debug!("ensure_assets_processing_finished: {:?}", &value);
@@ -460,30 +482,27 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn get_or_create_installation(
-        &self,
-        manifest: &EdgeAppManifest,
-    ) -> Result<String, CommandError> {
-        let installation_id = match self.get_installation(manifest) {
+    fn get_or_create_installation(&self, app_id: &str) -> Result<String, CommandError> {
+        let installation_id = match self.get_installation(app_id) {
             Ok(installation) => {
                 debug!("Found installation. No need to install.");
                 installation
             }
             Err(_) => {
                 debug!("No installation found. Installing...");
-                self.install_edge_app(manifest)?
+                self.install_edge_app(app_id)?
             }
         };
 
         Ok(installation_id)
     }
 
-    fn get_installation(&self, manifest: &EdgeAppManifest) -> Result<String, CommandError> {
+    fn get_installation(&self, app_id: &str) -> Result<String, CommandError> {
         let v = commands::get(
             &self.authentication,
             &format!(
                 "v4/edge-apps/installations?select=id&app_id=eq.{}&name=eq.Edge app cli installation",
-                manifest.app_id
+                app_id
             ),
         )?;
 
@@ -517,13 +536,14 @@ impl EdgeAppCommand {
     fn upload_changed_files(
         &self,
         edge_app_dir: &Path,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
+        revision: u32,
         changed_files: &FileChanges,
     ) -> Result<(), CommandError> {
         debug!("Changed files: {:#?}", changed_files);
 
         if !changed_files.copies.is_empty() {
-            self.copy_edge_app_assets(manifest, &changed_files.copies)?;
+            self.copy_edge_app_assets(app_id, revision, &changed_files.copies)?;
         }
 
         debug!("Uploading edge app assets");
@@ -534,7 +554,7 @@ impl EdgeAppCommand {
             .map(|file| edge_app_dir.join(&file.path))
             .collect();
 
-        self.upload_edge_app_assets(manifest, &file_paths)?;
+        self.upload_edge_app_assets(app_id, revision, &file_paths)?;
 
         Ok(())
     }
@@ -593,14 +613,15 @@ impl EdgeAppCommand {
 
     fn copy_edge_app_assets(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
+        revision: u32,
         asset_signatures: &[String],
     ) -> Result<(), CommandError> {
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
         let payload = json!({
-            "app_id": manifest.app_id,
-            "revision": manifest.revision,
+            "app_id": app_id,
+            "revision": revision,
             "signatures": asset_signatures,
         });
 
@@ -610,7 +631,8 @@ impl EdgeAppCommand {
 
     fn upload_edge_app_assets(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
+        revision: u32,
         paths: &[PathBuf],
     ) -> Result<(), CommandError> {
         let pb = ProgressBar::new(paths.len() as u64);
@@ -618,7 +640,7 @@ impl EdgeAppCommand {
         let shared_pb = Arc::new(Mutex::new(pb));
 
         paths.par_iter().try_for_each(|path| {
-            let result = self.upload_single_asset(manifest, path, &shared_pb);
+            let result = self.upload_single_asset(app_id, revision, path, &shared_pb);
             if result.is_ok() {
                 let locked_pb = shared_pb.lock().unwrap();
                 locked_pb.inc(1);
@@ -629,7 +651,8 @@ impl EdgeAppCommand {
 
     fn upload_single_asset(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: &str,
+        revision: u32,
         path: &Path,
         _pb: &Arc<Mutex<ProgressBar>>,
     ) -> Result<(), CommandError> {
@@ -649,8 +672,8 @@ impl EdgeAppCommand {
                     .to_string_lossy()
                     .to_string(),
             )
-            .text("app_id", manifest.app_id.clone())
-            .text("app_revision", manifest.revision.to_string())
+            .text("app_id", app_id.to_string())
+            .text("app_revision", revision.to_string())
             .file("file", path)?;
 
         let response = self
@@ -671,9 +694,9 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn install_edge_app(&self, manifest: &EdgeAppManifest) -> Result<String, CommandError> {
+    fn install_edge_app(&self, app_id: &str) -> Result<String, CommandError> {
         let payload = json!({
-            "app_id": manifest.app_id,
+            "app_id": app_id,
             "name": "Edge app cli installation",
         });
 
@@ -696,12 +719,12 @@ impl EdgeAppCommand {
         Ok(installation[0].id.clone())
     }
 
-    fn publish(&self, manifest: &EdgeAppManifest) -> Result<(), CommandError> {
+    fn publish(&self, app_id: &str, revision: u32) -> Result<(), CommandError> {
         commands::patch(
             &self.authentication,
             &format!(
                 "v4/edge-apps/versions?app_id=eq.{}&revision=eq.{}",
-                manifest.app_id, manifest.revision
+                app_id, revision
             ),
             &json!({"published": true}),
         )?;
@@ -846,22 +869,8 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = EdgeAppManifest {
-            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "".to_string(),
-            user_version: "1".to_string(),
-            revision: 7,
-            description: "asdf".to_string(),
-            icon: "asdf".to_string(),
-            author: "asdf".to_string(),
-            homepage_url: "asdfasdf".to_string(),
-            settings: vec![],
-        };
 
-        let tmp_dir = TempDir::new("test").unwrap();
-        EdgeAppManifest::save_to_file(&manifest, tmp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let result = command.list_versions(tmp_dir.path().join("screenly.yml").as_path());
+        let result = command.list_versions("01H2QZ6Z8WXWNDC0KQ198XCZEW");
         edge_apps_mock.assert();
         assert!(result.is_ok());
     }
@@ -971,9 +980,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "1".to_string(),
             user_version: "1".to_string(),
-            revision: 7,
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
@@ -981,7 +988,7 @@ mod tests {
             settings: vec![],
         };
 
-        let result = command.list_settings(&manifest);
+        let result = command.list_settings(&manifest.app_id);
 
         installation_mock.assert();
         installation_mock_create.assert();
@@ -1098,9 +1105,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "test-id".to_string(),
             user_version: "1".to_string(),
-            revision: 7,
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
@@ -1108,7 +1113,7 @@ mod tests {
             settings: vec![],
         };
 
-        let result = command.set_setting(&manifest, "best_setting", "best_value");
+        let result = command.set_setting(&manifest.app_id, "best_setting", "best_value");
         installation_mock.assert();
         installation_mock_create.assert();
         setting_values_mock_get.assert();
@@ -1182,9 +1187,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "test-id".to_string(),
             user_version: "1".to_string(),
-            revision: 7,
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
@@ -1192,7 +1195,7 @@ mod tests {
             settings: vec![],
         };
 
-        let result = command.set_setting(&manifest, "best_setting", "best_value1");
+        let result = command.set_setting(&manifest.app_id, "best_setting", "best_value1");
         installation_mock.assert();
         setting_values_mock_get.assert();
         setting_values_mock_patch.assert();
@@ -1264,9 +1267,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "test-id".to_string(),
             user_version: "1".to_string(),
-            revision: 7,
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
@@ -1274,7 +1275,8 @@ mod tests {
             settings: vec![],
         };
 
-        let result = command.set_secret(&manifest, "best_secret_setting", "best_secret_value");
+        let result =
+            command.set_secret(&manifest.app_id, "best_secret_setting", "best_secret_value");
         installation_mock.assert();
         installation_mock_create.assert();
         secrets_values_mock_post.assert();
@@ -1286,9 +1288,7 @@ mod tests {
     fn test_upload_should_send_correct_requests() {
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "".to_string(),
             user_version: "1".to_string(),
-            revision: 7,
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
@@ -1326,6 +1326,22 @@ mod tests {
                 .query_param("app_revision", "eq.7")
                 .query_param("type", "eq.edge-app-file");
             then.status(200).json_body(json!([{"signature": "sig"}]));
+        });
+
+        // v4/edge-apps/versions?select=revision&order=revision.desc&limit=1&app_id=eq.{}
+        let revision_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "revision")
+                .query_param("order", "revision.desc")
+                .query_param("limit", "1")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
+            then.status(200).json_body(json!([{"revision": 7}]));
         });
 
         // v4/edge-apps/versions?select=file_tree&app_id=eq.{}&revision=eq.{}
@@ -1510,7 +1526,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let result = command.upload(temp_dir.path().join("screenly.yml").as_path());
+        let result = command.upload(temp_dir.path().join("screenly.yml").as_path(), None);
 
         assets_mock.assert();
         file_tree_from_version_mock.assert();
@@ -1523,6 +1539,7 @@ mod tests {
         publish_mock.assert();
         installation_mock.assert();
         installation_mock_create.assert();
+        revision_mock.assert();
 
         assert!(result.is_ok());
     }
@@ -1557,9 +1574,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            root_asset_id: "".to_string(),
             user_version: "1".to_string(),
-            revision: 7,
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
             author: "asdf".to_string(),
@@ -1567,7 +1582,7 @@ mod tests {
             settings: vec![],
         };
 
-        let result = command.promote_version(&manifest, &7, &"public".to_string());
+        let result = command.promote_version(&manifest.app_id, &7, &"public".to_string());
         promote_mock.assert();
 
         assert!(&result.is_ok());

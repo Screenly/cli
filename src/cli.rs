@@ -264,8 +264,10 @@ pub enum EdgeAppCommands {
     /// Creates edge-app in the store.
     Create {
         /// Edge app name
+        #[arg(short, long)]
         name: String,
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
         path: Option<String>,
     },
 
@@ -291,15 +293,26 @@ pub enum EdgeAppCommands {
     /// Uploads assets and settings of the edge app.
     Upload {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
         path: Option<String>,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
     },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppVersionCommands {
     List {
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
         path: Option<String>,
+
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
@@ -308,10 +321,16 @@ pub enum EdgeAppVersionCommands {
         /// Edge app revision to promote.
         #[arg(short, long)]
         revision: u32,
-        /// Channel to promote to. Stable by default
+        /// Channel to promote to. If not specified CLI will use stable channel.
         #[arg(short, long, default_value = "stable")]
         channel: String,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
         path: Option<String>,
     },
 }
@@ -320,7 +339,13 @@ pub enum EdgeAppVersionCommands {
 pub enum EdgeAppSettingsCommands {
     List {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
         path: Option<String>,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
@@ -330,7 +355,13 @@ pub enum EdgeAppSettingsCommands {
         /// Key value pair of the setting to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         setting_pair: (String, String),
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
         path: Option<String>,
     },
 }
@@ -341,7 +372,13 @@ pub enum EdgeAppSecretsCommands {
         /// Key value pair of the secret to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         secret_pair: (String, String),
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
         path: Option<String>,
     },
 }
@@ -395,6 +432,17 @@ pub fn get_screen_name(
     }
 
     Err(CommandError::MissingField)
+}
+
+fn get_actual_app_id(app_id: &Option<String>, path: &Option<String>) -> String {
+    match app_id {
+        Some(id) => id.clone(),
+        None => {
+            let manifest =
+                EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
+            manifest.app_id
+        }
+    }
 }
 
 pub fn get_asset_title(
@@ -772,10 +820,16 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         EdgeAppCommands::List { json } => {
             handle_command_execution_result(edge_app_command.list(), json);
         }
-        EdgeAppCommands::Upload { path } => {
-            match edge_app_command.upload(transform_edge_app_path_to_manifest(path).as_path()) {
-                Ok(()) => {
-                    println!("Edge app successfully uploaded.");
+        EdgeAppCommands::Upload { path, app_id } => {
+            match edge_app_command.upload(
+                transform_edge_app_path_to_manifest(path).as_path(),
+                app_id.clone(),
+            ) {
+                Ok(revision) => {
+                    println!(
+                        "Edge app successfully uploaded. Revision: {revision}.",
+                        revision = revision
+                    );
                 }
                 Err(e) => {
                     println!("Failed to upload edge app: {e}.");
@@ -783,24 +837,21 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         }
         EdgeAppCommands::Version(command) => match command {
-            EdgeAppVersionCommands::List { path, json } => {
+            EdgeAppVersionCommands::List { app_id, path, json } => {
+                let actual_app_id = get_actual_app_id(app_id, path);
                 handle_command_execution_result(
-                    edge_app_command
-                        .list_versions(transform_edge_app_path_to_manifest(path).as_path()),
+                    edge_app_command.list_versions(&actual_app_id),
                     json,
                 );
             }
             EdgeAppVersionCommands::Promote {
                 path,
                 revision,
+                app_id,
                 channel,
             } => {
-                match edge_app_command.promote_version(
-                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
-                        .unwrap(),
-                    revision,
-                    channel,
-                ) {
+                let actual_app_id = get_actual_app_id(app_id, path);
+                match edge_app_command.promote_version(&actual_app_id, revision, channel) {
                     Ok(()) => {
                         println!("Edge app version successfully promoted.");
                     }
@@ -811,44 +862,44 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         },
         EdgeAppCommands::Setting(command) => match command {
-            EdgeAppSettingsCommands::List { path, json } => {
+            EdgeAppSettingsCommands::List { path, json, app_id } => {
+                let actual_app_id = get_actual_app_id(app_id, path);
                 handle_command_execution_result(
-                    edge_app_command.list_settings(
-                        &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
-                            .unwrap(),
-                    ),
+                    edge_app_command.list_settings(&actual_app_id),
                     json,
                 );
             }
-            EdgeAppSettingsCommands::Set { setting_pair, path } => {
-                match edge_app_command.set_setting(
-                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
-                        .unwrap(),
-                    &setting_pair.0,
-                    &setting_pair.1,
-                ) {
+            EdgeAppSettingsCommands::Set {
+                setting_pair,
+                app_id,
+                path,
+            } => {
+                let actual_app_id = get_actual_app_id(app_id, path);
+                match edge_app_command.set_setting(&actual_app_id, &setting_pair.0, &setting_pair.1)
+                {
                     Ok(()) => {
                         println!("Edge app setting successfully set.");
                     }
                     Err(e) => {
-                        println!("Failed to set edge app setting: {e}.");
+                        println!("Failed to set edge app setting: {}", e);
                     }
                 }
             }
         },
         EdgeAppCommands::Secret(command) => match command {
-            EdgeAppSecretsCommands::Set { secret_pair, path } => {
-                match edge_app_command.set_secret(
-                    &EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path())
-                        .unwrap(),
-                    &secret_pair.0,
-                    &secret_pair.1,
-                ) {
+            EdgeAppSecretsCommands::Set {
+                secret_pair,
+                app_id,
+                path,
+            } => {
+                let actual_app_id = get_actual_app_id(app_id, path);
+
+                match edge_app_command.set_secret(&actual_app_id, &secret_pair.0, &secret_pair.1) {
                     Ok(()) => {
                         println!("Edge app secret successfully set.");
                     }
                     Err(e) => {
-                        println!("Failed to set edge app secret: {e}.");
+                        println!("Failed to set edge app secret: {}", e);
                     }
                 }
             }
