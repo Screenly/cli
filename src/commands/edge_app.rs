@@ -468,7 +468,7 @@ impl EdgeAppCommand {
                 }
                 match &mut pb {
                     Some(ref mut progress_bar) => {
-                        progress_bar.set_length(assets_to_process - (array.len() as u64));
+                        progress_bar.set_position(assets_to_process - (array.len() as u64));
                         progress_bar.set_message("Processing Items:");
                     }
                     None => {
