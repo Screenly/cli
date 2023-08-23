@@ -659,6 +659,7 @@ impl EdgeAppCommand {
             .post(url)
             .multipart(form)
             .headers(headers)
+            .timeout(Duration::from_secs(3600))  // timeout is equal to server timeout
             .send()?;
 
         let status = response.status();
