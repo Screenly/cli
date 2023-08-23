@@ -450,7 +450,7 @@ impl EdgeAppCommand {
                         progress_bar.set_message("Processing Items:");
                     }
                     None => {
-                        pb = Option::Some(ProgressBar::new(array.len() as u64));
+                        pb = Some(ProgressBar::new(array.len() as u64));
                         assets_to_process = array.len() as u64;
                     }
                 }
