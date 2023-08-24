@@ -267,7 +267,7 @@ impl EdgeAppManifest {
     pub fn save_to_file(manifest: &EdgeAppManifest, path: &Path) -> Result<(), CommandError> {
         let yaml = serde_yaml::to_string(&manifest)?;
         let manifest_file = File::create(path)?;
-        write!(&manifest_file, "---\n{}", yaml)?;
+        write!(&manifest_file, "---\n{yaml}")?;
         Ok(())
     }
 }
@@ -584,5 +584,43 @@ impl Formatter for PlaylistItems {
                 }
             }),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+    use std::io::Read;
+
+    #[test]
+    fn test_save_to_file_should_save_yaml_correctly() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.yaml");
+
+        let manifest = EdgeAppManifest {
+            app_id: "test_app".to_string(),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: "string".to_string(),
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let mut file = File::open(&file_path).unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+
+        let expected_yaml = serde_yaml::to_string(&manifest).unwrap();
+        let expected_contents = format!("---\n{}", expected_yaml);
+
+        assert_eq!(contents, expected_contents);
+
+        dir.close().unwrap();
     }
 }
