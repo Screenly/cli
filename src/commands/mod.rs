@@ -139,6 +139,7 @@ pub fn post<T: Serialize + ?Sized>(
         .build_client()?
         .post(url)
         .headers(headers)
+        .timeout(Duration::from_secs(60))
         .json(&payload)
         .send()?;
 
