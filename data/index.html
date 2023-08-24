@@ -19,7 +19,7 @@
     </main>
   </body>
   <script>
-    document.getElementById("greeting").innerText = screenly.settings.greeting;
+    document.getElementById("greeting").innerText = screenly.settings.greeting || "stranger";
     document.getElementById("screen-name").innerText = screenly.metadata.screen_name;
     document.getElementById("screen-location").innerText = screenly.metadata.location;
     document.getElementById("screen-hostname").innerText = screenly.metadata.hostname;
