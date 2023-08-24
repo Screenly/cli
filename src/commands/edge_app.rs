@@ -77,7 +77,7 @@ impl EdgeAppCommand {
         let manifest = EdgeAppManifest {
             app_id,
             settings: vec![Setting {
-                title: "username".to_string(),
+                title: "greeting".to_string(),
                 type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
@@ -779,7 +779,7 @@ mod tests {
         assert_eq!(
             manifest.settings,
             vec![Setting {
-                title: "username".to_string(),
+                title: "greeting".to_string(),
                 type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
