@@ -1,3 +1,4 @@
+---
 # action.yml
 name: 'Screenly'
 description: 'GitHub Actions for Screenly.'
@@ -21,7 +22,9 @@ runs:
     - id: download-cli
       run: |
         wget -q -O /tmp/screenly-cli.tar.gz \
-          "https://github.com/Screenly/cli/releases/download/${{ inputs.cli_version }}/screenly-cli-x86_64-unknown-linux-gnu.tar.gz"
+          "https://github.com/Screenly/cli/releases/download/\
+          ${{ inputs.cli_version }}/\
+          screenly-cli-x86_64-unknown-linux-gnu.tar.gz"
         cd /tmp
         tar xfz screenly-cli.tar.gz
         chmod +x screenly

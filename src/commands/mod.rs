@@ -267,7 +267,7 @@ impl EdgeAppManifest {
     pub fn save_to_file(manifest: &EdgeAppManifest, path: &Path) -> Result<(), CommandError> {
         let yaml = serde_yaml::to_string(&manifest)?;
         let manifest_file = File::create(path)?;
-        write!(&manifest_file, "{yaml}")?;
+        write!(&manifest_file, "---\n{}", yaml)?;
         Ok(())
     }
 }
