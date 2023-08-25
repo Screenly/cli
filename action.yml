@@ -15,7 +15,7 @@ inputs:
     required: true
   cli_version:
     description: "Screenly CLI version"
-    default: "v0.1.4"
+    default: "v0.1.5"
 outputs:
   stdout:
     description: "Stdout from command"
