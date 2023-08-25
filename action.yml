@@ -17,7 +17,9 @@ inputs:
     description: "Screenly CLI version"
     default: "v0.1.4"
 outputs:
-  stdout: ${{ steps.run-cli.test }}
+  stdout:
+    description: "Stdout from command"
+    value: ${{ steps.run-cli.outputs.result }}
 
 runs:
   using: 'composite'
