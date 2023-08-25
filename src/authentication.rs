@@ -150,7 +150,7 @@ mod tests {
     use envtestkit::set_env;
     use httpmock::{Method::GET, MockServer};
     use simple_logger::SimpleLogger;
-    use tempdir::TempDir;
+    use tempfile::tempdir;
 
     use super::*;
 
@@ -160,7 +160,7 @@ mod tests {
             .with_level(log::LevelFilter::Debug)
             .init()
             .unwrap();
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
 
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_verify_and_store_token_when_token_is_invalid() {
-        let tmp_dir = TempDir::new("invalid").unwrap();
+        let tmp_dir = tempdir().unwrap();
 
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_read_token_when_token_is_overridden_with_env_variable_correct_token_is_returned() {
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
         let _token = set_env(OsString::from("API_TOKEN"), "env_token");
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_read_token_correct_token_is_returned() {
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
         fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn test_remove_token_should_remove_token_from_storage() {
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
         fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();

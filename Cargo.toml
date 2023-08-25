@@ -28,7 +28,6 @@ serde_yaml = "0.9.17"
 sha1 = "0.10.5"
 sha2 = "0.10.7"
 simple_logger = { version = "4.0.0", features= ["colors"]}
-tempdir = "0.3.7"
 term = "0.7.0"
 thiserror = "1.0.37"
 walkdir = "2.3.3"
@@ -40,4 +39,3 @@ rayon = "1.7.0"
 httpmock = "0.6"
 envtestkit = "1.1.2"
 tempfile = "3.8"
-

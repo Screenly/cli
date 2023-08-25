@@ -616,8 +616,21 @@ mod tests {
         let mut contents = String::new();
         file.read_to_string(&mut contents).unwrap();
 
-        let expected_yaml = serde_yaml::to_string(&manifest).unwrap();
-        let expected_contents = format!("---\n{}", expected_yaml);
+        let expected_contents = r#"---
+app_id: test_app
+user_version: ''
+description: ''
+icon: ''
+author: ''
+homepage_url: ''
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
 
         assert_eq!(contents, expected_contents);
 

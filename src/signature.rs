@@ -60,8 +60,8 @@ pub fn checksum(chunk: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempdir::TempDir;
+    use std::fs;    
+    use tempfile::tempdir;
 
     #[test]
     fn test_generate_signature_when_file_does_not_exist_should_return_error() {
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_generate_signature_should_generate_correct_signature_for_file() {
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         let file_content = "test test test test";
         fs::write(
             tmp_dir.path().join("index.html").to_str().unwrap(),
