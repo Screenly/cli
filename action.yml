@@ -1,3 +1,4 @@
+---
 # action.yml
 name: 'Screenly'
 description: 'GitHub Actions for Screenly.'

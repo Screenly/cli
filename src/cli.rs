@@ -911,7 +911,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 mod tests {
 
     use httpmock::{Method::GET, MockServer};
-    use tempdir::TempDir;
+    use tempfile::tempdir;
 
     use crate::authentication::Config;
 
@@ -919,8 +919,8 @@ mod tests {
 
     #[test]
     fn test_get_screen_name_should_return_correct_screen_name() {
-        let _tmp_dir = TempDir::new("test").unwrap();
-        let _tmp_dir = TempDir::new("test").unwrap();
+        let _tmp_dir = tempdir().unwrap();
+        let _tmp_dir = tempdir().unwrap();
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
@@ -943,7 +943,7 @@ mod tests {
 
     #[test]
     fn test_transform_edge_app_path_to_manifest_with_path_should_return_correct_path() {
-        let dir = TempDir::new("test").unwrap();
+        let dir = tempdir().unwrap();
         let dir_path = dir.path().to_str().unwrap().to_string();
         let path = Some(dir_path.clone());
 
@@ -957,7 +957,7 @@ mod tests {
 
     #[test]
     fn test_transform_edge_app_path_to_manifest_without_path_should_return_correct_path() {
-        let dir = TempDir::new("test").unwrap();
+        let dir = tempdir().unwrap();
         let dir_path = dir.path();
 
         // Change current directory to tempdir

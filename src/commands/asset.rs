@@ -89,7 +89,7 @@ impl AssetCommand {
             .post(url)
             .multipart(form)
             .headers(headers)
-            .timeout(Duration::from_secs(3600))  // timeout is equal to server timeout
+            .timeout(Duration::from_secs(3600)) // timeout is equal to server timeout
             .send()?;
 
         if response.status() != StatusCode::CREATED {
@@ -167,7 +167,7 @@ mod tests {
     use httpmock::MockServer;
 
     use std::fs;
-    use tempdir::TempDir;
+    use tempfile::tempdir;
 
     #[test]
     fn test_list_assets_should_return_correct_asset_list() {
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_add_asset_when_local_asset_should_send_correct_request() {
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
 
         let new_asset = json!([
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_add_asset_when_web_asset_should_send_correct_request() {
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         fs::write(tmp_dir.path().join("1.html").to_str().unwrap(), "dummy").unwrap();
 
         let new_asset = json!([

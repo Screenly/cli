@@ -268,7 +268,7 @@ impl EdgeAppManifest {
     pub fn save_to_file(manifest: &EdgeAppManifest, path: &Path) -> Result<(), CommandError> {
         let yaml = serde_yaml::to_string(&manifest)?;
         let manifest_file = File::create(path)?;
-        write!(&manifest_file, "{yaml}")?;
+        write!(&manifest_file, "---\n{yaml}")?;
         Ok(())
     }
 }
@@ -585,5 +585,51 @@ impl Formatter for PlaylistItems {
                 }
             }),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_save_to_file_should_save_yaml_correctly() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.yaml");
+
+        let manifest = EdgeAppManifest {
+            app_id: "test_app".to_string(),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: "string".to_string(),
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let contents = fs::read_to_string(file_path).unwrap();
+
+        let expected_contents = r#"---
+app_id: test_app
+user_version: ''
+description: ''
+icon: ''
+author: ''
+homepage_url: ''
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        assert_eq!(contents, expected_contents);
     }
 }

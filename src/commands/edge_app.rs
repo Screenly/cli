@@ -682,7 +682,7 @@ impl EdgeAppCommand {
             .post(url)
             .multipart(form)
             .headers(headers)
-            .timeout(Duration::from_secs(3600))  // timeout is equal to server timeout
+            .timeout(Duration::from_secs(3600)) // timeout is equal to server timeout
             .send()?;
 
         let status = response.status();
@@ -741,11 +741,11 @@ mod tests {
     use httpmock::Method::{GET, PATCH, POST};
     use httpmock::MockServer;
 
-    use tempdir::TempDir;
+    use tempfile::tempdir;
 
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
 
         let mock_server = MockServer::start();
         let post_mock = mock_server.mock(|when, then| {
@@ -800,7 +800,7 @@ mod tests {
             "token",
         ));
 
-        let tmp_dir = TempDir::new("test").unwrap();
+        let tmp_dir = tempdir().unwrap();
         File::create(tmp_dir.path().join("screenly.yml")).unwrap();
 
         let result = command.create(
@@ -1515,7 +1515,7 @@ mod tests {
             ]));
         });
 
-        let temp_dir = TempDir::new("test").unwrap();
+        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
         let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
