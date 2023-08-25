@@ -1,0 +1,15 @@
+app_id: 01H7DD8SV32F9FKW16FAJTK9Y6
+root_asset_id: 01H7DDJNASE32NDPHS54M6GN9E
+user_version: ''
+revision: 1
+description: ''
+icon: ''
+author: ''
+homepage_url: ''
+settings:
+  username:
+    type: text
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html

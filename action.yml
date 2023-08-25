@@ -15,11 +15,15 @@ inputs:
     required: true
   cli_version:
     description: "Screenly CLI version"
-    default: "v0.1.1"
+    default: "v0.1.4"
+outputs:
+  stdout: ${{ steps.run-cli.test }}
+
 runs:
   using: 'composite'
   steps:
-    - id: download-cli
+    - name: Download CLI
+      id: download-cli
       run: |
         wget -q -O /tmp/screenly-cli.tar.gz \
           "https://github.com/Screenly/cli/releases/download/${{ inputs.cli_version }}/screenly-cli-x86_64-unknown-linux-gnu.tar.gz"
@@ -27,8 +31,16 @@ runs:
         tar xfz screenly-cli.tar.gz
         chmod +x screenly
       shell: bash
-    - id: run-cli
+
+    - name: Run CLI
+      id: run-cli
       run: |
-        API_TOKEN=${{ inputs.screenly_api_token }} \
-          /tmp/screenly ${{ inputs.cli_commands }}
+        output=$(API_TOKEN=${{ inputs.screenly_api_token }} \
+          /tmp/screenly ${{ inputs.cli_commands }})
+
+        # Export stdout
+        echo "result=$output" >> "$GITHUB_OUTPUT"
+
+        # Print stdout
+        echo "$output"
       shell: bash
