@@ -134,7 +134,7 @@ impl EdgeAppCommand {
                 .collect();
 
         let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
-                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc&type=eq.text",
+                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc&type=eq.string",
                                                                                                                       app_id,
                                                                                                              ))?)?;
 
