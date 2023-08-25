@@ -814,6 +814,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
                 Err(e) => {
                     println!("Failed to publish edge app manifest: {e}.");
+                    std::process::exit(1);
                 }
             }
         }
@@ -833,6 +834,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
                 Err(e) => {
                     println!("Failed to upload edge app: {e}.");
+                    std::process::exit(1);
                 }
             }
         }
@@ -857,6 +859,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                     Err(e) => {
                         println!("Failed to promote edge app version: {e}.");
+                        std::process::exit(1);
                     }
                 }
             }
@@ -882,6 +885,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                     Err(e) => {
                         println!("Failed to set edge app setting: {}", e);
+                        std::process::exit(1);
                     }
                 }
             }
@@ -900,6 +904,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                     Err(e) => {
                         println!("Failed to set edge app secret: {}", e);
+                        std::process::exit(1);
                     }
                 }
             }
