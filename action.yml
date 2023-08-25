@@ -15,11 +15,7 @@ inputs:
     required: true
   cli_version:
     description: "Screenly CLI version"
-    default: "v0.1.5"
-outputs:
-  stdout:
-    description: "Stdout from command"
-    value: ${{ steps.run-cli.outputs.result }}
+    default: "v0.1.6"
 
 runs:
   using: 'composite'
@@ -37,12 +33,6 @@ runs:
     - name: Run CLI
       id: run-cli
       run: |
-        output=$(API_TOKEN=${{ inputs.screenly_api_token }} \
-          /tmp/screenly ${{ inputs.cli_commands }})
-
-        # Export stdout
-        echo "result=$output" >> "$GITHUB_OUTPUT"
-
-        # Print stdout
-        echo "$output"
+        $(API_TOKEN=${{ inputs.screenly_api_token }} \
+          /tmp/screenly ${{ inputs.cli_commands }}
       shell: bash
