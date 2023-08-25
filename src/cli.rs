@@ -910,7 +910,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 #[cfg(test)]
 mod tests {
 
-    use httpmock::{Method::GET, MockServer};    
+    use httpmock::{Method::GET, MockServer};
     use tempfile::tempdir;
 
     use crate::authentication::Config;

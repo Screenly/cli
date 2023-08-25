@@ -89,7 +89,7 @@ impl AssetCommand {
             .post(url)
             .multipart(form)
             .headers(headers)
-            .timeout(Duration::from_secs(3600))  // timeout is equal to server timeout
+            .timeout(Duration::from_secs(3600)) // timeout is equal to server timeout
             .send()?;
 
         if response.status() != StatusCode::CREATED {
@@ -166,7 +166,7 @@ mod tests {
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
 
-    use std::fs;    
+    use std::fs;
     use tempfile::tempdir;
 
     #[test]

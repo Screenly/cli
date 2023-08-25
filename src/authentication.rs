@@ -179,7 +179,6 @@ mod tests {
         assert!(path.exists());
         let contents = fs::read_to_string(path).unwrap();
         assert!(contents.eq("correct_token"));
-        tmp_dir.close().unwrap();
     }
 
     #[test]

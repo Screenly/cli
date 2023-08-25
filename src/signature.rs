@@ -60,7 +60,7 @@ pub fn checksum(chunk: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;    
+    use std::fs;
     use tempfile::tempdir;
 
     #[test]

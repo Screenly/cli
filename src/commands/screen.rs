@@ -75,7 +75,7 @@ mod tests {
 
     use crate::authentication::{Authentication, Config};
     use crate::commands::{Formatter, OutputType};
-    use serde_json::{json, Value};    
+    use serde_json::{json, Value};
     use tempfile::tempdir;
 
     #[test]

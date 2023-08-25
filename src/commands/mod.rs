@@ -591,7 +591,6 @@ impl Formatter for PlaylistItems {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use std::io::Read;
 
     #[test]
     fn test_save_to_file_should_save_yaml_correctly() {
@@ -612,9 +611,7 @@ mod tests {
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
 
-        let mut file = File::open(&file_path).unwrap();
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).unwrap();
+        let contents = fs::read_to_string(file_path).unwrap();
 
         let expected_contents = r#"---
 app_id: test_app
@@ -633,7 +630,5 @@ settings:
 "#;
 
         assert_eq!(contents, expected_contents);
-
-        dir.close().unwrap();
     }
 }

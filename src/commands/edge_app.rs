@@ -682,7 +682,7 @@ impl EdgeAppCommand {
             .post(url)
             .multipart(form)
             .headers(headers)
-            .timeout(Duration::from_secs(3600))  // timeout is equal to server timeout
+            .timeout(Duration::from_secs(3600)) // timeout is equal to server timeout
             .send()?;
 
         let status = response.status();
@@ -740,7 +740,7 @@ mod tests {
 
     use httpmock::Method::{GET, PATCH, POST};
     use httpmock::MockServer;
-    
+
     use tempfile::tempdir;
 
     #[test]
