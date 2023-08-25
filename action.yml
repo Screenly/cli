@@ -14,7 +14,7 @@ inputs:
     description: "Your Screenly CLI command(s)."
     required: true
   cli_version:
-    description: "Screenly CLI version"
+    description: "Screenly CLI version."
     default: "v0.1.6"
 
 runs:
@@ -23,11 +23,12 @@ runs:
     - name: Download CLI
       id: download-cli
       run: |
-        wget -q -O /tmp/screenly-cli.tar.gz \
+        pushd /tmp
+        wget -q -O screenly-cli.tar.gz \
           "https://github.com/Screenly/cli/releases/download/${{ inputs.cli_version }}/screenly-cli-x86_64-unknown-linux-gnu.tar.gz"
-        cd /tmp
         tar xfz screenly-cli.tar.gz
         chmod +x screenly
+        popd
       shell: bash
 
     - name: Run CLI
