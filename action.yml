@@ -34,6 +34,6 @@ runs:
     - name: Run CLI
       id: run-cli
       run: |
-        $(API_TOKEN=${{ inputs.screenly_api_token }} \
+        API_TOKEN=${{ inputs.screenly_api_token }} \
           /tmp/screenly ${{ inputs.cli_commands }}
       shell: bash
