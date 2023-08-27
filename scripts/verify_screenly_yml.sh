@@ -1,16 +1,17 @@
 #!/bin/bash
 # Validate YAML against JSON Schema.
 
+# Exit codes
+SUCCESS=0
+ERR_USAGE=1
+ERR_VALIDATION_FAILED=2
+
 if [[ -z "$1" ]]; then
   echo "Usage: $0 <PATH_TO_YAML_FILE>"
-  exit 1
+  exit $ERR_USAGE
 fi
 
 SCHEMA_PATH="./schema/screenly_yml_schema.json"
-
-if [[ ! "$SCHEMA_PATH" = /* ]]; then
-  SCHEMA_PATH="$(cd "$(dirname "$SCHEMA_PATH")" && pwd)/$(basename "$SCHEMA_PATH")"
-fi
 
 python3 - <<END
 import os
@@ -34,7 +35,12 @@ if errors:
     print("Validation failed!")
     for error in errors:
         print(f"  Error at {list(error.path)}: {error.message}")
+    exit($ERR_VALIDATION_FAILED)
 else:
     print("Validation successful!")
-
+    exit($SUCCESS)
 END
+
+PYTHON_EXIT_CODE=$?
+
+exit $PYTHON_EXIT_CODE
