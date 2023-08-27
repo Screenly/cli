@@ -139,3 +139,52 @@ with:
   screenly_api_token: ${{ secrets.SCREENLY_API_TOKEN }}
   cli_commands: screen list
 ```
+
+## Verifying YAML Configuration
+
+### Introduction
+The `verify_screenly_yml.sh` script is a utility that validates the `screenly.yml` file against a predefined JSON schema. This ensures that your configuration adheres to the expected format before deploying or using the application.
+
+### Prerequisites
+Before running the script, make sure you have the following installed:
+
+- `Python 3.x`
+- `jsonschema` Python package
+
+You can install the jsonschema package using pip:
+
+```bash
+pip3 install jsonschema
+```
+
+### Directory Structure
+Your project should have the following directory structure for the script to work correctly:
+
+- `cli/` is the root directory,
+- `cli/schema/` contains the JSON schema file `screenly_yml_schema.json`,
+- `cli/scripts/` contains the script `verify_screenly_yml.sh`.
+
+### Running the Script
+Navigate to the root directory (`cli/`).
+Run the following command:
+
+```bash
+./scripts/verify_screenly_yml.sh ./screenly.yml
+```
+Replace `./screenly.yml` with the path to your YAML file if it is located elsewhere.
+
+Output
+Upon successful validation, you'll see:
+
+```
+Validation successful!
+```
+
+If validation fails, you'll get an error message for each issue indicating the property that caused the failure and its location:
+
+```
+Validation failed!
+  Error at []: 'app_id' is a required property
+  Error at ['settings', 'username', 'optional']: 'asdqwe123' is not of type 'boolean'
+  Error at ['settings', 'username', 'type']: True is not of type 'string'
+```

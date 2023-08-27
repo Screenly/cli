@@ -1,0 +1,54 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "type": "object",
+    "properties": {
+      "app_id": {
+        "type": "string",
+        "pattern": "^[0-9A-Z]+$"
+      },
+      "user_version": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "icon": {
+        "type": "string"
+      },
+      "author": {
+        "type": "string"
+      },
+      "homepage_url": {
+        "type": "string",
+        "format": "uri"
+      },
+      "settings": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "object",
+            "properties": {
+              "default_value": {
+                "type": "string"
+              },
+              "help_text": {
+                "type": "string"
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "default_value", "title", "optional", "help_text"]
+          }
+        },
+        "required": ["username"]
+      }
+    },
+    "required": ["app_id", "settings"]
+  } 
