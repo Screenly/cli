@@ -101,6 +101,8 @@ pub enum CommandError {
     FileSystemError(String),
     #[error("Asset processing timeout")]
     AssetProcessingTimeout,
+    #[error("Warning: these secrets are undefined: {0}. Use --ignore-warning to ignore")]
+    WarningUndefinedSecrets(String),
 }
 
 pub fn get(
