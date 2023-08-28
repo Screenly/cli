@@ -332,9 +332,6 @@ pub enum EdgeAppVersionCommands {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
-
-        #[arg(short, long, action=clap::ArgAction::SetTrue, default_value = "false")]
-        ignore_warnings: Option<bool>,
     },
 }
 
@@ -854,15 +851,9 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 revision,
                 app_id,
                 channel,
-                ignore_warnings,
             } => {
                 let actual_app_id = get_actual_app_id(app_id, path);
-                match edge_app_command.promote_version(
-                    &actual_app_id,
-                    revision,
-                    channel,
-                    ignore_warnings.unwrap(),
-                ) {
+                match edge_app_command.promote_version(&actual_app_id, revision, channel) {
                     Ok(()) => {
                         println!("Edge app version successfully promoted.");
                     }
