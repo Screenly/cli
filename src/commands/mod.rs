@@ -102,7 +102,7 @@ pub enum CommandError {
     #[error("Asset processing timeout")]
     AssetProcessingTimeout,
     #[error("Warning: these secrets are undefined: {0}.")]
-    WarningUndefinedSecrets(String),
+    UndefinedSecrets(String),
 }
 
 pub fn get(

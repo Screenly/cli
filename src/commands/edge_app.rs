@@ -306,12 +306,12 @@ impl EdgeAppCommand {
     ) -> Result<(), CommandError> {
         let secrets = self.get_undefined_secrets(app_id)?;
         if !secrets.is_empty() {
-            return Err(CommandError::WarningUndefinedSecrets(
+            return Err(CommandError::UndefinedSecrets(
                 serde_json::to_string(&secrets)?,
             ));
         }
 
-        debug!("No undefined secrets found");
+        debug!("All secrets are defined.");
 
         let response = commands::patch(
             &self.authentication,
