@@ -1741,6 +1741,6 @@ mod tests {
         undefined_secrets_mock.assert();
 
         assert!(!&result.is_ok());
-        assert!(result.unwrap_err().to_string().contains("Warning: these secrets are undefined: [\"undefined_secret\",\"another_undefined_secret\"]. Use --ignore-warning to ignore"));
+        assert!(result.unwrap_err().to_string().contains("Warning: these secrets are undefined: [\"undefined_secret\",\"another_undefined_secret\"]."));
     }
 }
