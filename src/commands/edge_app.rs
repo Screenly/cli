@@ -304,7 +304,14 @@ impl EdgeAppCommand {
         revision: &u32,
         channel: &String,
     ) -> Result<(), CommandError> {
-        self.ensure_secrets_defined(app_id)?;
+        let secrets = self.get_undefined_secrets(app_id)?;
+        if !secrets.is_empty() {
+            return Err(CommandError::WarningUndefinedSecrets(
+                serde_json::to_string(&secrets)?,
+            ));
+        }
+
+        debug!("No undefined secrets found");
 
         let response = commands::patch(
             &self.authentication,
@@ -335,7 +342,7 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn ensure_secrets_defined(&self, app_id: &str) -> Result<(), CommandError> {
+    fn get_undefined_secrets(&self, app_id: &str) -> Result<Vec<String>, CommandError> {
         let installation_id = self.get_or_create_installation(app_id)?;
 
         let undefined_secrets_response = commands::get(
@@ -347,15 +354,8 @@ impl EdgeAppCommand {
         )?;
 
         let titles = serde_json::from_value::<Vec<String>>(undefined_secrets_response)?;
-        if !titles.is_empty() {
-            return Err(CommandError::WarningUndefinedSecrets(
-                serde_json::to_string(&titles)?,
-            ));
-        }
 
-        debug!("No undefined secrets found");
-
-        Ok(())
+        Ok(titles)
     }
 
     fn create_version(
