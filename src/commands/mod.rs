@@ -101,6 +101,8 @@ pub enum CommandError {
     FileSystemError(String),
     #[error("Asset processing timeout")]
     AssetProcessingTimeout,
+    #[error("Error validating manifest file")]
+    ValidationError(String),
 }
 
 pub fn get(
@@ -203,11 +205,11 @@ pub fn patch<T: Serialize + ?Sized>(
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EdgeAppManifest {
     pub app_id: String,
-    pub user_version: String,
-    pub description: String,
-    pub icon: String,
-    pub author: String,
-    pub homepage_url: String,
+    pub user_version: Option<String>,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub author: Option<String>,
+    pub homepage_url: Option<String>,
     #[serde(
         serialize_with = "serialize_settings",
         deserialize_with = "deserialize_settings",
@@ -215,7 +217,6 @@ pub struct EdgeAppManifest {
     )]
     pub settings: Vec<Setting>,
 }
-
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Setting {
@@ -269,6 +270,49 @@ impl EdgeAppManifest {
         let yaml = serde_yaml::to_string(&manifest)?;
         let manifest_file = File::create(path)?;
         write!(&manifest_file, "---\n{yaml}")?;
+        Ok(())
+    }
+
+    pub fn validate_yaml_manifest(path: &Path) -> Result<(), CommandError> {
+        let data = fs::read_to_string(path).map_err(|_| CommandError::ValidationError("Failed to read file".to_string()))?;
+        let manifest_result: Result<EdgeAppManifest, serde_yaml::Error> = serde_yaml::from_str(&data);
+    
+        match manifest_result {
+            Err(e) => {
+                return Err(CommandError::ValidationError(format!("Failed to deserialize YAML: {}", e)));
+            },
+            Ok(manifest) => {
+                let mut errors = Vec::new();
+    
+                if manifest.app_id.is_empty() {
+                    errors.push("app_id is empty".to_string());
+                }
+    
+                if manifest.settings.is_empty() {
+                    errors.push("settings are empty".to_string());
+                } else {
+                    for (i, setting) in manifest.settings.iter().enumerate() {
+                        if setting.type_.is_empty() {
+                            errors.push(format!("settings[{}].type is empty", i));
+                        }
+                        if setting.default_value.is_empty() {
+                            errors.push(format!("settings[{}].default_value is empty", i));
+                        }
+                        if setting.title.is_empty() {
+                            errors.push(format!("settings[{}].title is empty", i));
+                        }
+                        if setting.help_text.is_empty() {
+                            errors.push(format!("settings[{}].help_text is empty", i));
+                        }
+                    }
+                }
+    
+                if !errors.is_empty() {
+                    return Err(CommandError::ValidationError(errors.join(", ")));
+                }
+            }
+        }
+    
         Ok(())
     }
 }
@@ -600,14 +644,18 @@ mod tests {
 
         let manifest = EdgeAppManifest {
             app_id: "test_app".to_string(),
+            user_version: Some("".to_string()),
+            description: Some("".to_string()),
+            icon: Some("".to_string()),
+            author: Some("".to_string()),
+            homepage_url: Some("".to_string()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
-            ..Default::default()
+            }]
         };
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
@@ -631,5 +679,48 @@ settings:
 "#;
 
         assert_eq!(contents, expected_contents);
+    }
+
+    #[test]
+    fn test_validate_yaml_manifest_should_pass_with_valid_case() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("valid_test.yaml");        
+
+        let manifest = EdgeAppManifest {
+            app_id: "test_app".to_string(),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: "string".to_string(),
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        assert!(EdgeAppManifest::validate_yaml_manifest(&file_path).is_ok());
+    }
+
+    #[test]
+    fn test_validate_yaml_manifest_should_not_pass_with_invalid_case() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("valid_test.yaml");        
+
+        let manifest = EdgeAppManifest {
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: "string".to_string(),
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        assert!(EdgeAppManifest::validate_yaml_manifest(&file_path).is_err());
     }
 }

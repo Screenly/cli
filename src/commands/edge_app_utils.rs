@@ -163,11 +163,11 @@ mod tests {
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
             app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            user_version: "1".to_string(),
-            description: "asdf".to_string(),
-            icon: "asdf".to_string(),
-            author: "asdf".to_string(),
-            homepage_url: "asdfasdf".to_string(),
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
             settings: vec![
                 Setting {
                     type_: "string".to_string(),
