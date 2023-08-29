@@ -111,10 +111,8 @@ impl EdgeAppCommand {
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
-        if manifest.app_id != "" {
-            return Err(CommandError::FileSystemError(format!(
-                "app_id in screenly.yml must be empty"
-            )));
+        if !manifest.app_id.is_empty() {
+            return Err(CommandError::FileSystemError("app_id in screenly.yml must be empty".to_string()));
         }
 
         let response = commands::post(
