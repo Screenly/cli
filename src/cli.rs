@@ -271,6 +271,16 @@ pub enum EdgeAppCommands {
         path: Option<String>,
     },
 
+    /// Init an existing edge-app directory with the manifest and index.html.
+    Init {
+        /// Edge app name
+        #[arg(short, long)]
+        name: String,
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+
     /// Lists your edge apps.
     List {
         /// Enables JSON output.
@@ -818,6 +828,20 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         }
+
+        EdgeAppCommands::Init { name, path } => {
+            match edge_app_command.init(name, transform_edge_app_path_to_manifest(path).as_path())
+            {
+                Ok(()) => {
+                    println!("Edge app successfully created.");
+                }
+                Err(e) => {
+                    println!("Failed to publish edge app manifest: {e}.");
+                    std::process::exit(1);
+                }
+            }
+        }
+
         EdgeAppCommands::List { json } => {
             handle_command_execution_result(edge_app_command.list(), json);
         }
