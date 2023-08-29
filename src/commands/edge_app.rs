@@ -112,7 +112,7 @@ impl EdgeAppCommand {
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
         if !manifest.app_id.is_empty() {
-            return Err(CommandError::FileSystemError("app_id in screenly.yml should not be set".to_string()));
+            return Err(CommandError::InitializationError("The operation can only proceed when 'app_id' is not set in the 'screenly.yml' configuration file".to_string()));
         }
 
         let response = commands::post(
@@ -976,7 +976,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Filesystem error: app_id in screenly.yml should not be set"
+            "Initialization Failed: The operation can only proceed when 'app_id' is not set in the 'screenly.yml' configuration file"
         );
     }
 
