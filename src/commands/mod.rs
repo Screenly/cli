@@ -101,6 +101,8 @@ pub enum CommandError {
     FileSystemError(String),
     #[error("Asset processing timeout")]
     AssetProcessingTimeout,
+    #[error("Initialization Failed: {0}")]
+    InitializationError(String),
 }
 
 pub fn get(
