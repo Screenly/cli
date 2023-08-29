@@ -49,7 +49,7 @@ impl EdgeAppCommand {
 
         if Path::new(&path).exists() || Path::new(&index_html_path).exists() {
             return Err(CommandError::FileSystemError(format!(
-                "The directory {} already contains a screenly.yml or index.html file",
+                "The directory {} already contains a screenly.yml or index.html file. Use --in-place if you want to create an Edge App in this directory",
                 parent_dir_path.display()
             )));
         }
@@ -95,7 +95,7 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn init(&self, name: &str, path: &Path) -> Result<(), CommandError> {
+    pub fn create_in_place(&self, name: &str, path: &Path) -> Result<(), CommandError> {
         let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
             "Can not obtain edge app root directory.".to_owned(),
         ))?;
@@ -858,7 +858,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("already contains a screenly.yml or index.html file"));
+            .contains("already contains a screenly.yml or index.html file. Use --in-place if you want to create an Edge App in this directory"));
 
         fs::remove_file(tmp_dir.path().join("screenly.yml")).unwrap();
 
@@ -873,7 +873,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("already contains a screenly.yml or index.html file"));
+            .contains("already contains a screenly.yml or index.html file. Use --in-place if you want to create an Edge App in this directory"));
     }
 
     #[test]
@@ -902,7 +902,7 @@ mod tests {
             tmp_dir.path().join("screenly.yml").as_path(),
         ).unwrap();
 
-        let result = command.init(
+        let result = command.create_in_place(
             "Best app ever",
             tmp_dir.path().join("screenly.yml").as_path(),
         );
@@ -926,7 +926,7 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         File::create(tmp_dir.path().join("screenly.yml")).unwrap();
 
-        let result = command.init(
+        let result = command.create_in_place(
             "Best app ever",
             tmp_dir.path().join("screenly.yml").as_path(),
         );
@@ -942,7 +942,7 @@ mod tests {
 
         File::create(tmp_dir.path().join("index.html")).unwrap();
 
-        let result = command.init(
+        let result = command.create_in_place(
             "Best app ever",
             tmp_dir.path().join("screenly.yml").as_path(),
         );
@@ -976,7 +976,7 @@ mod tests {
             tmp_dir.path().join("screenly.yml").as_path(),
         ).unwrap();
 
-        let result = command.init(
+        let result = command.create_in_place(
             "Best app ever",
             tmp_dir.path().join("screenly.yml").as_path(),
         );
