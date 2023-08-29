@@ -269,7 +269,7 @@ pub enum EdgeAppCommands {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
-        /// Initialize an existing Edge App directory with the manifest and index.html.
+        /// Use an existing Edge App directory with the manifest and index.html.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         in_place: Option<bool>,
     },

@@ -36,6 +36,14 @@ pub struct AssetSignature {
     pub(crate) signature: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EdgeAppCreationResponse {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+}
+
 impl EdgeAppCommand {
     pub fn new(authentication: Authentication) -> Self {
         Self { authentication }
@@ -59,14 +67,6 @@ impl EdgeAppCommand {
             "v4/edge-apps?select=id,name",
             &json!({ "name": name }),
         )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct EdgeAppCreationResponse {
-            #[serde(default)]
-            pub id: String,
-            #[serde(default)]
-            pub name: String,
-        }
 
         let json_response = serde_json::from_value::<Vec<EdgeAppCreationResponse>>(response)?;
         let app_id = json_response[0].id.clone();
@@ -120,14 +120,6 @@ impl EdgeAppCommand {
             "v4/edge-apps?select=id,name",
             &json!({ "name": name }),
         )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct EdgeAppCreationResponse {
-            #[serde(default)]
-            pub id: String,
-            #[serde(default)]
-            pub name: String,
-        }
 
         let json_response = serde_json::from_value::<Vec<EdgeAppCreationResponse>>(response)?;
         let app_id = json_response[0].id.clone();
@@ -877,7 +869,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_edge_app_should_create_edge_app_using_existing_files() {
+    fn test_create_in_place_edge_app_should_create_edge_app_using_existing_files() {
         let mock_server = MockServer::start();
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
@@ -917,7 +909,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_edge_app_when_manifest_or_index_html_missed_should_return_error() {
+    fn test_create_in_place_edge_app_when_manifest_or_index_html_missed_should_return_error() {
         let command = EdgeAppCommand::new(Authentication::new_with_config(
             Config::new("http://localhost".to_string()),
             "token",
@@ -956,7 +948,7 @@ mod tests {
     }
 
     #[test]
-    fn test_init_edge_app_when_manifest_has_non_empty_app_id_should_return_error() {
+    fn test_create_in_place_edge_app_when_manifest_has_non_empty_app_id_should_return_error() {
         let command = EdgeAppCommand::new(Authentication::new_with_config(
             Config::new("http://localhost".to_string()),
             "token",
