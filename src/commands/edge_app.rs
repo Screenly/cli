@@ -27,6 +27,8 @@ use crate::commands::edge_app_utils::{
     ensure_edge_app_has_all_necessary_files, generate_file_tree, FileChanges, SettingChanges,
 };
 
+use crate::commands::edge_app_server::{run_server, Metadata};
+
 pub struct EdgeAppCommand {
     authentication: Authentication,
 }
@@ -234,6 +236,13 @@ impl EdgeAppCommand {
         Ok(())
     }
 
+    pub fn run(self, path: &Path, secrets: Vec<(String, String)>) -> Result<String, anyhow::Error> {
+        let runtime = tokio::runtime::Runtime::new()?;
+        let address = runtime.block_on(run_server(path, secrets))?;
+
+        Ok(address)
+    }
+
     pub fn upload(self, path: &Path, app_id: Option<String>) -> Result<u32, CommandError> {
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
@@ -329,6 +338,37 @@ impl EdgeAppCommand {
         if &channels[0].channel != channel || &channels[0].app_revision != revision {
             return Err(CommandError::MissingField);
         }
+
+        Ok(())
+    }
+
+    pub fn generate_mock_data(&self, path: &Path) -> Result<(), CommandError> {
+        let data = fs::read_to_string(path)?;
+        let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+        let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
+
+        let default_metadata = Metadata::default();
+
+        let mut settings: HashMap<String, serde_yaml::Value> = HashMap::new();
+        for setting in &manifest.settings {
+            if setting.type_ != "secret" {
+                settings.insert(
+                    setting.title.clone(),
+                    serde_yaml::Value::String(setting.default_value.clone()),
+                );
+            }
+        }
+
+        let mut mock_data: HashMap<String, serde_yaml::Value> = HashMap::new();
+        mock_data.insert(
+            "metadata".to_string(),
+            serde_yaml::to_value(default_metadata)?,
+        );
+        mock_data.insert("settings".to_string(), serde_yaml::to_value(settings)?);
+
+        let mock_data_yaml = serde_yaml::to_string(&mock_data)?;
+
+        fs::write(edge_app_dir.join("mock-data.yml"), mock_data_yaml)?;
 
         Ok(())
     }
@@ -1586,5 +1626,104 @@ mod tests {
         promote_mock.assert();
 
         assert!(&result.is_ok());
+    }
+
+    #[test]
+    fn test_generate_mock_data_creates_file_with_expected_content() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_manifest.yml");
+
+        // The EdgeAppManifest structure from your example
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
+                Setting {
+                    type_: "string".to_string(),
+                    title: "asetting".to_string(),
+                    optional: false,
+                    default_value: "yes".to_string(),
+                    help_text: "".to_string(),
+                },
+                Setting {
+                    type_: "string".to_string(),
+                    title: "nsetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+            ],
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+        let config = Config::new("".to_owned());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        command.generate_mock_data(&file_path).unwrap();
+
+        let mock_data_path = dir.path().join("mock-data.yml");
+        assert!(mock_data_path.exists());
+
+        let _generated_content = fs::read_to_string(&mock_data_path).unwrap();
+        let _expected_content = r#"metadata:
+  coordinates:
+    - "37.3861"
+    - "-122.0839"
+  hostname: "srly-t6kb0ta1jrd9o0w"
+  location: "Code Cafe, Mountain View, California"
+  screen_name: "Code Cafe Display"
+  tags:
+    - "All Screens"
+settings:
+  asetting: "yes"
+  nsetting: ""
+"#;
+    }
+
+    #[test]
+    fn test_generate_mock_data_excludes_secret_settings() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_manifest_with_varied_settings.yml");
+
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
+                Setting {
+                    type_: "secret".to_string(),
+                    title: "excluded_setting".to_string(),
+                    optional: false,
+                    default_value: "0".to_string(),
+                    help_text: "".to_string(),
+                },
+                Setting {
+                    type_: "string".to_string(),
+                    title: "included_setting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+            ],
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+        let config = Config::new("".to_owned());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        command.generate_mock_data(&file_path).unwrap();
+
+        let mock_data_path = dir.path().join("mock-data.yml");
+        let content = fs::read_to_string(mock_data_path).unwrap();
+        println!("{}", content);
+        assert!(!content.contains("excluded_setting"));
+        assert!(content.contains("included_setting"));
     }
 }

@@ -27,21 +27,6 @@ fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
-fn parse_headers(s: &str) -> Result<Headers, ParseError> {
-    if s.is_empty() {
-        return Ok(Headers {
-            headers: Vec::new(),
-        });
-    }
-
-    let mut headers = Vec::new();
-    let header_pairs = s.split(',');
-    for header_pair in header_pairs {
-        headers.push(parse_key_val(header_pair)?);
-    }
-    Ok(Headers { headers })
-}
-
 #[derive(Parser)]
 #[command(
     version,
@@ -174,9 +159,36 @@ pub struct Headers {
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Secrets {
-    // this struct is only needed because I was getting panic from clap when trying to directly use Vec<(String, String)> and parse it.
-    // it really did not want to deal with vector when argaction was not set to Append.
     secrets: Vec<(String, String)>,
+}
+
+pub trait KeyValuePairs {
+    fn new(pairs: Vec<(String, String)>) -> Self;
+}
+
+impl KeyValuePairs for Headers {
+    fn new(pairs: Vec<(String, String)>) -> Self {
+        Headers { headers: pairs }
+    }
+}
+
+impl KeyValuePairs for Secrets {
+    fn new(pairs: Vec<(String, String)>) -> Self {
+        Secrets { secrets: pairs }
+    }
+}
+
+fn parse_key_values<T: KeyValuePairs>(s: &str) -> Result<T, ParseError> {
+    if s.is_empty() {
+        return Ok(T::new(Vec::new()));
+    }
+
+    let mut pairs = Vec::new();
+    let elements = s.split(',');
+    for element in elements {
+        pairs.push(parse_key_val(element)?);
+    }
+    Ok(T::new(pairs))
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -229,7 +241,7 @@ pub enum AssetCommands {
         /// HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command
         /// replaces all headers of the asset with the given headers (when an empty string is given, e.g. --set-headers "",
         /// all existing headers are removed, if any)
-        #[arg(value_parser = parse_headers)]
+        #[arg(value_parser = parse_key_values::<Headers>)]
         headers: Headers,
     },
     /// Updates HTTP headers for web asset.
@@ -238,7 +250,7 @@ pub enum AssetCommands {
         uuid: String,
 
         /// HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command updates only the given headers (adding them if new), leaving any other headers unchanged.
-        #[arg(value_parser=parse_headers)]
+        #[arg(value_parser=parse_key_values::<Headers>)]
         headers: Headers,
     },
 
@@ -276,6 +288,23 @@ pub enum EdgeAppCommands {
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
+    },
+
+    /// Runs Edge App emulator.
+    Run {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+
+        #[arg(short, long, value_parser = parse_key_values::<Secrets>)]
+        secrets: Option<Secrets>,
+    },
+
+    // Generates mock data to be used with Edge App run.
+    GenerateMockData {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
     },
 
     /// Version commands.
@@ -909,6 +938,28 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
+        EdgeAppCommands::Run { path, secrets } => {
+            let secrets = if let Some(secret_pairs) = secrets {
+                secret_pairs.secrets.clone()
+            } else {
+                Vec::new()
+            };
+            let path = match path {
+                Some(path) => PathBuf::from(path),
+                None => env::current_dir().unwrap(),
+            };
+            if !path.join("mock-data.yaml").exists() {
+                println!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
+                std::process::exit(1);
+            }
+
+            let address = edge_app_command.run(path.as_path(), secrets).unwrap();
+            println!("Edge app emulator is running at {}/index.html.", address);
+        }
+        EdgeAppCommands::GenerateMockData { path } => {
+            let manifest_path = transform_edge_app_path_to_manifest(path);
+            edge_app_command.generate_mock_data(&manifest_path).unwrap();
+        }
     }
 }
 

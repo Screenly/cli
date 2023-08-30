@@ -4,6 +4,7 @@ use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
 use std::collections::{HashMap, HashSet};
 
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
@@ -41,18 +42,35 @@ impl FileChanges {
     }
 }
 
-fn is_not_excluded(entry: &DirEntry) -> bool {
-    let exclusion_list = vec!["screenly.js", "screenly.yml"];
-    !exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default())
+fn is_not_excluded(entry: &DirEntry, ignore: &Gitignore) -> bool {
+    let exclusion_list = vec!["screenly.js", "screenly.yml", ".ignore"];
+    if exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default()) {
+        return false;
+    }
+
+    // Check if the path should be ignored according to .ignore rules
+    let matched = ignore.matched(entry.path(), entry.file_type().is_dir());
+    !matched.is_ignore()
 }
 
-// returns a list of relative paths for files we want to upload
-// we need relative paths to add it to the metadata to preserve the hierarchy
+fn load_gitignore(path: &Path) -> Result<Gitignore, CommandError> {
+    let mut builder = GitignoreBuilder::new(path);
+    builder.add(path.join(".ignore"));
+    match builder.build() {
+        Ok(gitignore) => Ok(gitignore),
+        Err(e) => Err(CommandError::IgnoreError(e)),
+    }
+}
+
 pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, CommandError> {
     let mut files = Vec::new();
+
+    // Load the .ignore file if it exists
+    let ignore = load_gitignore(path)?;
+
     for entry in WalkDir::new(path)
         .into_iter()
-        .filter_entry(is_not_excluded)
+        .filter_entry(|e| is_not_excluded(e, &ignore))
         .filter_map(|v| v.ok())
     {
         if entry.file_type().is_file() {
@@ -159,6 +177,9 @@ pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
 
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
@@ -425,5 +446,28 @@ mod tests {
         assert_eq!(changes.uploads.len(), 2);
         assert_eq!(changes.copies.len(), 0);
         assert!(changes.changes_detected);
+    }
+
+    #[test]
+    fn test_ignore_functionality() {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+
+        File::create(dir_path.join("file1.txt"))
+            .unwrap()
+            .write_all(b"Hello, world!")
+            .unwrap();
+        File::create(dir_path.join("file2.txt"))
+            .unwrap()
+            .write_all(b"Hello, again!")
+            .unwrap();
+        File::create(dir_path.join(".ignore"))
+            .unwrap()
+            .write_all(b"file2.txt")
+            .unwrap();
+
+        let result = collect_paths_for_upload(dir_path).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].path, "file1.txt");
     }
 }
