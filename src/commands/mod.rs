@@ -105,6 +105,8 @@ pub enum CommandError {
     InitializationError(String),
     #[error("Asset processing error: {0}")]
     AssetProcessingError(String),
+    #[error("Warning: these secrets are undefined: {0}.")]
+    UndefinedSecrets(String),
 }
 
 pub fn get(
