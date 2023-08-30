@@ -948,13 +948,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 Some(path) => PathBuf::from(path),
                 None => env::current_dir().unwrap(),
             };
-            if !path.join("mock-data.yaml").exists() {
+            if !path.join("mock-data.yml").exists() {
                 println!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
                 std::process::exit(1);
             }
 
-            let address = edge_app_command.run(path.as_path(), secrets).unwrap();
-            println!("Edge app emulator is running at {}/index.html.", address);
+            edge_app_command.run(path.as_path(), secrets).unwrap();
         }
         EdgeAppCommands::GenerateMockData { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);

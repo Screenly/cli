@@ -236,11 +236,36 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn run(self, path: &Path, secrets: Vec<(String, String)>) -> Result<String, anyhow::Error> {
-        let runtime = tokio::runtime::Runtime::new()?;
-        let address = runtime.block_on(run_server(path, secrets))?;
+    pub fn run(&self, path: &Path, secrets: Vec<(String, String)>) -> Result<(), anyhow::Error> {
+        let address_shared = Arc::new(Mutex::new(None));
+        let address_clone = address_shared.clone();
 
-        Ok(address)
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let path = path.to_path_buf();
+        runtime.block_on(async {
+            tokio::spawn(async move {
+                let address = run_server(path.as_path(), secrets).await.unwrap();
+                let mut locked_address = address_clone.lock().unwrap();
+                *locked_address = Some(address);
+            })
+            .await
+            .unwrap();
+
+            while address_shared.lock().unwrap().is_none() {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+
+            println!(
+                "Edge app emulator is running at {}/index.html",
+                address_shared.lock().unwrap().as_ref().unwrap()
+            );
+
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            }
+        });
+
+        Ok(())
     }
 
     pub fn upload(self, path: &Path, app_id: Option<String>) -> Result<u32, CommandError> {
