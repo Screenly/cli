@@ -36,6 +36,14 @@ pub struct AssetSignature {
     pub(crate) signature: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EdgeAppCreationResponse {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+}
+
 impl EdgeAppCommand {
     pub fn new(authentication: Authentication) -> Self {
         Self { authentication }
@@ -49,7 +57,7 @@ impl EdgeAppCommand {
 
         if Path::new(&path).exists() || Path::new(&index_html_path).exists() {
             return Err(CommandError::FileSystemError(format!(
-                "The directory {} already contains a screenly.yml or index.html file",
+                "The directory {} already contains a screenly.yml or index.html file. Use --in-place if you want to create an Edge App in this directory",
                 parent_dir_path.display()
             )));
         }
@@ -59,14 +67,6 @@ impl EdgeAppCommand {
             "v4/edge-apps?select=id,name",
             &json!({ "name": name }),
         )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct EdgeAppCreationResponse {
-            #[serde(default)]
-            pub id: String,
-            #[serde(default)]
-            pub name: String,
-        }
 
         let json_response = serde_json::from_value::<Vec<EdgeAppCreationResponse>>(response)?;
         let app_id = json_response[0].id.clone();
@@ -91,6 +91,44 @@ impl EdgeAppCommand {
         let index_html_template = include_str!("../../data/index.html");
         let index_html_file = File::create(&index_html_path)?;
         write!(&index_html_file, "{index_html_template}")?;
+
+        Ok(())
+    }
+
+    pub fn create_in_place(&self, name: &str, path: &Path) -> Result<(), CommandError> {
+        let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
+            "Can not obtain edge app root directory.".to_owned(),
+        ))?;
+        let index_html_path = parent_dir_path.join("index.html");
+
+        if !(Path::new(&path).exists() && Path::new(&index_html_path).exists()) {
+            return Err(CommandError::FileSystemError(format!(
+                "The directory {} should contain screenly.yml and index.html files",
+                parent_dir_path.display()
+            )));
+        }
+
+        let data = fs::read_to_string(path)?;
+        let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+
+        if !manifest.app_id.is_empty() {
+            return Err(CommandError::InitializationError("The operation can only proceed when 'app_id' is not set in the 'screenly.yml' configuration file".to_string()));
+        }
+
+        let response = commands::post(
+            &self.authentication,
+            "v4/edge-apps?select=id,name",
+            &json!({ "name": name }),
+        )?;
+
+        let json_response = serde_json::from_value::<Vec<EdgeAppCreationResponse>>(response)?;
+        let app_id = json_response[0].id.clone();
+        if app_id.is_empty() {
+            return Err(CommandError::MissingField);
+        }
+
+        manifest.app_id = app_id;
+        EdgeAppManifest::save_to_file(&manifest, path)?;
 
         Ok(())
     }
@@ -794,7 +832,7 @@ mod tests {
                 type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
-                help_text: "An example of a setting that is used in index.html".to_string()
+                help_text: "An example of a setting that is used in index.html".to_string(),
             }]
         );
 
@@ -823,7 +861,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("already contains a screenly.yml or index.html file"));
+            .contains("already contains a screenly.yml or index.html file. Use --in-place if you want to create an Edge App in this directory"));
 
         fs::remove_file(tmp_dir.path().join("screenly.yml")).unwrap();
 
@@ -838,7 +876,119 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("already contains a screenly.yml or index.html file"));
+            .contains("already contains a screenly.yml or index.html file. Use --in-place if you want to create an Edge App in this directory"));
+    }
+
+    #[test]
+    fn test_create_in_place_edge_app_should_create_edge_app_using_existing_files() {
+        let mock_server = MockServer::start();
+        let post_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps")
+                .header("Authorization", "Token token")
+                .json_body(json!({
+                    "name": "Best app ever"
+                }));
+            then.status(201)
+                .json_body(json!([{"id": "test-id", "name": "Best app ever"}]));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        // Prepare screenly.yml and index.html
+        let tmp_dir = tempdir().unwrap();
+        File::create(tmp_dir.path().join("index.html")).unwrap();
+        EdgeAppManifest::save_to_file(
+            &EdgeAppManifest { ..Default::default() },
+            tmp_dir.path().join("screenly.yml").as_path(),
+        ).unwrap();
+
+        let result = command.create_in_place(
+            "Best app ever",
+            tmp_dir.path().join("screenly.yml").as_path(),
+        );
+
+        post_mock.assert();
+
+        let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
+        let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
+        assert_eq!(manifest.app_id, "test-id");
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_in_place_edge_app_when_manifest_or_index_html_missed_should_return_error() {
+        let command = EdgeAppCommand::new(Authentication::new_with_config(
+            Config::new("http://localhost".to_string()),
+            "token",
+        ));
+
+        let tmp_dir = tempdir().unwrap();
+        File::create(tmp_dir.path().join("screenly.yml")).unwrap();
+
+        let result = command.create_in_place(
+            "Best app ever",
+            tmp_dir.path().join("screenly.yml").as_path(),
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("should contain screenly.yml and index.html files")
+        );
+
+        fs::remove_file(tmp_dir.path().join("screenly.yml")).unwrap();
+
+        File::create(tmp_dir.path().join("index.html")).unwrap();
+
+        let result = command.create_in_place(
+            "Best app ever",
+            tmp_dir.path().join("screenly.yml").as_path(),
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("should contain screenly.yml and index.html files")
+        );
+    }
+
+    #[test]
+    fn test_create_in_place_edge_app_when_manifest_has_non_empty_app_id_should_return_error() {
+        let command = EdgeAppCommand::new(Authentication::new_with_config(
+            Config::new("http://localhost".to_string()),
+            "token",
+        ));
+
+        let tmp_dir = tempdir().unwrap();
+
+        File::create(tmp_dir.path().join("index.html")).unwrap();
+
+        let manifest = EdgeAppManifest {
+            app_id: "non-empty".to_string(),
+            ..Default::default()
+        };
+
+        EdgeAppManifest::save_to_file(
+            &manifest,
+            tmp_dir.path().join("screenly.yml").as_path(),
+        ).unwrap();
+
+        let result = command.create_in_place(
+            "Best app ever",
+            tmp_dir.path().join("screenly.yml").as_path(),
+        );
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Initialization Failed: The operation can only proceed when 'app_id' is not set in the 'screenly.yml' configuration file"
+        );
     }
 
     #[test]
