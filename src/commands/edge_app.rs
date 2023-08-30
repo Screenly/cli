@@ -1,7 +1,8 @@
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{
-    CommandError, EdgeAppManifest, EdgeAppSettings, EdgeAppVersions, EdgeApps, Setting,
+    CommandError, EdgeAppManifest, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps,
+    Setting,
 };
 use indicatif::ProgressBar;
 use log::debug;
@@ -195,6 +196,17 @@ impl EdgeAppCommand {
         }
 
         Ok(EdgeAppSettings::new(serde_json::to_value(app_settings)?))
+    }
+
+    pub fn list_secrets(&self, app_id: &str) -> Result<EdgeAppSecrets, CommandError> {
+        let app_secrets: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(
+            commands::get(
+                &self.authentication,
+                &format!("v4/edge-apps/settings?select=optional,title,help_text&app_id=eq.{}&order=title.asc&type=eq.secret", app_id,)
+            )?
+        )?;
+
+        Ok(EdgeAppSecrets::new(serde_json::to_value(app_secrets)?))
     }
 
     pub fn set_setting(
@@ -901,9 +913,12 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         File::create(tmp_dir.path().join("index.html")).unwrap();
         EdgeAppManifest::save_to_file(
-            &EdgeAppManifest { ..Default::default() },
+            &EdgeAppManifest {
+                ..Default::default()
+            },
             tmp_dir.path().join("screenly.yml").as_path(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let result = command.create_in_place(
             "Best app ever",
@@ -938,8 +953,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("should contain screenly.yml and index.html files")
-        );
+            .contains("should contain screenly.yml and index.html files"));
 
         fs::remove_file(tmp_dir.path().join("screenly.yml")).unwrap();
 
@@ -954,8 +968,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("should contain screenly.yml and index.html files")
-        );
+            .contains("should contain screenly.yml and index.html files"));
     }
 
     #[test]
@@ -974,10 +987,8 @@ mod tests {
             ..Default::default()
         };
 
-        EdgeAppManifest::save_to_file(
-            &manifest,
-            tmp_dir.path().join("screenly.yml").as_path(),
-        ).unwrap();
+        EdgeAppManifest::save_to_file(&manifest, tmp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
 
         let result = command.create_in_place(
             "Best app ever",
@@ -1815,6 +1826,84 @@ mod tests {
             result.unwrap_err().to_string(),
             "Asset processing error: Asset \"wrong_file.ext\". Error: \"File type not supported.\""
                 .to_string()
+        );
+    }
+
+    #[test]
+    fn test_list_secrets_should_send_correct_request() {
+        let mock_server = MockServer::start();
+
+        let secrets_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "optional,title,help_text")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("type", "eq.secret")
+                .query_param("order", "title.asc");
+
+            then.status(200).json_body(json!([
+                {
+                    "optional": true,
+                    "title": "Example secret1",
+                    "help_text": "An example of a secret that is used in index.html"
+                },
+                {
+                    "optional": true,
+                    "title": "Example secret2",
+                    "help_text": "An example of a secret that is used in index.html"
+                },
+                {
+                    "optional": false,
+                    "title": "Example secret3",
+                    "help_text": "An example of a secret that is used in index.html"
+                }
+            ]));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let result = command.list_secrets(&manifest.app_id);
+
+        secrets_mock.assert();
+
+        assert!(result.is_ok());
+        let secrets = result.unwrap();
+        let secrets_json: Value = serde_json::from_value(secrets.value).unwrap();
+        assert_eq!(
+            secrets_json,
+            json!([
+                {
+                    "optional": true,
+                    "title": "Example secret1",
+                    "help_text": "An example of a secret that is used in index.html",
+                },
+                {
+                    "optional": true,
+                    "title": "Example secret2",
+                    "help_text": "An example of a secret that is used in index.html",
+                },
+                {
+                    "optional": false,
+                    "title": "Example secret3",
+                    "help_text": "An example of a secret that is used in index.html"
+                }
+            ])
         );
     }
 }
