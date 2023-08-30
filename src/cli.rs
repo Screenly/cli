@@ -371,6 +371,19 @@ pub enum EdgeAppSettingsCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppSecretsCommands {
+    List {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
     Set {
         /// Key value pair of the secret to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
@@ -809,15 +822,22 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
     let edge_app_command = commands::edge_app::EdgeAppCommand::new(authentication);
 
     match command {
-        EdgeAppCommands::Create { name, path, in_place } => {
+        EdgeAppCommands::Create {
+            name,
+            path,
+            in_place,
+        } => {
             let create_func = if in_place.unwrap_or(false) {
                 commands::edge_app::EdgeAppCommand::create_in_place
             } else {
                 commands::edge_app::EdgeAppCommand::create
             };
 
-            match create_func(&edge_app_command, name, transform_edge_app_path_to_manifest(path).as_path())
-            {
+            match create_func(
+                &edge_app_command,
+                name,
+                transform_edge_app_path_to_manifest(path).as_path(),
+            ) {
                 Ok(()) => {
                     println!("Edge app successfully created.");
                 }
@@ -901,6 +921,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         },
         EdgeAppCommands::Secret(command) => match command {
+            EdgeAppSecretsCommands::List { path, json, app_id } => {
+                let actual_app_id = get_actual_app_id(app_id, path);
+                handle_command_execution_result(
+                    edge_app_command.list_secrets(&actual_app_id),
+                    json,
+                );
+            }
             EdgeAppSecretsCommands::Set {
                 secret_pair,
                 app_id,
