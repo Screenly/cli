@@ -491,13 +491,24 @@ impl EdgeAppCommand {
             let value = commands::get(
                 &self.authentication,
                 &format!(
-                    "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
+                    "v4/assets?select=status,processing_error,title&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
                     app_id, revision
                 ),
             )?;
             debug!("ensure_assets_processing_finished: {:?}", &value);
 
             if let Some(array) = value.as_array() {
+                for item in array {
+                    if let Some(status) = item["status"].as_str() {
+                        if status == "error" {
+                            return Err(CommandError::AssetProcessingError(format!(
+                                "Asset {}. Error: {}",
+                                item["title"], item["processing_error"]
+                            )));
+                        }
+                    }
+                }
+
                 if array.is_empty() {
                     if let Some(progress_bar) = pb.as_ref() {
                         progress_bar.finish_with_message("Assets processed");
@@ -1605,7 +1616,7 @@ mod tests {
         let finished_processing_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/assets")
-                .query_param("select", "status")
+                .query_param("select", "status,processing_error,title")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("app_revision", "eq.8")
                 .query_param("status", "neq.finished");
@@ -1736,5 +1747,74 @@ mod tests {
         promote_mock.assert();
 
         assert!(&result.is_ok());
+    }
+
+    #[test]
+    fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
+                Setting {
+                    type_: "string".to_string(),
+                    title: "asetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+                Setting {
+                    type_: "string".to_string(),
+                    title: "nsetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+            ],
+        };
+
+        let mock_server = MockServer::start();
+
+        // "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished&limit=1",
+        let finished_processing_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .query_param("select", "status,processing_error,title")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_revision", "eq.8")
+                .query_param("status", "neq.finished");
+            then.status(200).json_body(json!([
+                {
+                    "status": "error",
+                    "title": "wrong_file.ext",
+                    "processing_error": "File type not supported."
+                }
+            ]));
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test").unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let result = command.ensure_assets_processing_finished("01H2QZ6Z8WXWNDC0KQ198XCZEW", 8);
+
+        finished_processing_mock.assert();
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Asset processing error: Asset \"wrong_file.ext\". Error: \"File type not supported.\""
+                .to_string()
+        );
     }
 }

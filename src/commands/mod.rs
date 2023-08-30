@@ -103,6 +103,8 @@ pub enum CommandError {
     AssetProcessingTimeout,
     #[error("Initialization Failed: {0}")]
     InitializationError(String),
+    #[error("Asset processing error: {0}")]
+    AssetProcessingError(String),
 }
 
 pub fn get(
