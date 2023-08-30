@@ -23,7 +23,7 @@ impl AssetCommand {
     pub fn list(&self) -> anyhow::Result<Assets, CommandError> {
         Ok(Assets::new(commands::get(
             &self.authentication,
-            "v4/assets",
+            "v4/assets?type=in.('appweb','audio','edge-app','image','video','web')",
         )?))
     }
 
@@ -214,6 +214,7 @@ mod tests {
         mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/assets")
+                .query_param("type", "in.('appweb','audio','edge-app','image','video','web')")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
