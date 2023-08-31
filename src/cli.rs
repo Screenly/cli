@@ -273,7 +273,7 @@ pub enum AssetCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppCommands {
-    /// Creates edge-app in the store.
+    /// Creates Edge App in the store.
     Create {
         /// Edge app name
         #[arg(short, long)]
@@ -281,6 +281,9 @@ pub enum EdgeAppCommands {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
+        /// Use an existing Edge App directory with the manifest and index.html.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        in_place: Option<bool>,
     },
 
     /// Lists your edge apps.
@@ -397,6 +400,19 @@ pub enum EdgeAppSettingsCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppSecretsCommands {
+    List {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
     Set {
         /// Key value pair of the secret to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
@@ -835,9 +851,22 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
     let edge_app_command = commands::edge_app::EdgeAppCommand::new(authentication);
 
     match command {
-        EdgeAppCommands::Create { name, path } => {
-            match edge_app_command.create(name, transform_edge_app_path_to_manifest(path).as_path())
-            {
+        EdgeAppCommands::Create {
+            name,
+            path,
+            in_place,
+        } => {
+            let create_func = if in_place.unwrap_or(false) {
+                commands::edge_app::EdgeAppCommand::create_in_place
+            } else {
+                commands::edge_app::EdgeAppCommand::create
+            };
+
+            match create_func(
+                &edge_app_command,
+                name,
+                transform_edge_app_path_to_manifest(path).as_path(),
+            ) {
                 Ok(()) => {
                     println!("Edge app successfully created.");
                 }
@@ -847,6 +876,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         }
+
         EdgeAppCommands::List { json } => {
             handle_command_execution_result(edge_app_command.list(), json);
         }
@@ -920,6 +950,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         },
         EdgeAppCommands::Secret(command) => match command {
+            EdgeAppSecretsCommands::List { path, json, app_id } => {
+                let actual_app_id = get_actual_app_id(app_id, path);
+                handle_command_execution_result(
+                    edge_app_command.list_secrets(&actual_app_id),
+                    json,
+                );
+            }
             EdgeAppSecretsCommands::Set {
                 secret_pair,
                 app_id,

@@ -105,6 +105,12 @@ pub enum CommandError {
     AssetProcessingTimeout,
     #[error("Ignore error: {0}")]
     IgnoreError(String),
+    #[error("Initialization Failed: {0}")]
+    InitializationError(String),
+    #[error("Asset processing error: {0}")]
+    AssetProcessingError(String),
+    #[error("Warning: these secrets are undefined: {0}.")]
+    UndefinedSecrets(String),
 }
 
 pub fn get(
@@ -385,6 +391,7 @@ impl Formatter for EdgeAppVersions {
         )
     }
 }
+
 #[derive(Debug)]
 pub struct EdgeAppSettings {
     pub value: serde_json::Value,
@@ -422,6 +429,43 @@ impl Formatter for EdgeAppSettings {
                 "type",
                 "help_text",
             ],
+            self,
+            Some(
+                |field_name: &str, field_value: &serde_json::Value| -> Cell {
+                    if field_name.eq("optional") {
+                        let value = field_value.as_bool().unwrap_or(false);
+                        return Cell::new(if value { "Yes" } else { "No" });
+                    }
+                    Cell::new(field_value.as_str().unwrap_or_default())
+                },
+            ),
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct EdgeAppSecrets {
+    pub value: serde_json::Value,
+}
+
+impl EdgeAppSecrets {
+    pub fn new(value: serde_json::Value) -> Self {
+        Self { value }
+    }
+}
+
+impl FormatterValue for EdgeAppSecrets {
+    fn value(&self) -> &serde_json::Value {
+        &self.value
+    }
+}
+
+impl Formatter for EdgeAppSecrets {
+    fn format(&self, output_type: OutputType) -> String {
+        format_value(
+            output_type,
+            vec!["Title", "Optional", "Help text"],
+            vec!["title", "optional", "help_text"],
             self,
             Some(
                 |field_name: &str, field_value: &serde_json::Value| -> Cell {
