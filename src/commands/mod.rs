@@ -18,7 +18,7 @@ use reqwest::StatusCode;
 
 pub mod asset;
 pub mod edge_app;
-mod edge_app_server;
+pub(crate) mod edge_app_server;
 mod edge_app_utils;
 mod ignorer;
 pub(crate) mod playlist;
@@ -104,7 +104,7 @@ pub enum CommandError {
     #[error("Asset processing timeout")]
     AssetProcessingTimeout,
     #[error("Ignore error: {0}")]
-    IgnoreError(#[from] ignore::Error),
+    IgnoreError(String),
 }
 
 pub fn get(

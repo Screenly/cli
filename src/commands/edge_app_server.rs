@@ -11,6 +11,8 @@ use std::sync::Arc;
 use warp::reject::Reject;
 use warp::{Filter, Rejection, Reply};
 
+pub const MOCK_DATA_FILENAME: &str = "mock-data.yml";
+
 pub async fn run_server(
     path: &Path,
     secrets: Vec<(String, String)>,
@@ -102,7 +104,7 @@ async fn generate_content(
     dir_path: Arc<PathBuf>,
     secrets: &HashMap<String, String>,
 ) -> Result<impl Reply, Rejection> {
-    let file_path = dir_path.join("mock-data.yml");
+    let file_path = dir_path.join(MOCK_DATA_FILENAME);
 
     let content = if file_path.exists() {
         fs::read_to_string(&file_path).unwrap_or("".to_string())
@@ -176,7 +178,7 @@ mod tests {
 
     fn setup_temp_dir_with_mock_data() -> tempfile::TempDir {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("mock-data.yml");
+        let file_path = dir.path().join(MOCK_DATA_FILENAME);
         let mut file = fs::File::create(file_path).unwrap();
 
         writeln!(

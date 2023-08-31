@@ -4,7 +4,8 @@ use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
 use std::collections::{HashMap, HashSet};
 
-use ignore::gitignore::{Gitignore, GitignoreBuilder};
+use crate::commands::ignorer::Ignorer;
+
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
@@ -42,35 +43,28 @@ impl FileChanges {
     }
 }
 
-fn is_not_excluded(entry: &DirEntry, ignore: &Gitignore) -> bool {
+fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
     let exclusion_list = vec!["screenly.js", "screenly.yml", ".ignore"];
     if exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default()) {
         return false;
     }
 
-    // Check if the path should be ignored according to .ignore rules
-    let matched = ignore.matched(entry.path(), entry.file_type().is_dir());
-    !matched.is_ignore()
-}
-
-fn load_gitignore(path: &Path) -> Result<Gitignore, CommandError> {
-    let mut builder = GitignoreBuilder::new(path);
-    builder.add(path.join(".ignore"));
-    match builder.build() {
-        Ok(gitignore) => Ok(gitignore),
-        Err(e) => Err(CommandError::IgnoreError(e)),
-    }
+    return !ignore.is_ignored(entry.path());
 }
 
 pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, CommandError> {
     let mut files = Vec::new();
 
-    // Load the .ignore file if it exists
-    let ignore = load_gitignore(path)?;
+    let ignore = Ignorer::new(path).map_err(|e| {
+        CommandError::IgnoreError(format!(
+            "Failed to initialize ignore module: {}",
+            e
+        ))
+    })?;
 
     for entry in WalkDir::new(path)
         .into_iter()
-        .filter_entry(|e| is_not_excluded(e, &ignore))
+        .filter_entry(|e| is_included(e, &ignore))
         .filter_map(|v| v.ok())
     {
         if entry.file_type().is_file() {

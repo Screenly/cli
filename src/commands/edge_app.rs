@@ -27,7 +27,7 @@ use crate::commands::edge_app_utils::{
     ensure_edge_app_has_all_necessary_files, generate_file_tree, FileChanges, SettingChanges,
 };
 
-use crate::commands::edge_app_server::{run_server, Metadata};
+use crate::commands::edge_app_server::{run_server, Metadata, MOCK_DATA_FILENAME};
 
 pub struct EdgeAppCommand {
     authentication: Authentication,
@@ -393,7 +393,7 @@ impl EdgeAppCommand {
 
         let mock_data_yaml = serde_yaml::to_string(&mock_data)?;
 
-        fs::write(edge_app_dir.join("mock-data.yml"), mock_data_yaml)?;
+        fs::write(edge_app_dir.join(MOCK_DATA_FILENAME), mock_data_yaml)?;
 
         Ok(())
     }
@@ -806,6 +806,7 @@ mod tests {
     use httpmock::Method::{GET, PATCH, POST};
     use httpmock::MockServer;
 
+    use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
     use tempfile::tempdir;
 
     #[test]
@@ -1690,7 +1691,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         command.generate_mock_data(&file_path).unwrap();
 
-        let mock_data_path = dir.path().join("mock-data.yml");
+        let mock_data_path = dir.path().join(MOCK_DATA_FILENAME);
         assert!(mock_data_path.exists());
 
         let _generated_content = fs::read_to_string(&mock_data_path).unwrap();
@@ -1745,9 +1746,9 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         command.generate_mock_data(&file_path).unwrap();
 
-        let mock_data_path = dir.path().join("mock-data.yml");
+        let mock_data_path = dir.path().join(MOCK_DATA_FILENAME);
         let content = fs::read_to_string(mock_data_path).unwrap();
-        println!("{}", content);
+
         assert!(!content.contains("excluded_setting"));
         assert!(content.contains("included_setting"));
     }

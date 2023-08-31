@@ -11,9 +11,9 @@ use thiserror::Error;
 
 use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
 use crate::commands;
+use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
 use crate::commands::playlist::PlaylistCommand;
 use crate::commands::{CommandError, EdgeAppManifest, Formatter, OutputType, PlaylistFile};
-
 const DEFAULT_ASSET_DURATION: u32 = 15;
 
 #[derive(Error, Debug)]
@@ -948,7 +948,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 Some(path) => PathBuf::from(path),
                 None => env::current_dir().unwrap(),
             };
-            if !path.join("mock-data.yml").exists() {
+            if !path.join(MOCK_DATA_FILENAME).exists() {
                 println!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
                 std::process::exit(1);
             }
