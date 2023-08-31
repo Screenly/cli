@@ -280,17 +280,17 @@ pub enum EdgeAppCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
-    /// Updates edge app name
+    /// Updates Edge App name
     Update {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge app id. If not specified CLI will use the id from the manifest.
+        /// Edge App id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
         app_id: Option<String>,
 
-        /// Edge app name
+        /// Edge App name
         #[arg(short, long)]
         name: String,
     },
