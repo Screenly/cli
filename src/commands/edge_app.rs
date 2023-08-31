@@ -356,9 +356,9 @@ impl EdgeAppCommand {
     ) -> Result<(), CommandError> {
         let secrets = self.get_undefined_secrets(app_id)?;
         if !secrets.is_empty() {
-            return Err(CommandError::UndefinedSecrets(
-                serde_json::to_string(&secrets)?,
-            ));
+            return Err(CommandError::UndefinedSecrets(serde_json::to_string(
+                &secrets,
+            )?));
         }
 
         debug!("All secrets are defined.");
@@ -388,6 +388,34 @@ impl EdgeAppCommand {
         if &channels[0].channel != channel || &channels[0].app_revision != revision {
             return Err(CommandError::MissingField);
         }
+
+        Ok(())
+    }
+
+    pub fn get_app_name(&self, app_id: &str) -> Result<String, CommandError> {
+        let response = commands::get(
+            &self.authentication,
+            &format!("v4/edge-apps/edge-apps?select=name&id=eq.{}", app_id),
+        )?;
+
+        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        struct App {
+            name: String,
+        }
+
+        let apps = serde_json::from_value::<Vec<App>>(response)?;
+        if apps.is_empty() {
+            return Err(CommandError::MissingField);
+        }
+
+        Ok(apps[0].name.clone())
+    }
+
+    pub fn delete_app(&self, app_id: &str) -> Result<(), CommandError> {
+        commands::delete(
+            &self.authentication,
+            &format!("v4/edge-apps?id=eq.{}", app_id),
+        )?;
 
         Ok(())
     }
@@ -824,7 +852,7 @@ mod tests {
     use super::*;
     use crate::authentication::Config;
 
-    use httpmock::Method::{GET, PATCH, POST};
+    use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
 
     use tempfile::tempdir;
@@ -2061,5 +2089,26 @@ mod tests {
 
         assert!(!&result.is_ok());
         assert!(result.unwrap_err().to_string().contains("Warning: these secrets are undefined: [\"undefined_secret\",\"another_undefined_secret\"]."));
+    }
+
+    #[test]
+    fn test_delete_app_should_send_correct_request() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(DELETE)
+                .path("/v4/edge-apps")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .header("Authorization", "Token token")
+                .query_param("id", "eq.test-id");
+            then.status(204);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let edge_app_command = EdgeAppCommand::new(authentication);
+        assert!(edge_app_command.delete_app("test-id").is_ok());
     }
 }

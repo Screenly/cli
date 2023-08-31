@@ -303,6 +303,16 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         app_id: Option<String>,
     },
+    /// Deletes an edge app. This cannot be undone.
+    Delete {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -946,6 +956,34 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
+        EdgeAppCommands::Delete { path, app_id } => {
+            let actual_app_id = get_actual_app_id(app_id, path);
+            match edge_app_command.get_app_name(&actual_app_id) {
+                Ok(name) => {
+                    info!("You are about to delete the app named \"{}\".  This operation cannot be reversed.", name);
+                    info!("Enter the app name to confirm the app deletion: ");
+                    if name != get_user_input() {
+                        error!("The name you entered is incorrect. Aborting.");
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    error!("Error occurred: {}", e);
+                    std::process::exit(1);
+                }
+            }
+
+            match edge_app_command.delete_app(&actual_app_id) {
+                Ok(()) => {
+                    info!("App deleted successfully.");
+                    std::process::exit(0);
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 }
 

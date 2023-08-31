@@ -166,10 +166,12 @@ pub fn post<T: Serialize + ?Sized>(
 pub fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
     let url = format!("{}/{}", &authentication.config.url, endpoint);
     let response = authentication.build_client()?.delete(url).send()?;
-    if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&response.status()) {
-        return Err(CommandError::WrongResponseStatus(
-            response.status().as_u16(),
-        ));
+
+    let status = response.status();
+
+    if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
+        debug!("Response: {:?}", &response.text()?);
+        return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
     Ok(())
 }
