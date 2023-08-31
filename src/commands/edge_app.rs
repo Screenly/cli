@@ -356,9 +356,9 @@ impl EdgeAppCommand {
     ) -> Result<(), CommandError> {
         let secrets = self.get_undefined_secrets(app_id)?;
         if !secrets.is_empty() {
-            return Err(CommandError::UndefinedSecrets(
-                serde_json::to_string(&secrets)?,
-            ));
+            return Err(CommandError::UndefinedSecrets(serde_json::to_string(
+                &secrets,
+            )?));
         }
 
         debug!("All secrets are defined.");
@@ -388,6 +388,19 @@ impl EdgeAppCommand {
         if &channels[0].channel != channel || &channels[0].app_revision != revision {
             return Err(CommandError::MissingField);
         }
+
+        Ok(())
+    }
+
+    pub fn update_name(&self, app_id: &str, name: &str) -> Result<(), CommandError> {
+        commands::patch(
+            &self.authentication,
+            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
+            &json!(
+            {
+                "name": name,
+            }),
+        )?;
 
         Ok(())
     }
@@ -2061,5 +2074,49 @@ mod tests {
 
         assert!(!&result.is_ok());
         assert!(result.unwrap_err().to_string().contains("Warning: these secrets are undefined: [\"undefined_secret\",\"another_undefined_secret\"]."));
+    }
+
+    #[test]
+    fn test_update_name_should_send_correct_request() {
+        let mock_server = MockServer::start();
+
+        let update_name_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/edge-apps")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("select", "name")
+                .json_body(json!({
+                    "name": "New name",
+                }));
+
+            then.status(200).json_body(json!([
+                {
+                    "name": "New name",
+                }
+            ]));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let result = command.update_name(&manifest.app_id, "New name");
+        update_name_mock.assert();
+        debug!("result: {:?}", result);
+        assert!(result.is_ok());
     }
 }

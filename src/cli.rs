@@ -280,6 +280,20 @@ pub enum EdgeAppCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
+    /// Updates edge app name
+    Update {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
+        /// Edge app name
+        #[arg(short, long)]
+        name: String,
+    },
 
     /// Version commands.
     #[command(subcommand)]
@@ -946,6 +960,18 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
+        EdgeAppCommands::Update { path, app_id, name } => {
+            let actual_app_id = get_actual_app_id(app_id, path);
+            match edge_app_command.update_name(&actual_app_id, name) {
+                Ok(()) => {
+                    println!("Edge app successfully updated.");
+                }
+                Err(e) => {
+                    println!("Failed to update edge app: {e}.");
+                    std::process::exit(1);
+                }
+            }
+        }
     }
 }
 
