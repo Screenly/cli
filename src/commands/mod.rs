@@ -232,23 +232,26 @@ pub struct EdgeAppManifest {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-pub enum EdgeAppSettingType {
+pub enum SettingType {
     String,
     Secret,
 }
 
-impl Default for EdgeAppSettingType {
+impl Default for SettingType {
     fn default() -> Self {
-        EdgeAppSettingType::String
+        SettingType::String
     }
 }
 
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Setting {
-    #[serde(rename = "type")]
-    #[serde(deserialize_with = "deserialize_setting_type")]
-    pub type_: EdgeAppSettingType,
+    #[serde(
+        rename = "type", 
+        serialize_with = "serialize_setting_type",
+        deserialize_with = "deserialize_setting_type"
+    )]
+    pub type_: SettingType,
     #[serde(default)]
     pub default_value: String,
     #[serde(default)]
@@ -292,21 +295,32 @@ where
 {
     let s: String = Deserialize::deserialize(deserializer)?;
     if s.is_empty() {
-        return Err(serde::de::Error::custom("String field must not be empty"))
+        return Err(serde::de::Error::custom("String cannot be empty"))
     }
         
     Ok(s)
 }
 
-fn deserialize_setting_type<'de, D>(deserializer: D) -> Result<EdgeAppSettingType, D::Error>
+fn serialize_setting_type<S>(setting_type: &SettingType, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let s = match setting_type {
+        SettingType::String => "string",
+        SettingType::Secret => "secret",
+    };
+    serializer.serialize_str(s)
+}
+
+fn deserialize_setting_type<'de, D>(deserializer: D) -> Result<SettingType, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
     match s.to_lowercase().as_str() {
-        "string" => Ok(EdgeAppSettingType::String),
-        "secret" => Ok(EdgeAppSettingType::Secret),
-        _ => Err(serde::de::Error::custom("field must be either String or Secret")),
+        "string" => Ok(SettingType::String),
+        "secret" => Ok(SettingType::Secret),
+        _ => Err(serde::de::Error::custom("Field 'type_' must be either String or Secret")),
     }
 }
 
@@ -692,7 +706,7 @@ mod tests {
             app_id: "test_app".to_string(),
             settings: vec![Setting {
                 title: "username".to_string(),
-                type_: "string".to_string(),
+                type_: SettingType::String,
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),

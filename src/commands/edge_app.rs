@@ -1,7 +1,7 @@
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{
-    CommandError, EdgeAppManifest, EdgeAppSecrets, EdgeAppSettingType, EdgeAppSettings, EdgeAppVersions, EdgeApps,
+    CommandError, EdgeAppManifest, EdgeAppSecrets, SettingType, EdgeAppSettings, EdgeAppVersions, EdgeApps,
     Setting,
 };
 use indicatif::ProgressBar;
@@ -81,7 +81,7 @@ impl EdgeAppCommand {
             app_id,
             settings: vec![Setting {
                 title: "greeting".to_string(),
-                type_: EdgeAppSettingType::String,
+                type_: SettingType::Secret,
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
@@ -435,7 +435,7 @@ impl EdgeAppCommand {
 
         let mut settings: HashMap<String, serde_yaml::Value> = HashMap::new();
         for setting in &manifest.settings {
-            if setting.type_ != EdgeAppSecretType::Secret {
+            if setting.type_ != SettingType::Secret {
                 settings.insert(
                     setting.title.clone(),
                     serde_yaml::Value::String(setting.default_value.clone()),
@@ -931,7 +931,7 @@ mod tests {
             manifest.settings,
             vec![Setting {
                 title: "greeting".to_string(),
-                type_: "string".to_string(),
+                type_: SettingType::String,
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
@@ -1557,14 +1557,14 @@ mod tests {
             homepage_url: "asdfasdf".to_string(),
             settings: vec![
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
@@ -1634,7 +1634,7 @@ mod tests {
                 .query_param("select", "type,default_value,optional,title,help_text")
                 .query_param("order", "title.asc");
             then.status(200).json_body(json!([{
-                "type": "string".to_string(),
+                "type": SettingType::String,
                 "default_value": "5".to_string(),
                 "title": "nsetting".to_string(),
                 "optional": true,
@@ -1919,14 +1919,14 @@ mod tests {
             homepage_url: "asdfasdf".to_string(),
             settings: vec![
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "yes".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
@@ -1974,14 +1974,14 @@ settings:
             homepage_url: "asdfasdf".to_string(),
             settings: vec![
                 Setting {
-                    type_: "secret".to_string(),
+                    type_: SettingType::Secret,
                     title: "excluded_setting".to_string(),
                     optional: false,
                     default_value: "0".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "included_setting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
@@ -2014,14 +2014,14 @@ settings:
             homepage_url: "asdfasdf".to_string(),
             settings: vec![
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
