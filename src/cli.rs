@@ -1019,6 +1019,20 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             match edge_app_command.delete_app(&actual_app_id) {
                 Ok(()) => {
                     info!("App deleted successfully.");
+                    // If the user didn't specify an app id, we need to clear it from the manifest
+                    if app_id.is_none() {
+                        match edge_app_command
+                            .clear_app_id(transform_edge_app_path_to_manifest(path).as_path())
+                        {
+                            Ok(()) => {
+                                info!("App id cleared from manifest.");
+                            }
+                            Err(e) => {
+                                error!("Error occurred while clearing manifest: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
                     std::process::exit(0);
                 }
                 Err(e) => {
@@ -1026,7 +1040,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     std::process::exit(1);
                 }
             }
-        },
+        }
         EdgeAppCommands::Update { path, app_id, name } => {
             let actual_app_id = get_actual_app_id(app_id, path);
             match edge_app_command.update_name(&actual_app_id, name) {

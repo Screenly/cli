@@ -454,6 +454,16 @@ impl EdgeAppCommand {
         Ok(())
     }
 
+    pub fn clear_app_id(&self, path: &Path) -> Result<(), CommandError> {
+        let data = fs::read_to_string(path)?;
+        let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+
+        manifest.app_id = "".to_owned();
+        EdgeAppManifest::save_to_file(&manifest, PathBuf::from(path).as_path())?;
+
+        Ok(())
+    }
+
     pub fn update_name(&self, app_id: &str, name: &str) -> Result<(), CommandError> {
         commands::patch(
             &self.authentication,
@@ -2331,5 +2341,45 @@ settings:
         let authentication = Authentication::new_with_config(config, "token");
         let edge_app_command = EdgeAppCommand::new(authentication);
         assert!(edge_app_command.delete_app("test-id").is_ok());
+    }
+
+    #[test]
+    fn test_clear_app_id_should_remove_app_id_from_manifest() {
+        let mock_server = MockServer::start();
+
+        let manifest = EdgeAppManifest {
+            app_id: "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let temp_dir = tempdir().unwrap();
+        let temp_path = temp_dir.path().join("screenly.yml");
+        let manifest_path = temp_path.as_path();
+        EdgeAppManifest::save_to_file(&manifest, manifest_path).unwrap();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let edge_app_command = EdgeAppCommand::new(authentication);
+        assert!(edge_app_command.clear_app_id(manifest_path).is_ok());
+
+        let data = fs::read_to_string(manifest_path).unwrap();
+        let new_manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
+
+        let expected_manifest = EdgeAppManifest {
+            app_id: "".to_string(),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        assert_eq!(new_manifest, expected_manifest);
     }
 }
