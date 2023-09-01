@@ -292,8 +292,8 @@ pub enum EdgeAppCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
-    /// Updates Edge App name
-    Update {
+    /// Renames Edge App
+    Rename {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
@@ -989,7 +989,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
-        EdgeAppCommands::Update { path, app_id, name } => {
+        EdgeAppCommands::Rename { path, app_id, name } => {
             let actual_app_id = get_actual_app_id(app_id, path);
             match edge_app_command.update_name(&actual_app_id, name) {
                 Ok(()) => {
