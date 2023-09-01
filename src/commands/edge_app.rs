@@ -1,7 +1,7 @@
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{
-    CommandError, EdgeAppManifest, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps,
+    CommandError, EdgeAppManifest, EdgeAppSecrets, EdgeAppSettingType, EdgeAppSettings, EdgeAppVersions, EdgeApps,
     Setting,
 };
 use indicatif::ProgressBar;
@@ -81,7 +81,7 @@ impl EdgeAppCommand {
             app_id,
             settings: vec![Setting {
                 title: "greeting".to_string(),
-                type_: "string".to_string(),
+                type_: EdgeAppSettingType::String,
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
@@ -435,7 +435,7 @@ impl EdgeAppCommand {
 
         let mut settings: HashMap<String, serde_yaml::Value> = HashMap::new();
         for setting in &manifest.settings {
-            if setting.type_ != "secret" {
+            if setting.type_ != EdgeAppSecretType::Secret {
                 settings.insert(
                     setting.title.clone(),
                     serde_yaml::Value::String(setting.default_value.clone()),

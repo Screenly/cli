@@ -213,10 +213,15 @@ pub fn patch<T: Serialize + ?Sized>(
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EdgeAppManifest {
     pub app_id: String,
+    #[serde(deserialize_with = "deserialize_string_not_empty")]
     pub user_version: String,
+    #[serde(deserialize_with = "deserialize_string_not_empty")]
     pub description: String,
+    #[serde(deserialize_with = "deserialize_string_not_empty")]
     pub icon: String,
+    #[serde(deserialize_with = "deserialize_string_not_empty")]
     pub author: String,
+    #[serde(deserialize_with = "deserialize_string_not_empty")]
     pub homepage_url: String,
     #[serde(
         serialize_with = "serialize_settings",
@@ -226,11 +231,24 @@ pub struct EdgeAppManifest {
     pub settings: Vec<Setting>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum EdgeAppSettingType {
+    String,
+    Secret,
+}
+
+impl Default for EdgeAppSettingType {
+    fn default() -> Self {
+        EdgeAppSettingType::String
+    }
+}
+
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Setting {
     #[serde(rename = "type")]
-    pub type_: String,
+    #[serde(deserialize_with = "deserialize_setting_type")]
+    pub type_: EdgeAppSettingType,
     #[serde(default)]
     pub default_value: String,
     #[serde(default)]
@@ -266,6 +284,30 @@ where
         map.serialize_entry(&setting.title, &setting)?;
     }
     map.end()
+}
+
+fn deserialize_string_not_empty<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    if s.is_empty() {
+        return Err(serde::de::Error::custom("String field must not be empty"))
+    }
+        
+    Ok(s)
+}
+
+fn deserialize_setting_type<'de, D>(deserializer: D) -> Result<EdgeAppSettingType, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = Deserialize::deserialize(deserializer)?;
+    match s.to_lowercase().as_str() {
+        "string" => Ok(EdgeAppSettingType::String),
+        "secret" => Ok(EdgeAppSettingType::Secret),
+        _ => Err(serde::de::Error::custom("field must be either String or Secret")),
+    }
 }
 
 impl EdgeAppManifest {
