@@ -275,7 +275,7 @@ pub enum AssetCommands {
 pub enum EdgeAppCommands {
     /// Creates Edge App in the store.
     Create {
-        /// Edge app name
+        /// Edge App name
         #[arg(short, long)]
         name: String,
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
@@ -286,7 +286,7 @@ pub enum EdgeAppCommands {
         in_place: Option<bool>,
     },
 
-    /// Lists your edge apps.
+    /// Lists your Edge Apps.
     List {
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
@@ -336,23 +336,23 @@ pub enum EdgeAppCommands {
     #[command(subcommand)]
     Secret(EdgeAppSecretsCommands),
 
-    /// Uploads assets and settings of the edge app.
+    /// Uploads assets and settings of the Edge App.
     Upload {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge app id. If not specified CLI will use the id from the manifest.
+        /// Edge App id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
         app_id: Option<String>,
     },
-    /// Deletes an edge app. This cannot be undone.
+    /// Deletes an Edge App. This cannot be undone.
     Delete {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge app id. If not specified CLI will use the id from the manifest.
+        /// Edge App id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
         app_id: Option<String>,
     },
@@ -1003,8 +1003,8 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let actual_app_id = get_actual_app_id(app_id, path);
             match edge_app_command.get_app_name(&actual_app_id) {
                 Ok(name) => {
-                    info!("You are about to delete the app named \"{}\".  This operation cannot be reversed.", name);
-                    info!("Enter the app name to confirm the app deletion: ");
+                    info!("You are about to delete the Edge App named \"{}\".  This operation cannot be reversed.", name);
+                    info!("Enter the Edge App name to confirm the app deletion: ");
                     if name != get_user_input() {
                         error!("The name you entered is incorrect. Aborting.");
                         std::process::exit(1);
