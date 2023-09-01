@@ -1000,7 +1000,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     std::process::exit(1);
                 }
             }
-        },
+        }
         EdgeAppCommands::Run { path, secrets } => {
             let secrets = if let Some(secret_pairs) = secrets {
                 secret_pairs.secrets.clone()
@@ -1017,7 +1017,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
 
             edge_app_command.run(path.as_path(), secrets).unwrap();
-        },
+        }
         EdgeAppCommands::GenerateMockData { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
             edge_app_command.generate_mock_data(&manifest_path).unwrap();

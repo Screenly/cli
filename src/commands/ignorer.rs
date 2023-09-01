@@ -48,7 +48,7 @@ impl Ignorer {
 #[cfg(test)]
 mod tests {
     use super::Ignorer;
-    use std::fs::{File};
+    use std::fs::File;
     use std::io::Write;
     use std::path::Path;
     use tempfile::tempdir;
@@ -110,12 +110,8 @@ mod tests {
 
         let ignorer = Ignorer::new(dir.path()).unwrap();
 
-        assert!(
-            ignorer.is_ignored(&ignored_directory_path.join("some_file.txt"))
-        );
-        assert!(
-            !ignorer.is_ignored(&other_directory_path.join("some_file.txt"))
-        );
+        assert!(ignorer.is_ignored(&ignored_directory_path.join("some_file.txt")));
+        assert!(!ignorer.is_ignored(&other_directory_path.join("some_file.txt")));
     }
 
     #[test]
@@ -142,18 +138,12 @@ mod tests {
         let ignorer = Ignorer::new(dir.path()).unwrap();
 
         // Check if files in top ignored directory are ignored
-        assert!(
-            ignorer.is_ignored(&top_ignored_directory_path.join("some_file.txt"))
-        );
+        assert!(ignorer.is_ignored(&top_ignored_directory_path.join("some_file.txt")));
 
         // Check if files in nested subdirectory of top ignored directory are ignored
-        assert!(
-            ignorer.is_ignored(&nested_subdirectory_path.join("nested_file.txt"))
-        );
+        assert!(ignorer.is_ignored(&nested_subdirectory_path.join("nested_file.txt")));
 
         // Check if files in other directory are not ignored
-        assert!(
-            !ignorer.is_ignored(&other_directory_path.join("some_file.txt"))
-        );
+        assert!(!ignorer.is_ignored(&other_directory_path.join("some_file.txt")));
     }
 }
