@@ -18,7 +18,9 @@ use reqwest::StatusCode;
 
 pub mod asset;
 pub mod edge_app;
+pub(crate) mod edge_app_server;
 mod edge_app_utils;
+mod ignorer;
 pub(crate) mod playlist;
 pub mod screen;
 
@@ -101,6 +103,8 @@ pub enum CommandError {
     FileSystemError(String),
     #[error("Asset processing timeout")]
     AssetProcessingTimeout,
+    #[error("Ignore error: {0}")]
+    IgnoreError(String),
     #[error("Initialization Failed: {0}")]
     InitializationError(String),
     #[error("Asset processing error: {0}")]
