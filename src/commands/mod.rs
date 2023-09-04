@@ -231,16 +231,11 @@ pub struct EdgeAppManifest {
     pub settings: Vec<Setting>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Default)]
 pub enum SettingType {
+    #[default]
     String,
     Secret,
-}
-
-impl Default for SettingType {
-    fn default() -> Self {
-        SettingType::String
-    }
 }
 
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
