@@ -275,7 +275,7 @@ pub enum AssetCommands {
 pub enum EdgeAppCommands {
     /// Creates Edge App in the store.
     Create {
-        /// Edge app name
+        /// Edge App name
         #[arg(short, long)]
         name: String,
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
@@ -286,7 +286,7 @@ pub enum EdgeAppCommands {
         in_place: Option<bool>,
     },
 
-    /// Lists your edge apps.
+    /// Lists your Edge Apps.
     List {
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
@@ -336,13 +336,23 @@ pub enum EdgeAppCommands {
     #[command(subcommand)]
     Secret(EdgeAppSecretsCommands),
 
-    /// Uploads assets and settings of the edge app.
+    /// Uploads assets and settings of the Edge App.
     Upload {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge app id. If not specified CLI will use the id from the manifest.
+        /// Edge App id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+    },
+    /// Deletes an Edge App. This cannot be undone.
+    Delete {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+
+        /// Edge App id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
         app_id: Option<String>,
     },
@@ -493,13 +503,22 @@ pub fn get_screen_name(
     Err(CommandError::MissingField)
 }
 
-fn get_actual_app_id(app_id: &Option<String>, path: &Option<String>) -> String {
+fn get_actual_app_id(
+    app_id: &Option<String>,
+    path: &Option<String>,
+) -> Result<String, CommandError> {
     match app_id {
-        Some(id) => id.clone(),
+        Some(id) => Ok(id.clone()),
         None => {
             let manifest =
                 EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
-            manifest.app_id
+            match manifest.app_id {
+                Some(id) => Ok(id),
+                None => {
+                    error!("Edge app id is not specified. Please specify it using --app-id option or add it to the manifest.");
+                    Err(CommandError::MissingAppId)
+                }
+            }
         }
     }
 }
@@ -913,7 +932,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         }
         EdgeAppCommands::Version(command) => match command {
             EdgeAppVersionCommands::List { app_id, path, json } => {
-                let actual_app_id = get_actual_app_id(app_id, path);
+                let actual_app_id = match get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Error calling list versions: {}", e);
+                        std::process::exit(1);
+                    }
+                };
                 handle_command_execution_result(
                     edge_app_command.list_versions(&actual_app_id),
                     json,
@@ -925,7 +950,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 app_id,
                 channel,
             } => {
-                let actual_app_id = get_actual_app_id(app_id, path);
+                let actual_app_id = match get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Failed to promote edge app version: {}", e);
+                        std::process::exit(1);
+                    }
+                };
                 match edge_app_command.promote_version(&actual_app_id, revision, channel) {
                     Ok(()) => {
                         println!("Edge app version successfully promoted.");
@@ -939,7 +970,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         },
         EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List { path, json, app_id } => {
-                let actual_app_id = get_actual_app_id(app_id, path);
+                let actual_app_id = match get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Error calling list settings: {}", e);
+                        std::process::exit(1);
+                    }
+                };
                 handle_command_execution_result(
                     edge_app_command.list_settings(&actual_app_id),
                     json,
@@ -950,7 +987,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 app_id,
                 path,
             } => {
-                let actual_app_id = get_actual_app_id(app_id, path);
+                let actual_app_id = match get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Error calling set setting: {}", e);
+                        std::process::exit(1);
+                    }
+                };
                 match edge_app_command.set_setting(&actual_app_id, &setting_pair.0, &setting_pair.1)
                 {
                     Ok(()) => {
@@ -965,7 +1008,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         },
         EdgeAppCommands::Secret(command) => match command {
             EdgeAppSecretsCommands::List { path, json, app_id } => {
-                let actual_app_id = get_actual_app_id(app_id, path);
+                let actual_app_id = match get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Error calling list secrets: {}", e);
+                        std::process::exit(1);
+                    }
+                };
                 handle_command_execution_result(
                     edge_app_command.list_secrets(&actual_app_id),
                     json,
@@ -976,7 +1025,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 app_id,
                 path,
             } => {
-                let actual_app_id = get_actual_app_id(app_id, path);
+                let actual_app_id = match get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Error calling set secrets: {}", e);
+                        std::process::exit(1);
+                    }
+                };
 
                 match edge_app_command.set_secret(&actual_app_id, &secret_pair.0, &secret_pair.1) {
                     Ok(()) => {
@@ -989,8 +1044,62 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
+        EdgeAppCommands::Delete { path, app_id } => {
+            let actual_app_id = match get_actual_app_id(app_id, path) {
+                Ok(id) => id,
+                Err(e) => {
+                    error!("Error calling delete Edge App: {}", e);
+                    std::process::exit(1);
+                }
+            };
+            match edge_app_command.get_app_name(&actual_app_id) {
+                Ok(name) => {
+                    info!("You are about to delete the Edge App named \"{}\".  This operation cannot be reversed.", name);
+                    info!("Enter the Edge App name to confirm the app deletion: ");
+                    if name != get_user_input() {
+                        error!("The name you entered is incorrect. Aborting.");
+                        std::process::exit(1);
+                    }
+                }
+                Err(e) => {
+                    error!("Error occurred: {}", e);
+                    std::process::exit(1);
+                }
+            }
+
+            match edge_app_command.delete_app(&actual_app_id) {
+                Ok(()) => {
+                    info!("App deleted successfully.");
+                    // If the user didn't specify an app id, we need to clear it from the manifest
+                    if app_id.is_none() {
+                        match edge_app_command
+                            .clear_app_id(transform_edge_app_path_to_manifest(path).as_path())
+                        {
+                            Ok(()) => {
+                                info!("App id cleared from manifest.");
+                            }
+                            Err(e) => {
+                                error!("Error occurred while clearing manifest: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    std::process::exit(0);
+                }
+                Err(e) => {
+                    error!("Error occurred: {:?}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         EdgeAppCommands::Rename { path, app_id, name } => {
-            let actual_app_id = get_actual_app_id(app_id, path);
+            let actual_app_id = match get_actual_app_id(app_id, path) {
+                Ok(id) => id,
+                Err(e) => {
+                    error!("Error calling delete Edge App: {}", e);
+                    std::process::exit(1);
+                }
+            };
             match edge_app_command.update_name(&actual_app_id, name) {
                 Ok(()) => {
                     println!("Edge app successfully updated.");
