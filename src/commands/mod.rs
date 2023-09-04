@@ -212,17 +212,18 @@ pub fn patch<T: Serialize + ?Sized>(
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EdgeAppManifest {
+    #[serde(deserialize_with = "deserialize_string_not_empty")]
     pub app_id: String,
-    #[serde(deserialize_with = "deserialize_string_not_empty")]
-    pub user_version: String,
-    #[serde(deserialize_with = "deserialize_string_not_empty")]
-    pub description: String,
-    #[serde(deserialize_with = "deserialize_string_not_empty")]
-    pub icon: String,
-    #[serde(deserialize_with = "deserialize_string_not_empty")]
-    pub author: String,
-    #[serde(deserialize_with = "deserialize_string_not_empty")]
-    pub homepage_url: String,
+    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    pub user_version: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    pub description: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    pub icon: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    pub author: Option<String>,
+    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    pub homepage_url: Option<String>,
     #[serde(
         serialize_with = "serialize_settings",
         deserialize_with = "deserialize_settings",
@@ -295,6 +296,18 @@ where
         
     Ok(s)
 }
+
+fn deserialize_option_string_not_empty<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    match opt {
+        Some(ref s) if s.is_empty() => Ok(None),
+        _ => Ok(opt),
+    }
+}
+
 
 fn serialize_setting_type<S>(setting_type: &SettingType, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -715,11 +728,11 @@ mod tests {
 
         let expected_contents = r#"---
 app_id: test_app
-user_version: ''
-description: ''
-icon: ''
-author: ''
-homepage_url: ''
+user_version: null
+description: null
+icon: null
+author: null
+homepage_url: null
 settings:
   username:
     type: string
