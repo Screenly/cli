@@ -1091,9 +1091,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     std::process::exit(1);
                 }
             }
-        },
+        }
         EdgeAppCommands::Rename { path, app_id, name } => {
-            let actual_app_id = get_actual_app_id(app_id, path);
+            let actual_app_id = match get_actual_app_id(app_id, path) {
+                Ok(id) => id,
+                Err(e) => {
+                    error!("Error calling delete Edge App: {}", e);
+                    std::process::exit(1);
+                }
+            };
             match edge_app_command.update_name(&actual_app_id, name) {
                 Ok(()) => {
                     println!("Edge app successfully updated.");
