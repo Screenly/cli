@@ -378,8 +378,8 @@ impl Formatter for EdgeAppVersions {
     fn format(&self, output_type: OutputType) -> String {
         format_value(
             output_type,
-            vec!["Revision", "Description", "Published"],
-            vec!["revision", "description", "published"],
+            vec!["Revision", "Description", "Published", "Channels"],
+            vec!["revision", "description", "published", "edge_app_channels"],
             self,
             Some(|field_name: &str, field_value: &serde_json::Value| {
                 if field_name.eq("revision") {
@@ -389,6 +389,17 @@ impl Formatter for EdgeAppVersions {
                 } else if field_name.eq("published") {
                     let published = field_value.as_bool().unwrap_or(false);
                     Cell::new(if published { "✅" } else { "❌" })
+                } else if field_name.eq("edge_app_channels") {
+                    // list of maps to string with comma separator
+                    // [{"channel":"stable"},{"channel":"beta"}] -> "stable, beta"
+                    let channels = field_value
+                        .as_array()
+                        .unwrap_or(&vec![])
+                        .iter()
+                        .map(|channel| channel["channel"].as_str().unwrap_or(""))
+                        .collect::<Vec<&str>>()
+                        .join(", ");
+                    Cell::new(channels.as_str())
                 } else {
                     Cell::new(field_value.as_str().unwrap_or("N/A"))
                 }
@@ -684,5 +695,44 @@ settings:
 "#;
 
         assert_eq!(contents, expected_contents);
+    }
+
+    #[test]
+    fn test_edge_app_versions_formatter_format_output_properly() {
+        let data = r#"[{
+            "edge_app_channels": [
+                {
+                    "channel": "stable"
+                },
+                {
+                    "channel": "candidate"
+                }
+            ],
+            "revision": 1,
+            "user_version": "1.0.0",
+            "description": "Initial release",
+            "published": true
+        },
+        {
+            "edge_app_channels": [],
+            "revision": 2,
+            "user_version": "1.0.1",
+            "description": "Bug fixes",
+            "published": true
+        }]"#;
+        let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
+
+        let output = edge_app_versions.format(OutputType::HumanReadable);
+        assert_eq!(
+            output,
+            r#"+----------+-----------------+-----------+-------------------+
+| Revision | Description     | Published | Channels          |
++----------+-----------------+-----------+-------------------+
+| 1        | Initial release | ✅        | stable, candidate |
++----------+-----------------+-----------+-------------------+
+| 2        | Bug fixes       | ✅        |                   |
++----------+-----------------+-----------+-------------------+
+"#
+        );
     }
 }
