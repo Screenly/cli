@@ -401,6 +401,19 @@ impl EdgeAppCommand {
 
         debug!("All secrets are defined.");
 
+        let get_response = commands::get(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/versions?select=revision&app_id=eq.{}&revision=eq.{}",
+                app_id, revision
+            ),
+        )?;
+        let version =
+            serde_json::from_value::<Vec<HashMap<String, serde_json::Value>>>(get_response)?;
+        if version.is_empty() {
+            return Err(CommandError::RevisionNotFound(revision.to_string()));
+        }
+
         let response = commands::patch(
             &self.authentication,
             &format!(
@@ -1888,6 +1901,25 @@ mod tests {
     fn test_promote_should_send_correct_request() {
         let mock_server = MockServer::start();
 
+        let get_version_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "revision")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.7");
+
+            then.status(200).json_body(json!([
+                {
+                    "revision": 7,
+                }
+            ]));
+        });
+
         let installation_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/installations")
@@ -1974,6 +2006,7 @@ mod tests {
 
         let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
 
+        get_version_mock.assert();
         installation_mock.assert();
         installation_mock_create.assert();
         undefined_secrets_mock.assert();
@@ -2303,6 +2336,101 @@ settings:
 
         assert!(!&result.is_ok());
         assert!(result.unwrap_err().to_string().contains("Warning: these secrets are undefined: [\"undefined_secret\",\"another_undefined_secret\"]."));
+    }
+
+    #[test]
+    fn test_promote_when_version_doesnt_exist_should_fail() {
+        let mock_server = MockServer::start();
+
+        let get_version_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "revision")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.7");
+
+            then.status(200).json_body(json!([]));
+        });
+
+        let installation_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "id")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.Edge app cli installation");
+
+            then.status(200).json_body(json!([]));
+        });
+
+        let installation_mock_create = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "id")
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "name": "Edge app cli installation",
+                }));
+
+            then.status(201).json_body(json!([
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                }
+            ]));
+        });
+
+        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
+        let undefined_secrets_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/secrets/undefined")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("installation_id", "01H2QZ6Z8WXWNDC0KQ198XCZEB");
+            then.status(200).json_body(json!([]));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
+
+        get_version_mock.assert();
+        installation_mock.assert();
+        installation_mock_create.assert();
+        undefined_secrets_mock.assert();
+
+        assert!(!&result.is_ok());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Edge App Revision 7 not found"));
     }
 
     #[test]
