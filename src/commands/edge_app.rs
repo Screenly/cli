@@ -147,7 +147,7 @@ impl EdgeAppCommand {
         Ok(EdgeAppVersions::new(commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=revision,user_version,description,published&app_id=eq.{}",
+                "v4/edge-apps/versions?select=edge_app_channels(channel),revision,user_version,description,published&app_id=eq.{}",
                 app_id
             ),
         )?))
@@ -1164,15 +1164,43 @@ mod tests {
     #[test]
     fn test_list_versions_should_send_correct_request() {
         let mock_server = MockServer::start();
+
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/versions")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param(
+                    "select",
+                    "edge_app_channels(channel),revision,user_version,description,published",
+                )
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 );
-            then.status(200).json_body(json!([]));
+            then.status(200).json_body(json!([
+                {
+                    "edge_app_channels": [
+                        {
+                            "channel": "stable"
+                        },
+                        {
+                            "channel": "candidate"
+                        }
+                    ],
+                    "revision": 1,
+                    "user_version": "1.0.0",
+                    "description": "Initial release",
+                    "published": true
+                },
+                {
+                    "edge_app_channels": [],
+                    "revision": 2,
+                    "user_version": "1.0.1",
+                    "description": "Bug fixes",
+                    "published": true
+                }
+            ]));
         });
 
         let config = Config::new(mock_server.base_url());
