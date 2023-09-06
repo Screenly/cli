@@ -376,7 +376,7 @@ pub enum EdgeAppVersionCommands {
     Promote {
         /// Edge app revision to promote.
         #[arg(short, long)]
-        revision: u32,
+        revision: Option<u32>,
         /// Channel to promote to. If not specified CLI will use stable channel.
         #[arg(short, long, default_value = "stable")]
         channel: String,
@@ -384,6 +384,9 @@ pub enum EdgeAppVersionCommands {
         /// Edge app id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
         app_id: Option<String>,
+
+        #[arg(long,  action = clap::ArgAction::SetTrue, conflicts_with = "revision", default_value="false")]
+        latest: bool,
 
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
@@ -949,6 +952,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 revision,
                 app_id,
                 channel,
+                latest,
             } => {
                 let actual_app_id = match get_actual_app_id(app_id, path) {
                     Ok(id) => id,
@@ -957,6 +961,27 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         std::process::exit(1);
                     }
                 };
+
+                let revision = if *latest {
+                    match edge_app_command.get_latest_revision(&actual_app_id) {
+                        Ok(rev) => rev,
+                        Err(e) => {
+                            println!("Failed to get latest edge app revision: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    match revision {
+                        Some(rev) => *rev,
+                        None => {
+                            println!(
+                                "You must either specify a revision or use the --latest flag."
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                };
+
                 match edge_app_command.promote_version(&actual_app_id, revision, channel) {
                     Ok(()) => {
                         println!("Edge app version successfully promoted.");
