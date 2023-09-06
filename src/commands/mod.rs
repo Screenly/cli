@@ -315,18 +315,6 @@ where
     map.end()
 }
 
-fn deserialize_string_not_empty<'de, D>(deserializer: D) -> Result<String, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: String = Deserialize::deserialize(deserializer)?;
-    if s.is_empty() {
-        return Err(serde::de::Error::custom("String cannot be empty"))
-    }
-        
-    Ok(s)
-}
-
 fn deserialize_option_string_not_empty<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: Deserializer<'de>,
@@ -382,7 +370,7 @@ impl EdgeAppManifest {
         match serde_yaml::from_str::<EdgeAppManifest>(&fs::read_to_string(path)?) {
             Ok(_) => Ok(true),
             Err(e) => {
-                println!("Error: Deserialization failed with error: {}", e);
+                println!("Error: Validation failed with error: {}", e);
                 Ok(false)
             }
         }
@@ -770,7 +758,7 @@ mod tests {
         let file_path = dir.path().join("test.yaml");
 
         let manifest = EdgeAppManifest {
-            app_id: "test_app".to_string(),
+            app_id: Some("test_app".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -814,7 +802,7 @@ settings:
         let file_path = dir.path().join("test.yaml");
 
         let manifest = EdgeAppManifest {
-            app_id: "test_app".to_string(),
+            app_id: Some("test_app".to_string()),
             user_version: Some("test_version".to_string()),
             description: None,
             icon: Some("test_icon".to_string()),
@@ -856,7 +844,7 @@ settings:
         let file_path = dir.path().join("test.yaml");
 
         let manifest = EdgeAppManifest {
-            app_id: "test_app".to_string(),
+            app_id: Some("test_app".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("".to_string()),
             icon: Some("test_icon".to_string()),
@@ -898,7 +886,7 @@ settings:
         let file_path = dir.path().join("test.yaml");
 
         let manifest = EdgeAppManifest {
-            app_id: "test_app".to_string(),
+            app_id: Some("test_app".to_string()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -931,30 +919,7 @@ settings:
     fn test_validate_file_when_file_non_existent_should_return_error() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.yaml");
-    fn test_edge_app_versions_formatter_format_output_properly() {
-        let data = r#"[{
-            "edge_app_channels": [
-                {
-                    "channel": "stable"
-                },
-                {
-                    "channel": "candidate"
-                }
-            ],
-            "revision": 1,
-            "user_version": "1.0.0",
-            "description": "Initial release",
-            "published": true
-        },
-        {
-            "edge_app_channels": [],
-            "revision": 2,
-            "user_version": "1.0.1",
-            "description": "Bug fixes",
-            "published": true
-        }]"#;
-        let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
-
+    
         let result = EdgeAppManifest::validate_file(&file_path);
         assert!(result.is_err(), "Expected an error for non-existent file");
     }
@@ -1037,6 +1002,32 @@ settings:
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
         assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
+    }
+
+    #[test]
+    fn test_edge_app_versions_formatter_format_output_properly() {
+        let data = r#"[{
+            "edge_app_channels": [
+                {
+                    "channel": "stable"
+                },
+                {
+                    "channel": "candidate"
+                }
+            ],
+            "revision": 1,
+            "user_version": "1.0.0",
+            "description": "Initial release",
+            "published": true
+        },
+        {
+            "edge_app_channels": [],
+            "revision": 2,
+            "user_version": "1.0.1",
+            "description": "Bug fixes",
+            "published": true
+        }]"#;
+        let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
         let output = edge_app_versions.format(OutputType::HumanReadable);
         assert_eq!(
             output,
