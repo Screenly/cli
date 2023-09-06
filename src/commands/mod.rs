@@ -11,6 +11,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::json;
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, EnumString, Display};
 
@@ -376,6 +377,20 @@ impl EdgeAppManifest {
         let manifest_file = File::create(path)?;
         write!(&manifest_file, "---\n{yaml}")?;
         Ok(())
+    }
+
+    pub fn prepare_payload(manifest: &EdgeAppManifest) -> HashMap<&str, serde_json::Value> {
+        [
+            ("app_id", &manifest.app_id),
+            ("user_version", &manifest.user_version),
+            ("description", &manifest.description),
+            ("icon", &manifest.icon),
+            ("author", &manifest.author),
+            ("homepage_url", &manifest.homepage_url),
+        ]
+        .iter()
+        .filter_map(|(key, value)| value.as_ref().map(|v| (*key, json!(v))))
+        .collect()
     }
 
     pub fn ensure_manifest_is_validated(path: &Path) -> Result<(), CommandError> {
@@ -1051,4 +1066,53 @@ settings:
 "#
         );
     }
+
+    #[test]
+    fn test_prepare_manifest_payload_includes_some_fields() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("test_app".to_string()),
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("test_author".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }]
+        };
+
+        let result = EdgeAppManifest::prepare_payload(&manifest);
+        assert_eq!(result["app_id"], json!("test_app"));
+        assert_eq!(result["user_version"], json!("test_version"));
+        assert_eq!(result["description"], json!("test_description"));
+        assert_eq!(result["icon"], json!("test_icon"));
+        assert_eq!(result["author"], json!("test_author"));
+        assert_eq!(result["homepage_url"], json!("test_url"));
+    }
+
+    #[test]
+    fn test_prepare_manifest_payload_omits_none_fields() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("test_app".to_string()),
+            user_version: None,
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: None,
+            homepage_url: Some("test_url".to_string()),
+            ..Default::default()
+        };
+
+        let result = EdgeAppManifest::prepare_payload(&manifest);
+        assert_eq!(result["app_id"], json!("test_app"));
+        assert_eq!(result.contains_key("user_version"), false);
+        assert_eq!(result["description"], json!("test_description"));
+        assert_eq!(result["icon"], json!("test_icon"));
+        assert_eq!(result.contains_key("author"), false);
+        assert_eq!(result["homepage_url"], json!("test_url"));
+    }
 }
+

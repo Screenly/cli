@@ -548,15 +548,8 @@ impl EdgeAppCommand {
         manifest: &EdgeAppManifest,
         file_tree: HashMap<String, String>,
     ) -> Result<u32, CommandError> {
-        let json = json!({
-           "app_id": manifest.app_id,
-           "user_version": manifest.user_version,
-           "description": manifest.description,
-           "icon": manifest.icon,
-           "author": manifest.author,
-           "homepage_url": manifest.homepage_url,
-           "file_tree": file_tree,
-        });
+        let mut json = EdgeAppManifest::prepare_payload(manifest);
+        json.insert("file_tree", json!(file_tree));
 
         let response = commands::post(
             &self.authentication,
