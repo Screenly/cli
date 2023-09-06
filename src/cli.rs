@@ -522,8 +522,8 @@ fn get_actual_app_id(
             let manifest =
                 EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
             match manifest.app_id {
-                Some(id) => Ok(id),
-                None => {
+                Some(id) if !id.is_empty() => Ok(id.clone()),
+                _ =>  {
                     error!("Edge app id is not specified. Please specify it using --app-id option or add it to the manifest.");
                     Err(CommandError::MissingAppId)
                 }

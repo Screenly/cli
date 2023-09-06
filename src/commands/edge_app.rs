@@ -1615,7 +1615,7 @@ mod tests {
 
     #[test]
     fn test_upload_should_send_correct_requests() {
-        let manifest = create_edge_app_manifest(
+        let mut manifest = create_edge_app_manifest(
             vec![
                 Setting {
                     type_: SettingType::String,
@@ -1633,6 +1633,9 @@ mod tests {
                 },
             ]
         );
+
+        manifest.user_version = None;
+        manifest.author = None;
 
         let mock_server = MockServer::start();
         // "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
@@ -1710,7 +1713,16 @@ mod tests {
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "description": "asdf",
+                    "icon": "asdf",
+                    "homepage_url": "asdfasdf",
+                    "file_tree": {
+                        "index.html": "0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"
+                    }
+                }));
             then.status(201).json_body(json!([{"revision": 8}]));
         });
 

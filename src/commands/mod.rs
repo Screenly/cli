@@ -379,7 +379,7 @@ impl EdgeAppManifest {
         Ok(())
     }
 
-    pub fn prepare_payload(manifest: &EdgeAppManifest) -> HashMap<&str, serde_json::Value> {
+    fn prepare_payload(manifest: &EdgeAppManifest) -> HashMap<&str, serde_json::Value> {
         [
             ("app_id", &manifest.app_id),
             ("user_version", &manifest.user_version),
