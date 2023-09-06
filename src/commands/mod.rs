@@ -755,7 +755,7 @@ mod tests {
     #[test]
     fn test_save_to_file_should_save_yaml_correctly() {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.yaml");
+        let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
@@ -799,7 +799,7 @@ settings:
     #[test]
     fn test_save_to_file_should_skip_none_optional_fields() {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.yaml");
+        let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
@@ -841,7 +841,7 @@ settings:
     #[test]
     fn test_save_to_file_should_skip_empty_optional_fields() {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.yaml");
+        let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
@@ -883,7 +883,7 @@ settings:
     #[test]
     fn test_save_to_file_should_skip_default_optional_fields() {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.yaml");
+        let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
@@ -918,7 +918,7 @@ settings:
     #[test]
     fn test_validate_file_when_file_non_existent_should_return_error() {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.yaml");
+        let file_path = dir.path().join("screenly.yml");
     
         let result = EdgeAppManifest::validate_file(&file_path);
         assert!(result.is_err(), "Expected an error for non-existent file");
@@ -927,7 +927,7 @@ settings:
     #[test]
     fn test_validate_file_when_file_valid_should_return_true() {
         let dir = tempdir().unwrap();
-        let file_name = "test.yaml";
+        let file_name = "screenly.yml";
         let content = r#"---
 app_id: test_app
 settings:
@@ -947,7 +947,7 @@ settings:
     #[test]
     fn test_validate_file_when_missing_field_should_return_false() {
         let dir = tempdir().unwrap();
-        let file_name = "test.yaml";
+        let file_name = "screenly.yml";
         let content = r#"---
 app_id: test_app
 settings:
@@ -966,7 +966,7 @@ settings:
     #[test]
     fn test_validate_file_when_empty_field_should_return_false() {
         let dir = tempdir().unwrap();
-        let file_name = "test.yaml";
+        let file_name = "screenly.yml";
         let content = r#"---
 app_id: test_app
 homepage_url: ''
@@ -987,7 +987,7 @@ settings:
     #[test]
     fn test_validate_file_when_invaild_type_should_return_false() {
         let dir = tempdir().unwrap();
-        let file_name = "test.yaml";
+        let file_name = "screenly.yml";
         let content = r#"---
 app_id: test_app
 settings:

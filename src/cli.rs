@@ -356,6 +356,12 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         app_id: Option<String>,
     },
+    /// Validates screenly.yml manifest file
+    Validate {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -1130,6 +1136,22 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         EdgeAppCommands::GenerateMockData { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
             edge_app_command.generate_mock_data(&manifest_path).unwrap();
+        },
+        EdgeAppCommands::Validate { path } => {
+            let manifest_path = transform_edge_app_path_to_manifest(path);
+            match EdgeAppManifest::validate_file(&manifest_path) {
+                Ok(true) => {
+                    println!("Manifest file is valid.");
+                },
+                Ok(false) => {
+                    println!("Manifest file is invalid.");
+                    std::process::exit(1);
+                },
+                Err(e) => {
+                    println!("Failed to validate manifest file: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }
