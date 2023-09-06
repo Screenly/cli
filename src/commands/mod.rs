@@ -111,6 +111,10 @@ pub enum CommandError {
     AssetProcessingError(String),
     #[error("Warning: these secrets are undefined: {0}.")]
     UndefinedSecrets(String),
+    #[error("App id is required. Either in manifest or with --app-id .")]
+    MissingAppId,
+    #[error("Edge App Revision {0} not found")]
+    RevisionNotFound(String),
 }
 
 pub fn get(
@@ -170,10 +174,12 @@ pub fn post<T: Serialize + ?Sized>(
 pub fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
     let url = format!("{}/{}", &authentication.config.url, endpoint);
     let response = authentication.build_client()?.delete(url).send()?;
-    if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&response.status()) {
-        return Err(CommandError::WrongResponseStatus(
-            response.status().as_u16(),
-        ));
+
+    let status = response.status();
+
+    if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
+        debug!("Response: {:?}", &response.text()?);
+        return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
     Ok(())
 }
@@ -216,8 +222,8 @@ fn string_field_is_none_or_empty(opt: &Option<String>) -> bool {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EdgeAppManifest {
-    #[serde(deserialize_with = "deserialize_string_not_empty")]
-    pub app_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_id: Option<String>,
     #[serde(
         deserialize_with = "deserialize_option_string_not_empty",
         skip_serializing_if = "string_field_is_none_or_empty",
@@ -473,8 +479,8 @@ impl Formatter for EdgeAppVersions {
     fn format(&self, output_type: OutputType) -> String {
         format_value(
             output_type,
-            vec!["Revision", "Description", "Published"],
-            vec!["revision", "description", "published"],
+            vec!["Revision", "Description", "Published", "Channels"],
+            vec!["revision", "description", "published", "edge_app_channels"],
             self,
             Some(|field_name: &str, field_value: &serde_json::Value| {
                 if field_name.eq("revision") {
@@ -484,6 +490,17 @@ impl Formatter for EdgeAppVersions {
                 } else if field_name.eq("published") {
                     let published = field_value.as_bool().unwrap_or(false);
                     Cell::new(if published { "✅" } else { "❌" })
+                } else if field_name.eq("edge_app_channels") {
+                    // list of maps to string with comma separator
+                    // [{"channel":"stable"},{"channel":"beta"}] -> "stable, beta"
+                    let channels = field_value
+                        .as_array()
+                        .unwrap_or(&vec![])
+                        .iter()
+                        .map(|channel| channel["channel"].as_str().unwrap_or(""))
+                        .collect::<Vec<&str>>()
+                        .join(", ");
+                    Cell::new(channels.as_str())
                 } else {
                     Cell::new(field_value.as_str().unwrap_or("N/A"))
                 }
@@ -914,6 +931,29 @@ settings:
     fn test_validate_file_when_file_non_existent_should_return_error() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.yaml");
+    fn test_edge_app_versions_formatter_format_output_properly() {
+        let data = r#"[{
+            "edge_app_channels": [
+                {
+                    "channel": "stable"
+                },
+                {
+                    "channel": "candidate"
+                }
+            ],
+            "revision": 1,
+            "user_version": "1.0.0",
+            "description": "Initial release",
+            "published": true
+        },
+        {
+            "edge_app_channels": [],
+            "revision": 2,
+            "user_version": "1.0.1",
+            "description": "Bug fixes",
+            "published": true
+        }]"#;
+        let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
 
         let result = EdgeAppManifest::validate_file(&file_path);
         assert!(result.is_err(), "Expected an error for non-existent file");
@@ -997,5 +1037,17 @@ settings:
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
         assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
+        let output = edge_app_versions.format(OutputType::HumanReadable);
+        assert_eq!(
+            output,
+            r#"+----------+-----------------+-----------+-------------------+
+| Revision | Description     | Published | Channels          |
++----------+-----------------+-----------+-------------------+
+| 1        | Initial release | ✅        | stable, candidate |
++----------+-----------------+-----------+-------------------+
+| 2        | Bug fixes       | ✅        |                   |
++----------+-----------------+-----------+-------------------+
+"#
+        );
     }
 }

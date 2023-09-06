@@ -44,7 +44,7 @@ impl FileChanges {
 }
 
 fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
-    let exclusion_list = vec!["screenly.js", "screenly.yml", ".ignore"];
+    let exclusion_list = ["screenly.js", "screenly.yml", ".ignore"];
     if exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default()) {
         return false;
     }
@@ -56,10 +56,7 @@ pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, Command
     let mut files = Vec::new();
 
     let ignore = Ignorer::new(path).map_err(|e| {
-        CommandError::IgnoreError(format!(
-            "Failed to initialize ignore module: {}",
-            e
-        ))
+        CommandError::IgnoreError(format!("Failed to initialize ignore module: {}", e))
     })?;
 
     for entry in WalkDir::new(path)

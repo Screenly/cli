@@ -78,7 +78,7 @@ impl EdgeAppCommand {
         }
 
         let manifest = EdgeAppManifest {
-            app_id,
+            app_id: Some(app_id),
             settings: vec![Setting {
                 title: "greeting".to_string(),
                 type_: SettingType::Secret,
@@ -114,7 +114,7 @@ impl EdgeAppCommand {
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
-        if !manifest.app_id.is_empty() {
+        if manifest.app_id.is_some() {
             return Err(CommandError::InitializationError("The operation can only proceed when 'app_id' is not set in the 'screenly.yml' configuration file".to_string()));
         }
 
@@ -130,7 +130,7 @@ impl EdgeAppCommand {
             return Err(CommandError::MissingField);
         }
 
-        manifest.app_id = app_id;
+        manifest.app_id = Some(app_id);
         EdgeAppManifest::save_to_file(&manifest, path)?;
 
         Ok(())
@@ -147,7 +147,7 @@ impl EdgeAppCommand {
         Ok(EdgeAppVersions::new(commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=revision,user_version,description,published&app_id=eq.{}",
+                "v4/edge-apps/versions?select=edge_app_channels(channel),revision,user_version,description,published&app_id=eq.{}",
                 app_id
             ),
         )?))
@@ -324,17 +324,21 @@ impl EdgeAppCommand {
 
         // override app_id if user passed it
         if let Some(id) = app_id {
-            manifest.app_id = id;
+            manifest.app_id = Some(id);
         }
+        let actual_app_id = match manifest.app_id {
+            Some(ref id) => id,
+            None => return Err(CommandError::MissingField),
+        };
 
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
 
         let local_files = collect_paths_for_upload(edge_app_dir)?;
         ensure_edge_app_has_all_necessary_files(&local_files)?;
 
-        let revision = self.get_latest_revision(&manifest.app_id).unwrap_or(0);
+        let revision = self.get_latest_revision(actual_app_id).unwrap_or(0);
 
-        let remote_files = self.get_version_asset_signatures(&manifest.app_id, revision)?;
+        let remote_files = self.get_version_asset_signatures(actual_app_id, revision)?;
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
@@ -342,16 +346,16 @@ impl EdgeAppCommand {
             &self.authentication,
             &format!(
                 "v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc",
-                manifest.app_id
+                actual_app_id,
             ),
         )?)?;
 
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
-        self.upload_changed_settings(&manifest, &changed_settings)?;
+        self.upload_changed_settings(actual_app_id.clone(), &changed_settings)?;
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
-        let old_file_tree = self.get_file_tree(&manifest.app_id, revision);
+        let old_file_tree = self.get_file_tree(actual_app_id, revision);
 
         let file_tree_changed = match old_file_tree {
             Ok(tree) => file_tree != tree,
@@ -369,15 +373,15 @@ impl EdgeAppCommand {
         let revision =
             self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
 
-        self.upload_changed_files(edge_app_dir, &manifest.app_id, revision, &changed_files)?;
+        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &changed_files)?;
         debug!("Files uploaded");
 
-        self.ensure_assets_processing_finished(&manifest.app_id, revision)?;
+        self.ensure_assets_processing_finished(actual_app_id, revision)?;
         // now we freeze it by publishing it
-        self.publish(&manifest.app_id, revision)?;
+        self.publish(actual_app_id, revision)?;
         debug!("Edge app published.");
 
-        self.get_or_create_installation(&manifest.app_id)?;
+        self.get_or_create_installation(actual_app_id)?;
 
         Ok(revision)
     }
@@ -396,6 +400,19 @@ impl EdgeAppCommand {
         }
 
         debug!("All secrets are defined.");
+
+        let get_response = commands::get(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/versions?select=revision&app_id=eq.{}&revision=eq.{}",
+                app_id, revision
+            ),
+        )?;
+        let version =
+            serde_json::from_value::<Vec<HashMap<String, serde_json::Value>>>(get_response)?;
+        if version.is_empty() {
+            return Err(CommandError::RevisionNotFound(revision.to_string()));
+        }
 
         let response = commands::patch(
             &self.authentication,
@@ -422,6 +439,57 @@ impl EdgeAppCommand {
         if &channels[0].channel != channel || &channels[0].app_revision != revision {
             return Err(CommandError::MissingField);
         }
+
+        Ok(())
+    }
+
+    pub fn get_app_name(&self, app_id: &str) -> Result<String, CommandError> {
+        let response = commands::get(
+            &self.authentication,
+            &format!("v4/edge-apps/edge-apps?select=name&id=eq.{}", app_id),
+        )?;
+
+        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        struct App {
+            name: String,
+        }
+
+        let apps = serde_json::from_value::<Vec<App>>(response)?;
+        if apps.is_empty() {
+            return Err(CommandError::MissingField);
+        }
+
+        Ok(apps[0].name.clone())
+    }
+
+    pub fn delete_app(&self, app_id: &str) -> Result<(), CommandError> {
+        commands::delete(
+            &self.authentication,
+            &format!("v4/edge-apps?id=eq.{}", app_id),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn clear_app_id(&self, path: &Path) -> Result<(), CommandError> {
+        let data = fs::read_to_string(path)?;
+        let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+
+        manifest.app_id = None;
+        EdgeAppManifest::save_to_file(&manifest, PathBuf::from(path).as_path())?;
+
+        Ok(())
+    }
+
+    pub fn update_name(&self, app_id: &str, name: &str) -> Result<(), CommandError> {
+        commands::patch(
+            &self.authentication,
+            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
+            &json!(
+            {
+                "name": name,
+            }),
+        )?;
 
         Ok(())
     }
@@ -671,14 +739,14 @@ impl EdgeAppCommand {
 
     fn upload_changed_settings(
         &self,
-        manifest: &EdgeAppManifest,
+        app_id: String,
         changed_settings: &SettingChanges,
     ) -> Result<(), CommandError> {
         for setting in &changed_settings.creates {
-            self.create_setting(manifest, setting)?;
+            self.create_setting(app_id.clone(), setting)?;
         }
         for setting in &changed_settings.updates {
-            self.update_setting(manifest, setting)?;
+            self.update_setting(app_id.clone(), setting)?;
         }
         Ok(())
     }
@@ -709,14 +777,10 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn create_setting(
-        &self,
-        manifest: &EdgeAppManifest,
-        setting: &Setting,
-    ) -> Result<(), CommandError> {
+    fn create_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
         let value = serde_json::to_value(setting)?;
         let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
-        payload.insert("app_id".to_owned(), json!(manifest.app_id));
+        payload.insert("app_id".to_owned(), json!(app_id));
 
         debug!("Creating setting: {:?}", &payload);
 
@@ -724,7 +788,7 @@ impl EdgeAppCommand {
         if response.is_err() {
             let c = commands::get(
                 &self.authentication,
-                &format!("v4/edge-apps/settings?app_id=eq.{}", manifest.app_id),
+                &format!("v4/edge-apps/settings?app_id=eq.{}", app_id),
             )?;
             debug!("Existing settings: {:?}", c);
             return Err(CommandError::NoChangesToUpload("".to_owned()));
@@ -733,11 +797,7 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn update_setting(
-        &self,
-        manifest: &EdgeAppManifest,
-        setting: &Setting,
-    ) -> Result<(), CommandError> {
+    fn update_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
         let value = serde_json::to_value(setting)?;
         let payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
 
@@ -747,7 +807,7 @@ impl EdgeAppCommand {
             &self.authentication,
             &format!(
                 "v4/edge-apps/settings?app_id=eq.{id}&title=eq.{title}",
-                id = manifest.app_id,
+                id = app_id,
                 title = setting.title
             ),
             &payload,
@@ -888,7 +948,7 @@ mod tests {
     use super::*;
     use crate::authentication::Config;
 
-    use httpmock::Method::{GET, PATCH, POST};
+    use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
 
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
@@ -938,7 +998,7 @@ mod tests {
 
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
-        assert_eq!(manifest.app_id, "test-id");
+        assert_eq!(manifest.app_id, Some("test-id".to_owned()));
         assert_eq!(
             manifest.settings,
             vec![Setting {
@@ -1031,7 +1091,7 @@ mod tests {
 
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
-        assert_eq!(manifest.app_id, "test-id");
+        assert_eq!(manifest.app_id, Some("test-id".to_owned()));
 
         assert!(result.is_ok());
     }
@@ -1085,7 +1145,7 @@ mod tests {
         File::create(tmp_dir.path().join("index.html")).unwrap();
 
         let manifest = EdgeAppManifest {
-            app_id: "non-empty".to_string(),
+            app_id: Some("non-empty".to_string()),
             ..Default::default()
         };
 
@@ -1129,15 +1189,43 @@ mod tests {
     #[test]
     fn test_list_versions_should_send_correct_request() {
         let mock_server = MockServer::start();
+
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/versions")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param(
+                    "select",
+                    "edge_app_channels(channel),revision,user_version,description,published",
+                )
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 );
-            then.status(200).json_body(json!([]));
+            then.status(200).json_body(json!([
+                {
+                    "edge_app_channels": [
+                        {
+                            "channel": "stable"
+                        },
+                        {
+                            "channel": "candidate"
+                        }
+                    ],
+                    "revision": 1,
+                    "user_version": "1.0.0",
+                    "description": "Initial release",
+                    "published": true
+                },
+                {
+                    "edge_app_channels": [],
+                    "revision": 2,
+                    "user_version": "1.0.1",
+                    "description": "Bug fixes",
+                    "published": true
+                }
+            ]));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -1254,7 +1342,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest(vec![]);
 
-        let result = command.list_settings(&manifest.app_id);
+        let result = command.list_settings(&manifest.app_id.unwrap());
 
         installation_mock.assert();
         installation_mock_create.assert();
@@ -1371,7 +1459,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest(vec![]);
 
-        let result = command.set_setting(&manifest.app_id, "best_setting", "best_value");
+        let result = command.set_setting(&manifest.app_id.unwrap(), "best_setting", "best_value");
         installation_mock.assert();
         installation_mock_create.assert();
         setting_values_mock_get.assert();
@@ -1445,7 +1533,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest(vec![]);
 
-        let result = command.set_setting(&manifest.app_id, "best_setting", "best_value1");
+        let result = command.set_setting(&manifest.app_id.unwrap(), "best_setting", "best_value1");
         installation_mock.assert();
         setting_values_mock_get.assert();
         setting_values_mock_patch.assert();
@@ -1517,8 +1605,11 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest(vec![]);
 
-        let result =
-            command.set_secret(&manifest.app_id, "best_secret_setting", "best_secret_value");
+        let result = command.set_secret(
+            &manifest.app_id.unwrap(),
+            "best_secret_setting",
+            "best_secret_value",
+        );
         installation_mock.assert();
         installation_mock_create.assert();
         secrets_values_mock_post.assert();
@@ -1784,6 +1875,25 @@ mod tests {
     fn test_promote_should_send_correct_request() {
         let mock_server = MockServer::start();
 
+        let get_version_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "revision")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.7");
+
+            then.status(200).json_body(json!([
+                {
+                    "revision": 7,
+                }
+            ]));
+        });
+
         let installation_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/installations")
@@ -1860,8 +1970,9 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest(vec![]);
 
-        let result = command.promote_version(&manifest.app_id, &7, &"public".to_string());
+        let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
 
+        get_version_mock.assert();
         installation_mock.assert();
         installation_mock_create.assert();
         undefined_secrets_mock.assert();
@@ -2061,7 +2172,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest(vec![]);
 
-        let result = command.list_secrets(&manifest.app_id);
+        let result = command.list_secrets(&manifest.app_id.unwrap());
 
         secrets_mock.assert();
 
@@ -2149,7 +2260,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest(vec![]);
 
-        let result = command.promote_version(&manifest.app_id, &7, &"public".to_string());
+        let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
 
         installation_mock.assert();
         installation_mock_create.assert();
@@ -2157,5 +2268,205 @@ settings:
 
         assert!(!&result.is_ok());
         assert!(result.unwrap_err().to_string().contains("Warning: these secrets are undefined: [\"undefined_secret\",\"another_undefined_secret\"]."));
+    }
+
+    #[test]
+    fn test_promote_when_version_doesnt_exist_should_fail() {
+        let mock_server = MockServer::start();
+
+        let get_version_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "revision")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.7");
+
+            then.status(200).json_body(json!([]));
+        });
+
+        let installation_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "id")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.Edge app cli installation");
+
+            then.status(200).json_body(json!([]));
+        });
+
+        let installation_mock_create = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "id")
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "name": "Edge app cli installation",
+                }));
+
+            then.status(201).json_body(json!([
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                }
+            ]));
+        });
+
+        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
+        let undefined_secrets_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/secrets/undefined")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("installation_id", "01H2QZ6Z8WXWNDC0KQ198XCZEB");
+            then.status(200).json_body(json!([]));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
+
+        get_version_mock.assert();
+        installation_mock.assert();
+        installation_mock_create.assert();
+        undefined_secrets_mock.assert();
+
+        assert!(!&result.is_ok());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Edge App Revision 7 not found"));
+    }
+
+    #[test]
+    fn test_update_name_should_send_correct_request() {
+        let mock_server = MockServer::start();
+
+        let update_name_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/edge-apps")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("select", "name")
+                .json_body(json!({
+                    "name": "New name",
+                }));
+
+            then.status(200).json_body(json!([
+                {
+                    "name": "New name",
+                }
+            ]));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let result = command.update_name(&manifest.app_id.unwrap(), "New name");
+        update_name_mock.assert();
+        debug!("result: {:?}", result);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_delete_app_should_send_correct_request() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(DELETE)
+                .path("/v4/edge-apps")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .header("Authorization", "Token token")
+                .query_param("id", "eq.test-id");
+            then.status(204);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let edge_app_command = EdgeAppCommand::new(authentication);
+        assert!(edge_app_command.delete_app("test-id").is_ok());
+    }
+
+    #[test]
+    fn test_clear_app_id_should_remove_app_id_from_manifest() {
+        let mock_server = MockServer::start();
+
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let temp_dir = tempdir().unwrap();
+        let temp_path = temp_dir.path().join("screenly.yml");
+        let manifest_path = temp_path.as_path();
+        EdgeAppManifest::save_to_file(&manifest, manifest_path).unwrap();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let edge_app_command = EdgeAppCommand::new(authentication);
+        assert!(edge_app_command.clear_app_id(manifest_path).is_ok());
+
+        let data = fs::read_to_string(manifest_path).unwrap();
+        let new_manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
+
+        let expected_manifest = EdgeAppManifest {
+            app_id: None,
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        assert_eq!(new_manifest, expected_manifest);
     }
 }
