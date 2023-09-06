@@ -328,8 +328,8 @@ where
     let opt: Option<String> = Option::deserialize(deserializer)?;
 
     match opt {
-        None => Ok(Some(String::from(""))),
-        Some(ref s) if s.is_empty() => Err(serde::de::Error::custom("String cannot be empty")), // Field exists but is empty
+        None => Ok(None),
+        Some(ref s) if s.is_empty() => Err(serde::de::Error::custom("String cannot be empty")),
         _ => Ok(opt),
     }
 }
@@ -371,6 +371,16 @@ impl EdgeAppManifest {
         write!(&manifest_file, "---\n{yaml}")?;
         Ok(())
     }
+
+    pub fn validate_file(path: &Path) -> Result<bool, CommandError> {
+        match serde_yaml::from_str::<EdgeAppManifest>(&fs::read_to_string(path)?) {
+            Ok(_) => Ok(true),
+            Err(e) => {
+                println!("Error: Deserialization failed with error: {}", e);
+                Ok(false)
+            }
+        }
+    }    
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -731,6 +741,12 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    fn write_to_tempfile(dir: &tempfile::TempDir, file_name: &str, content: &str) -> std::path::PathBuf {
+        let file_path = dir.path().join(file_name);
+        std::fs::write(&file_path, content).unwrap();
+        file_path
+    }
+
     #[test]
     fn test_save_to_file_should_save_yaml_correctly() {
         let dir = tempdir().unwrap();
@@ -892,5 +908,94 @@ settings:
 "#;
 
         assert_eq!(contents, expected_contents);
+    }
+
+    #[test]
+    fn test_validate_file_when_file_non_existent_should_return_error() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.yaml");
+
+        let result = EdgeAppManifest::validate_file(&file_path);
+        assert!(result.is_err(), "Expected an error for non-existent file");
+    }
+
+    #[test]
+    fn test_validate_file_when_file_valid_should_return_true() {
+        let dir = tempdir().unwrap();
+        let file_name = "test.yaml";
+        let content = r#"---
+app_id: test_app
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);        
+        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), true);
+    }
+
+    #[test]
+    fn test_validate_file_when_missing_field_should_return_false() {
+        let dir = tempdir().unwrap();
+        let file_name = "test.yaml";
+        let content = r#"---
+app_id: test_app
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);        
+        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
+    }
+
+    #[test]
+    fn test_validate_file_when_empty_field_should_return_false() {
+        let dir = tempdir().unwrap();
+        let file_name = "test.yaml";
+        let content = r#"---
+app_id: test_app
+homepage_url: ''
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);        
+        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
+    }
+
+    #[test]
+    fn test_validate_file_when_invaild_type_should_return_false() {
+        let dir = tempdir().unwrap();
+        let file_name = "test.yaml";
+        let content = r#"---
+app_id: test_app
+settings:
+  username:
+    type: bool
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);        
+        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
     }
 }
