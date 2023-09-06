@@ -376,7 +376,7 @@ pub enum EdgeAppVersionCommands {
     Promote {
         /// Edge app revision to promote.
         #[arg(short, long)]
-        revision: u32,
+        revision: Option<u32>,
         /// Channel to promote to. If not specified CLI will use stable channel.
         #[arg(short, long, default_value = "stable")]
         channel: String,
@@ -385,7 +385,7 @@ pub enum EdgeAppVersionCommands {
         #[arg(short, long)]
         app_id: Option<String>,
 
-        #[arg(long,  action = clap::ArgAction::SetTrue, conflicts_with = "revision")]
+        #[arg(long,  action = clap::ArgAction::SetTrue, conflicts_with = "revision", default_value="false")]
         latest: bool,
 
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
@@ -971,7 +971,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         }
                     }
                 } else {
-                    *revision
+                    match revision {
+                        Some(rev) => *rev,
+                        None => {
+                            println!(
+                                "You must either specify a revision or use the --latest flag."
+                            );
+                            std::process::exit(1);
+                        }
+                    }
                 };
 
                 match edge_app_command.promote_version(&actual_app_id, revision, channel) {
