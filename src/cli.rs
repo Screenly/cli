@@ -514,6 +514,9 @@ fn get_actual_app_id(
     path: &Option<String>,
 ) -> Result<String, CommandError> {
     match app_id {
+        Some(id) if id.is_empty() => {
+            Err(CommandError::EmptyAppId("this".to_string()))
+        },
         Some(id) => Ok(id.clone()),
         None => {
             let manifest =
@@ -1144,7 +1147,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     println!("Manifest file is valid.");
                 },
                 Err(e) => {
-                    println!("{}", e);
+                    println!("{e}");
                     std::process::exit(1);
                 }
             }

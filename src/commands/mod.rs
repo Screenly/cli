@@ -116,6 +116,8 @@ pub enum CommandError {
     UndefinedSecrets(String),
     #[error("App id is required. Either in manifest or with --app-id .")]
     MissingAppId,
+    #[error("Non empty App id is required for {0} command.")]
+    EmptyAppId(String),
     #[error("Edge App Revision {0} not found")]
     RevisionNotFound(String),
     #[error("Manifest file validation failed with error: {0}")]
@@ -270,9 +272,9 @@ pub struct EdgeAppManifest {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
     #[default]
-    #[strum(serialize = "String", to_string = "string")]
+    #[strum(serialize = "string")]
     String,
-    #[strum(serialize = "Secret", to_string = "secret")]
+    #[strum(serialize = "secret")]
     Secret,
 }
 

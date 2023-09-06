@@ -324,11 +324,14 @@ impl EdgeAppCommand {
 
         // override app_id if user passed it
         if let Some(id) = app_id {
+            if id.is_empty() {
+                return Err(CommandError::EmptyAppId("upload".to_string()));
+            }
             manifest.app_id = Some(id);
         }
         let actual_app_id = match manifest.app_id {
             Some(ref id) => id,
-            None => return Err(CommandError::MissingField),
+            None => return Err(CommandError::MissingAppId),
         };
 
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
