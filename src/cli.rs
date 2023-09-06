@@ -385,7 +385,7 @@ pub enum EdgeAppVersionCommands {
         #[arg(short, long)]
         app_id: Option<String>,
 
-        #[arg(long, action = "clap::ArgAction::SetTrue", conflicts_with = "revision")]
+        #[arg(long,  action = clap::ArgAction::SetTrue, conflicts_with = "revision")]
         latest: bool,
 
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
@@ -962,7 +962,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                 };
 
-                let revision = if latest {
+                let revision = if *latest {
                     match edge_app_command.get_latest_revision(&actual_app_id) {
                         Ok(rev) => rev,
                         Err(e) => {
