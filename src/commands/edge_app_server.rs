@@ -131,11 +131,38 @@ async fn generate_content(
 fn format_js(data: MockData, secrets: &HashMap<String, String>) -> String {
     format!(
         "var screenly = {{\n{metadata},\n{settings},\n{secrets},\n{cors_proxy}\n}};",
-        metadata = format_metadata(&data.metadata),
+        metadata = format_section("metadata", &hashmap_from_metadata(&data.metadata)),
         settings = format_section("settings", &data.settings),
         secrets = format_section("secrets", secrets),
         cors_proxy = "    cors_proxy_url: 'http://127.0.0.1:8080'"
     )
+}
+
+fn hashmap_from_metadata(metadata: &Metadata) -> HashMap<String, String> {
+    let mut result = HashMap::new();
+    result.insert(
+        "coordinates".to_string(),
+        format!(
+            "[\"{}\", \"{}\"]",
+            metadata.coordinates[0], metadata.coordinates[1]
+        ),
+    );
+    result.insert("hostname".to_string(), metadata.hostname.clone());
+    result.insert("location".to_string(), metadata.location.clone());
+    result.insert("screen_name".to_string(), metadata.screen_name.clone());
+    result.insert(
+        "tags".to_string(),
+        format!(
+            "[{}]",
+            metadata
+                .tags
+                .iter()
+                .map(|tag| format!("\"{}\"", tag))
+                .collect::<Vec<String>>()
+                .join(", ")
+        ),
+    );
+    result
 }
 
 fn format_section(name: &str, items: &HashMap<String, String>) -> String {
@@ -146,28 +173,6 @@ fn format_section(name: &str, items: &HashMap<String, String>) -> String {
         .join(",\n");
 
     format!("    {}: {{\n{}\n    }}", name, content)
-}
-
-fn format_metadata(metadata: &Metadata) -> String {
-    let mut result = vec![];
-    result.push(format!(
-        "\"coordinates\": [\"{}\", \"{}\"]",
-        metadata.coordinates[0], metadata.coordinates[1]
-    ));
-    result.push(format!("\"hostname\": \"{}\"", metadata.hostname));
-    result.push(format!("\"location\": \"{}\"", metadata.location));
-    result.push(format!("\"screen_name\": \"{}\"", metadata.screen_name));
-    result.push(format!(
-        "\"tags\": [{}]",
-        metadata
-            .tags
-            .iter()
-            .map(|tag| format!("\"{}\"", tag))
-            .collect::<Vec<String>>()
-            .join(", ")
-    ));
-
-    result.join(",\n        ")
 }
 
 #[cfg(test)]
@@ -219,7 +224,8 @@ settings:
 
         assert!(content.contains("screenly ="));
         assert!(content.contains("http://127.0.0.1:8080")); // Assuming this is expected from your server
-        assert!(content.contains("srly-t6kb0ta1jrd9o0w"));
+        assert!(content.contains("metadata: {")); // Make sure metadata is in its own section
+        assert!(content.contains("\"srly-t6kb0ta1jrd9o0w\"")); // Checking an example metadata value
         assert!(content.contains("key"));
     }
 
