@@ -515,7 +515,7 @@ fn get_actual_app_id(
 ) -> Result<String, CommandError> {
     match app_id {
         Some(id) if id.is_empty() => {
-            Err(CommandError::EmptyAppId("this".to_string()))
+            Err(CommandError::EmptyAppId)
         },
         Some(id) => Ok(id.clone()),
         None => {

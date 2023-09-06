@@ -325,7 +325,7 @@ impl EdgeAppCommand {
         // override app_id if user passed it
         if let Some(id) = app_id {
             if id.is_empty() {
-                return Err(CommandError::EmptyAppId("upload".to_string()));
+                return Err(CommandError::EmptyAppId);
             }
             manifest.app_id = Some(id);
         }
