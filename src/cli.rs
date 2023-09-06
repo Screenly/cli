@@ -1139,16 +1139,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         },
         EdgeAppCommands::Validate { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
-            match EdgeAppManifest::validate_file(&manifest_path) {
-                Ok(true) => {
+            match EdgeAppManifest::ensure_manifest_is_validated(&manifest_path) {
+                Ok(()) => {
                     println!("Manifest file is valid.");
                 },
-                Ok(false) => {
-                    println!("Manifest file is invalid.");
-                    std::process::exit(1);
-                },
                 Err(e) => {
-                    println!("Failed to validate manifest file: {}", e);
+                    println!("{}", e);
                     std::process::exit(1);
                 }
             }

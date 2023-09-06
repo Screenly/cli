@@ -11,6 +11,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use serde::{Deserialize, Deserializer, Serialize};
+use strum::IntoEnumIterator;
+use strum_macros::{EnumIter, EnumString, Display};
 
 use thiserror::Error;
 
@@ -116,6 +118,8 @@ pub enum CommandError {
     MissingAppId,
     #[error("Edge App Revision {0} not found")]
     RevisionNotFound(String),
+    #[error("Manifest file validation failed with error: {0}")]
+    InvalidManifest(String),
 }
 
 pub fn get(
@@ -263,33 +267,13 @@ pub struct EdgeAppManifest {
     pub settings: Vec<Setting>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Default)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
     #[default]
+    #[strum(serialize = "String", to_string = "string")]
     String,
+    #[strum(serialize = "Secret", to_string = "secret")]
     Secret,
-}
-
-impl std::fmt::Display for SettingType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let printable = match *self {
-            SettingType::String => "string",
-            SettingType::Secret => "secret",
-        };
-        write!(f, "{}", printable)
-    }
-}
-
-impl std::str::FromStr for SettingType {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "string" => Ok(SettingType::String),
-            "secret" => Ok(SettingType::Secret),
-            _ => Err(()),
-        }
-    }
 }
 
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
@@ -363,9 +347,18 @@ where
     D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
+
+    let valid_setting_types = SettingType::iter()
+        .map(|t| t.to_string())
+        .collect::<Vec<_>>()
+        .join("\n") + "\n";
+
     match SettingType::from_str(&s.to_lowercase()) {
         Ok(setting_type) => Ok(setting_type),
-        Err(_) => Err(serde::de::Error::custom("Field must be either String or Secret")),
+        Err(_) => Err(serde::de::Error::custom(format!(
+            "Field type should be one of the following:\n{}",
+            valid_setting_types
+        ))),
     }
 }
 
@@ -383,15 +376,14 @@ impl EdgeAppManifest {
         Ok(())
     }
 
-    pub fn validate_file(path: &Path) -> Result<bool, CommandError> {
+    pub fn ensure_manifest_is_validated(path: &Path) -> Result<(), CommandError> {
         match EdgeAppManifest::new(path) {
-            Ok(_) => Ok(true),
+            Ok(_) => Ok(()),
             Err(e) => {
-                println!("Error: Validation failed with error: {}", e);
-                Ok(false)
+                Err(CommandError::InvalidManifest(e.to_string()))
             }
         }
-    }    
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -933,16 +925,15 @@ settings:
     }
 
     #[test]
-    fn test_validate_file_when_file_non_existent_should_return_error() {
+    fn test_ensure_manifest_is_validated_when_file_non_existent_should_return_error() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
     
-        let result = EdgeAppManifest::validate_file(&file_path);
-        assert!(result.is_err(), "Expected an error for non-existent file");
+        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
     }
 
     #[test]
-    fn test_validate_file_when_file_valid_should_return_true() {
+    fn test_ensure_manifest_is_validated_when_file_valid_should_return_ok() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -958,11 +949,11 @@ settings:
 
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
-        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), true);
+        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_ok());
     }
 
     #[test]
-    fn test_validate_file_when_missing_field_should_return_false() {
+    fn test_ensure_manifest_is_validated_when_missing_field_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -976,12 +967,12 @@ settings:
 "#;
 
         write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);        
-        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
+        let file_path = dir.path().join(file_name);
+        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
     }
 
     #[test]
-    fn test_validate_file_when_empty_field_should_return_false() {
+    fn test_ensure_manifest_is_validated_when_empty_field_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -998,11 +989,11 @@ settings:
 
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
-        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
+        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
     }
 
     #[test]
-    fn test_validate_file_when_invaild_type_should_return_false() {
+    fn test_ensure_manifest_is_validated_when_invaild_type_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -1018,7 +1009,7 @@ settings:
 
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
-        assert_eq!(EdgeAppManifest::validate_file(&file_path).unwrap(), false);
+        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
     }
 
     #[test]
