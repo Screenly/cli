@@ -356,7 +356,7 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         app_id: Option<String>,
     },
-    /// Validates screenly.yml manifest file
+    /// Validates Edge App manifest file
     Validate {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]

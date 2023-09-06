@@ -7,6 +7,7 @@ use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::str::FromStr;
 use std::time::Duration;
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -269,6 +270,28 @@ pub enum SettingType {
     Secret,
 }
 
+impl std::fmt::Display for SettingType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let printable = match *self {
+            SettingType::String => "string",
+            SettingType::Secret => "secret",
+        };
+        write!(f, "{}", printable)
+    }
+}
+
+impl std::str::FromStr for SettingType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "string" => Ok(SettingType::String),
+            "secret" => Ok(SettingType::Secret),
+            _ => Err(()),
+        }
+    }
+}
+
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Setting {
@@ -328,16 +351,11 @@ where
     }
 }
 
-
 fn serialize_setting_type<S>(setting_type: &SettingType, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    let s = match setting_type {
-        SettingType::String => "string",
-        SettingType::Secret => "secret",
-    };
-    serializer.serialize_str(s)
+    serializer.serialize_str(&setting_type.to_string())
 }
 
 fn deserialize_setting_type<'de, D>(deserializer: D) -> Result<SettingType, D::Error>
@@ -345,10 +363,9 @@ where
     D: Deserializer<'de>,
 {
     let s: String = Deserialize::deserialize(deserializer)?;
-    match s.to_lowercase().as_str() {
-        "string" => Ok(SettingType::String),
-        "secret" => Ok(SettingType::Secret),
-        _ => Err(serde::de::Error::custom("Field 'type_' must be either String or Secret")),
+    match SettingType::from_str(&s.to_lowercase()) {
+        Ok(setting_type) => Ok(setting_type),
+        Err(_) => Err(serde::de::Error::custom("Field must be either String or Secret")),
     }
 }
 
@@ -367,7 +384,7 @@ impl EdgeAppManifest {
     }
 
     pub fn validate_file(path: &Path) -> Result<bool, CommandError> {
-        match serde_yaml::from_str::<EdgeAppManifest>(&fs::read_to_string(path)?) {
+        match EdgeAppManifest::new(path) {
             Ok(_) => Ok(true),
             Err(e) => {
                 println!("Error: Validation failed with error: {}", e);
