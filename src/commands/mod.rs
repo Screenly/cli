@@ -210,19 +210,43 @@ pub fn patch<T: Serialize + ?Sized>(
     }
 }
 
+fn string_field_is_none_or_empty(opt: &Option<String>) -> bool {
+    opt.as_ref().map_or(true, |s| s.is_empty())
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EdgeAppManifest {
     #[serde(deserialize_with = "deserialize_string_not_empty")]
     pub app_id: String,
-    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    #[serde(
+        deserialize_with = "deserialize_option_string_not_empty",
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
     pub user_version: Option<String>,
-    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    #[serde(
+        deserialize_with = "deserialize_option_string_not_empty",
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
     pub description: Option<String>,
-    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    #[serde(
+        deserialize_with = "deserialize_option_string_not_empty",
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
     pub icon: Option<String>,
-    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    #[serde(
+        deserialize_with = "deserialize_option_string_not_empty",
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
     pub author: Option<String>,
-    #[serde(deserialize_with = "deserialize_option_string_not_empty")]
+    #[serde(
+        deserialize_with = "deserialize_option_string_not_empty",
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
     pub homepage_url: Option<String>,
     #[serde(
         serialize_with = "serialize_settings",
@@ -302,8 +326,10 @@ where
     D: Deserializer<'de>,
 {
     let opt: Option<String> = Option::deserialize(deserializer)?;
+
     match opt {
-        Some(ref s) if s.is_empty() => Ok(None),
+        None => Ok(Some(String::from(""))),
+        Some(ref s) if s.is_empty() => Err(serde::de::Error::custom("String cannot be empty")), // Field exists but is empty
         _ => Ok(opt),
     }
 }
@@ -712,6 +738,134 @@ mod tests {
 
         let manifest = EdgeAppManifest {
             app_id: "test_app".to_string(),
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("test_author".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }]
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let contents = fs::read_to_string(file_path).unwrap();
+
+        let expected_contents = r#"---
+app_id: test_app
+user_version: test_version
+description: test_description
+icon: test_icon
+author: test_author
+homepage_url: test_url
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        assert_eq!(contents, expected_contents);
+    }
+
+    #[test]
+    fn test_save_to_file_should_skip_none_optional_fields() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.yaml");
+
+        let manifest = EdgeAppManifest {
+            app_id: "test_app".to_string(),
+            user_version: Some("test_version".to_string()),
+            description: None,
+            icon: Some("test_icon".to_string()),
+            author: None,
+            homepage_url: Some("test_url".to_string()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }]
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let contents = fs::read_to_string(file_path).unwrap();
+
+        let expected_contents = r#"---
+app_id: test_app
+user_version: test_version
+icon: test_icon
+homepage_url: test_url
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        assert_eq!(contents, expected_contents);
+    }
+
+    #[test]
+    fn test_save_to_file_should_skip_empty_optional_fields() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.yaml");
+
+        let manifest = EdgeAppManifest {
+            app_id: "test_app".to_string(),
+            user_version: Some("test_version".to_string()),
+            description: Some("".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }]
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let contents = fs::read_to_string(file_path).unwrap();
+
+        let expected_contents = r#"---
+app_id: test_app
+user_version: test_version
+icon: test_icon
+homepage_url: test_url
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        assert_eq!(contents, expected_contents);
+    }
+
+    #[test]
+    fn test_save_to_file_should_skip_default_optional_fields() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test.yaml");
+
+        let manifest = EdgeAppManifest {
+            app_id: "test_app".to_string(),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -728,11 +882,6 @@ mod tests {
 
         let expected_contents = r#"---
 app_id: test_app
-user_version: null
-description: null
-icon: null
-author: null
-homepage_url: null
 settings:
   username:
     type: string
