@@ -950,7 +950,7 @@ mod tests {
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
     use tempfile::tempdir;
 
-    fn create_edge_app_manifest(settings: Vec<Setting>) -> EdgeAppManifest {
+    fn create_edge_app_manifest_for_test(settings: Vec<Setting>) -> EdgeAppManifest {
         EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
             user_version: Some("1".to_string()),
@@ -1336,7 +1336,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.list_settings(&manifest.app_id.unwrap());
 
@@ -1453,7 +1453,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.set_setting(&manifest.app_id.unwrap(), "best_setting", "best_value");
         installation_mock.assert();
@@ -1527,7 +1527,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.set_setting(&manifest.app_id.unwrap(), "best_setting", "best_value1");
         installation_mock.assert();
@@ -1599,7 +1599,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.set_secret(
             &manifest.app_id.unwrap(),
@@ -1615,7 +1615,7 @@ mod tests {
 
     #[test]
     fn test_upload_should_send_correct_requests() {
-        let mut manifest = create_edge_app_manifest(
+        let mut manifest = create_edge_app_manifest_for_test(
             vec![
                 Setting {
                     type_: SettingType::String,
@@ -1976,7 +1976,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
 
@@ -1995,7 +1995,7 @@ mod tests {
         let file_path = dir.path().join("test_manifest.yml");
 
         // The EdgeAppManifest structure from your example
-        let manifest = create_edge_app_manifest(
+        let manifest = create_edge_app_manifest_for_test(
             vec![
                 Setting {
                     type_: SettingType::String,
@@ -2044,7 +2044,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest_with_varied_settings.yml");
 
-        let manifest = create_edge_app_manifest( 
+        let manifest = create_edge_app_manifest_for_test( 
             vec![
                 Setting {
                     type_: SettingType::Secret,
@@ -2078,7 +2078,7 @@ settings:
 
     #[test]
     fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
-        let manifest = create_edge_app_manifest(
+        let manifest = create_edge_app_manifest_for_test(
             vec![
                 Setting {
                     type_: SettingType::String,
@@ -2178,7 +2178,7 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.list_secrets(&manifest.app_id.unwrap());
 
@@ -2266,7 +2266,7 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
 
@@ -2349,7 +2349,7 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
 
@@ -2393,7 +2393,7 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let result = command.update_name(&manifest.app_id.unwrap(), "New name");
         update_name_mock.assert();
@@ -2425,7 +2425,7 @@ settings:
     #[test]
     fn test_clear_app_id_should_remove_app_id_from_manifest() {
         let mock_server = MockServer::start();
-        let manifest = create_edge_app_manifest(vec![]);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
 
         let temp_dir = tempdir().unwrap();
         let temp_path = temp_dir.path().join("screenly.yml");

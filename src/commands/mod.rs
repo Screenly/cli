@@ -779,7 +779,7 @@ mod tests {
     }
 
     #[test]
-    fn test_save_to_file_should_save_yaml_correctly() {
+    fn test_save_manifest_to_file_should_save_yaml_correctly() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
 
@@ -823,7 +823,7 @@ settings:
     }
 
     #[test]
-    fn test_save_to_file_should_skip_none_optional_fields() {
+    fn test_save_manifest_to_file_should_skip_none_optional_fields() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
 
@@ -865,7 +865,7 @@ settings:
     }
 
     #[test]
-    fn test_save_to_file_should_skip_empty_optional_fields() {
+    fn test_save_manifest_to_file_should_skip_empty_optional_fields() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
 
@@ -907,7 +907,7 @@ settings:
     }
 
     #[test]
-    fn test_save_to_file_should_skip_default_optional_fields() {
+    fn test_save_manifest_to_file_should_skip_default_optional_fields() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
 
