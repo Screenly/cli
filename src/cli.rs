@@ -356,6 +356,12 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         app_id: Option<String>,
     },
+    /// Validates Edge App manifest file
+    Validate {
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -511,13 +517,16 @@ fn get_actual_app_id(
     path: &Option<String>,
 ) -> Result<String, CommandError> {
     match app_id {
+        Some(id) if id.is_empty() => {
+            Err(CommandError::EmptyAppId)
+        },
         Some(id) => Ok(id.clone()),
         None => {
             let manifest =
                 EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
             match manifest.app_id {
-                Some(id) => Ok(id),
-                None => {
+                Some(id) if !id.is_empty() => Ok(id.clone()),
+                _ =>  {
                     error!("Edge app id is not specified. Please specify it using --app-id option or add it to the manifest.");
                     Err(CommandError::MissingAppId)
                 }
@@ -677,7 +686,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                     println!("{}", pretty_playlist_file);
                 }
                 Err(e) => {
-                    println!("Error occurred when getting playlist: {e:?}")
+                    eprintln!("Error occurred when getting playlist: {e:?}")
                 }
             }
         }
@@ -686,7 +695,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                 println!("Playlist deleted successfully.");
             }
             Err(e) => {
-                println!("Error occurred when deleting playlist: {e:?}")
+                eprintln!("Error occurred when deleting playlist: {e:?}")
             }
         },
         PlaylistCommands::Append {
@@ -732,7 +741,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                     println!("Playlist updated successfully.");
                 }
                 Err(e) => {
-                    println!("Error occurred when updating playlist: {e:?}")
+                    eprintln!("Error occurred when updating playlist: {e:?}")
                 }
             }
         }
@@ -907,7 +916,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     println!("Edge app successfully created.");
                 }
                 Err(e) => {
-                    println!("Failed to publish edge app manifest: {e}.");
+                    eprintln!("Failed to publish edge app manifest: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -928,7 +937,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     );
                 }
                 Err(e) => {
-                    println!("Failed to upload edge app: {e}.");
+                    eprintln!("Failed to upload edge app: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -987,7 +996,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app version successfully promoted.");
                     }
                     Err(e) => {
-                        println!("Failed to promote edge app version: {e}.");
+                        eprintln!("Failed to promote edge app version: {e}.");
                         std::process::exit(1);
                     }
                 }
@@ -1025,7 +1034,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app setting successfully set.");
                     }
                     Err(e) => {
-                        println!("Failed to set edge app setting: {}", e);
+                        eprintln!("Failed to set edge app setting: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -1063,7 +1072,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app secret successfully set.");
                     }
                     Err(e) => {
-                        println!("Failed to set edge app secret: {}", e);
+                        eprintln!("Failed to set edge app secret: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -1130,7 +1139,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     println!("Edge app successfully updated.");
                 }
                 Err(e) => {
-                    println!("Failed to update edge app: {e}.");
+                    eprintln!("Failed to update edge app: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -1146,7 +1155,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 None => env::current_dir().unwrap(),
             };
             if !path.join(MOCK_DATA_FILENAME).exists() {
-                println!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
+                eprintln!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
                 std::process::exit(1);
             }
 
@@ -1155,6 +1164,18 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         EdgeAppCommands::GenerateMockData { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
             edge_app_command.generate_mock_data(&manifest_path).unwrap();
+        },
+        EdgeAppCommands::Validate { path } => {
+            let manifest_path = transform_edge_app_path_to_manifest(path);
+            match EdgeAppManifest::ensure_manifest_is_validated(&manifest_path) {
+                Ok(()) => {
+                    println!("Manifest file is valid.");
+                },
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }

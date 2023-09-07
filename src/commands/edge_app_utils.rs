@@ -171,25 +171,26 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
+    use crate::commands::SettingType;
 
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            user_version: "1".to_string(),
-            description: "asdf".to_string(),
-            icon: "asdf".to_string(),
-            author: "asdf".to_string(),
-            homepage_url: "asdfasdf".to_string(),
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
             settings: vec![
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     default_value: "5".to_string(),
                     title: "display_time".to_string(),
                     optional: true,
                     help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
                 },
                 Setting {
-                    type_: "secret".to_string(),
+                    type_: SettingType::String,
                     default_value: "6".to_string(),
                     title: "google_maps_api_key".to_string(),
                     optional: true,
@@ -206,14 +207,14 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "string".to_string(),
+                type_: SettingType::String,
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
-                type_: "secret".to_string(),
+                type_: SettingType::String,
                 default_value: "6".to_string(),
                 title: "google_maps_api_key".to_string(),
                 optional: true,
@@ -237,21 +238,21 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "string".to_string(),
+                type_: SettingType::String,
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
-                type_: "secret".to_string(),
+                type_: SettingType::String,
                 default_value: "6".to_string(),
                 title: "google_maps_api_key".to_string(),
                 optional: true,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
             },
             Setting {
-                type_: "string".to_string(),
+                type_: SettingType::String,
                 default_value: "10".to_string(),
                 title: "new_setting".to_string(),
                 optional: false,
@@ -275,7 +276,7 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "string".to_string(),
+                type_: SettingType::String,
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
@@ -301,14 +302,14 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
-                type_: "string".to_string(),
+                type_: SettingType::String,
                 default_value: "5".to_string(),
                 title: "display_time".to_string(),
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
-                type_: "secret".to_string(),
+                type_: SettingType::String,
                 default_value: "7".to_string(), // Modified default value
                 title: "google_maps_api_key".to_string(),
                 optional: true,
