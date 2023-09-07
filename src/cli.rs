@@ -683,7 +683,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                     println!("{}", pretty_playlist_file);
                 }
                 Err(e) => {
-                    println!("Error occurred when getting playlist: {e:?}")
+                    eprintln!("Error occurred when getting playlist: {e:?}")
                 }
             }
         }
@@ -692,7 +692,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                 println!("Playlist deleted successfully.");
             }
             Err(e) => {
-                println!("Error occurred when deleting playlist: {e:?}")
+                eprintln!("Error occurred when deleting playlist: {e:?}")
             }
         },
         PlaylistCommands::Append {
@@ -738,7 +738,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                     println!("Playlist updated successfully.");
                 }
                 Err(e) => {
-                    println!("Error occurred when updating playlist: {e:?}")
+                    eprintln!("Error occurred when updating playlist: {e:?}")
                 }
             }
         }
@@ -913,7 +913,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     println!("Edge app successfully created.");
                 }
                 Err(e) => {
-                    println!("Failed to publish edge app manifest: {e}.");
+                    eprintln!("Failed to publish edge app manifest: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -934,7 +934,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     );
                 }
                 Err(e) => {
-                    println!("Failed to upload edge app: {e}.");
+                    eprintln!("Failed to upload edge app: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -971,7 +971,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app version successfully promoted.");
                     }
                     Err(e) => {
-                        println!("Failed to promote edge app version: {e}.");
+                        eprintln!("Failed to promote edge app version: {e}.");
                         std::process::exit(1);
                     }
                 }
@@ -1009,7 +1009,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app setting successfully set.");
                     }
                     Err(e) => {
-                        println!("Failed to set edge app setting: {}", e);
+                        eprintln!("Failed to set edge app setting: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -1047,7 +1047,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app secret successfully set.");
                     }
                     Err(e) => {
-                        println!("Failed to set edge app secret: {}", e);
+                        eprintln!("Failed to set edge app secret: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -1114,7 +1114,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     println!("Edge app successfully updated.");
                 }
                 Err(e) => {
-                    println!("Failed to update edge app: {e}.");
+                    eprintln!("Failed to update edge app: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -1130,7 +1130,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 None => env::current_dir().unwrap(),
             };
             if !path.join(MOCK_DATA_FILENAME).exists() {
-                println!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
+                eprintln!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
                 std::process::exit(1);
             }
 
@@ -1147,7 +1147,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     println!("Manifest file is valid.");
                 },
                 Err(e) => {
-                    println!("{e}");
+                    eprintln!("{e}");
                     std::process::exit(1);
                 }
             }
