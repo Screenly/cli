@@ -1,7 +1,7 @@
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{
-    CommandError, EdgeAppManifest, EdgeAppSecrets, SettingType, EdgeAppSettings, EdgeAppVersions, EdgeApps,
+    CommandError, EdgeAppManifest, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps,
     Setting,
 };
 use indicatif::ProgressBar;
@@ -81,7 +81,7 @@ impl EdgeAppCommand {
             app_id: Some(app_id),
             settings: vec![Setting {
                 title: "greeting".to_string(),
-                type_: SettingType::Secret,
+                type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
@@ -324,14 +324,11 @@ impl EdgeAppCommand {
 
         // override app_id if user passed it
         if let Some(id) = app_id {
-            if id.is_empty() {
-                return Err(CommandError::EmptyAppId);
-            }
             manifest.app_id = Some(id);
         }
         let actual_app_id = match manifest.app_id {
             Some(ref id) => id,
-            None => return Err(CommandError::MissingAppId),
+            None => return Err(CommandError::MissingField),
         };
 
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
@@ -506,7 +503,7 @@ impl EdgeAppCommand {
 
         let mut settings: HashMap<String, serde_yaml::Value> = HashMap::new();
         for setting in &manifest.settings {
-            if setting.type_ != SettingType::Secret {
+            if setting.type_ != "secret" {
                 settings.insert(
                     setting.title.clone(),
                     serde_yaml::Value::String(setting.default_value.clone()),
@@ -548,8 +545,15 @@ impl EdgeAppCommand {
         manifest: &EdgeAppManifest,
         file_tree: HashMap<String, String>,
     ) -> Result<u32, CommandError> {
-        let mut json = EdgeAppManifest::prepare_payload(manifest);
-        json.insert("file_tree", json!(file_tree));
+        let json = json!({
+           "app_id": manifest.app_id,
+           "user_version": manifest.user_version,
+           "description": manifest.description,
+           "icon": manifest.icon,
+           "author": manifest.author,
+           "homepage_url": manifest.homepage_url,
+           "file_tree": file_tree,
+        });
 
         let response = commands::post(
             &self.authentication,
@@ -950,18 +954,6 @@ mod tests {
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
     use tempfile::tempdir;
 
-    fn create_edge_app_manifest_for_test(settings: Vec<Setting>) -> EdgeAppManifest {
-        EdgeAppManifest {
-            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            user_version: Some("1".to_string()),
-            description: Some("asdf".to_string()),
-            icon: Some("asdf".to_string()),
-            author: Some("asdf".to_string()),
-            homepage_url: Some("asdfasdf".to_string()),
-            settings,
-        }
-    }
-
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {
         let tmp_dir = tempdir().unwrap();
@@ -999,7 +991,7 @@ mod tests {
             manifest.settings,
             vec![Setting {
                 title: "greeting".to_string(),
-                type_: SettingType::Secret,
+                type_: "string".to_string(),
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
@@ -1336,7 +1328,15 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.list_settings(&manifest.app_id.unwrap());
 
@@ -1453,7 +1453,15 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.set_setting(&manifest.app_id.unwrap(), "best_setting", "best_value");
         installation_mock.assert();
@@ -1527,7 +1535,15 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.set_setting(&manifest.app_id.unwrap(), "best_setting", "best_value1");
         installation_mock.assert();
@@ -1599,7 +1615,15 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.set_secret(
             &manifest.app_id.unwrap(),
@@ -1615,27 +1639,30 @@ mod tests {
 
     #[test]
     fn test_upload_should_send_correct_requests() {
-        let mut manifest = create_edge_app_manifest_for_test(
-            vec![
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
                 Setting {
-                    type_: SettingType::String,
+                    type_: "string".to_string(),
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: SettingType::String,
+                    type_: "string".to_string(),
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
-            ]
-        );
-
-        manifest.user_version = None;
-        manifest.author = None;
+            ],
+        };
 
         let mock_server = MockServer::start();
         // "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
@@ -1698,7 +1725,7 @@ mod tests {
                 .query_param("select", "type,default_value,optional,title,help_text")
                 .query_param("order", "title.asc");
             then.status(200).json_body(json!([{
-                "type": SettingType::String,
+                "type": "string".to_string(),
                 "default_value": "5".to_string(),
                 "title": "nsetting".to_string(),
                 "optional": true,
@@ -1713,16 +1740,7 @@ mod tests {
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .json_body(json!({
-                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "description": "asdf",
-                    "icon": "asdf",
-                    "homepage_url": "asdfasdf",
-                    "file_tree": {
-                        "index.html": "0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"
-                    }
-                }));
+                );
             then.status(201).json_body(json!([{"revision": 8}]));
         });
 
@@ -1976,7 +1994,15 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.promote_version(&manifest.app_id.unwrap(), 7, &"public".to_string());
 
@@ -1995,24 +2021,30 @@ mod tests {
         let file_path = dir.path().join("test_manifest.yml");
 
         // The EdgeAppManifest structure from your example
-        let manifest = create_edge_app_manifest_for_test(
-            vec![
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
                 Setting {
-                    type_: SettingType::String,
+                    type_: "string".to_string(),
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "yes".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: SettingType::String,
+                    type_: "string".to_string(),
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
-            ]
-        );
+            ],
+        };
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
         let config = Config::new("".to_owned());
@@ -2044,24 +2076,30 @@ settings:
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest_with_varied_settings.yml");
 
-        let manifest = create_edge_app_manifest_for_test( 
-            vec![
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
                 Setting {
-                    type_: SettingType::Secret,
+                    type_: "secret".to_string(),
                     title: "excluded_setting".to_string(),
                     optional: false,
                     default_value: "0".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: SettingType::String,
+                    type_: "string".to_string(),
                     title: "included_setting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
-            ]
-        );
+            ],
+        };
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
         let config = Config::new("".to_owned());
@@ -2078,24 +2116,30 @@ settings:
 
     #[test]
     fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
-        let manifest = create_edge_app_manifest_for_test(
-            vec![
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
                 Setting {
-                    type_: SettingType::String,
+                    type_: "string".to_string(),
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
                 Setting {
-                    type_: SettingType::String,
+                    type_: "string".to_string(),
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
                     help_text: "".to_string(),
                 },
-            ]
-        );
+            ],
+        };
 
         let mock_server = MockServer::start();
 
@@ -2178,7 +2222,15 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.list_secrets(&manifest.app_id.unwrap());
 
@@ -2266,7 +2318,15 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.promote_version(&manifest.app_id.unwrap(), 7, &"public".to_string());
 
@@ -2349,7 +2409,15 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.promote_version(&manifest.app_id.unwrap(), 7, &"public".to_string());
 
@@ -2393,7 +2461,15 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let result = command.update_name(&manifest.app_id.unwrap(), "New name");
         update_name_mock.assert();
@@ -2425,7 +2501,16 @@ settings:
     #[test]
     fn test_clear_app_id_should_remove_app_id_from_manifest() {
         let mock_server = MockServer::start();
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
 
         let temp_dir = tempdir().unwrap();
         let temp_path = temp_dir.path().join("screenly.yml");
@@ -2442,11 +2527,11 @@ settings:
 
         let expected_manifest = EdgeAppManifest {
             app_id: None,
-            user_version: Some("1".to_string()),
-            description: Some("asdf".to_string()),
-            icon: Some("asdf".to_string()),
-            author: Some("asdf".to_string()),
-            homepage_url: Some("asdfasdf".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
             settings: vec![],
         };
 
