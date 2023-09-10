@@ -1,9 +1,10 @@
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{
-    CommandError, EdgeAppManifest, EdgeAppSecrets, SettingType, EdgeAppSettings, EdgeAppVersions, EdgeApps,
-    Setting,
+    CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps
 };
+use crate::commands::edge_app_manifest::EdgeAppManifest;
+use crate::commands::edge_app_settings::{SettingType, Setting};
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;

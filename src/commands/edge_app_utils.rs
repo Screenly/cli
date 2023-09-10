@@ -1,5 +1,7 @@
 use crate::commands::edge_app::AssetSignature;
-use crate::commands::{CommandError, EdgeAppManifest, Setting};
+use crate::commands::CommandError;
+use crate::commands::edge_app_manifest::EdgeAppManifest;
+use crate::commands::edge_app_settings::Setting;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
 use std::collections::{HashMap, HashSet};

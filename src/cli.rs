@@ -13,7 +13,8 @@ use crate::authentication::{verify_and_store_token, Authentication, Authenticati
 use crate::commands;
 use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
 use crate::commands::playlist::PlaylistCommand;
-use crate::commands::{CommandError, EdgeAppManifest, Formatter, OutputType, PlaylistFile};
+use crate::commands::{CommandError, Formatter, OutputType, PlaylistFile};
+use crate::commands::edge_app_manifest::EdgeAppManifest;
 const DEFAULT_ASSET_DURATION: u32 = 15;
 
 #[derive(Error, Debug)]
