@@ -393,7 +393,7 @@ impl EdgeAppManifest {
         .collect()
     }
 
-    pub fn ensure_manifest_is_validated(path: &Path) -> Result<(), CommandError> {
+    pub fn ensure_manifest_is_valid(path: &Path) -> Result<(), CommandError> {
         match EdgeAppManifest::new(path) {
             Ok(_) => Ok(()),
             Err(e) => {
@@ -942,15 +942,15 @@ settings:
     }
 
     #[test]
-    fn test_ensure_manifest_is_validated_when_file_non_existent_should_return_error() {
+    fn test_ensure_manifest_is_valid_when_file_non_existent_should_return_error() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
     
-        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
+        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
     #[test]
-    fn test_ensure_manifest_is_validated_when_file_valid_should_return_ok() {
+    fn test_ensure_manifest_is_valid_when_file_valid_should_return_ok() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -966,11 +966,11 @@ settings:
 
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
-        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_ok());
+        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_ok());
     }
 
     #[test]
-    fn test_ensure_manifest_is_validated_when_missing_field_should_return_error() {
+    fn test_ensure_manifest_is_valid_when_missing_field_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -985,11 +985,11 @@ settings:
 
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);
-        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
+        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
     #[test]
-    fn test_ensure_manifest_is_validated_when_empty_field_should_return_error() {
+    fn test_ensure_manifest_is_valid_when_empty_field_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -1006,11 +1006,11 @@ settings:
 
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
-        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
+        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
     #[test]
-    fn test_ensure_manifest_is_validated_when_invaild_type_should_return_error() {
+    fn test_ensure_manifest_is_valid_when_invaild_type_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -1026,7 +1026,7 @@ settings:
 
         write_to_tempfile(&dir, file_name, content);
         let file_path = dir.path().join(file_name);        
-        assert!(EdgeAppManifest::ensure_manifest_is_validated(&file_path).is_err());
+        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
     #[test]

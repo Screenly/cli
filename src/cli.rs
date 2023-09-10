@@ -519,8 +519,11 @@ fn get_actual_app_id(
         },
         Some(id) => Ok(id.clone()),
         None => {
+            let manifest_path = transform_edge_app_path_to_manifest(path);
+            EdgeAppManifest::ensure_manifest_is_valid(manifest_path.as_path())?;
+
             let manifest =
-                EdgeAppManifest::new(transform_edge_app_path_to_manifest(path).as_path()).unwrap();
+                EdgeAppManifest::new(manifest_path.as_path()).unwrap();
             match manifest.app_id {
                 Some(id) if !id.is_empty() => Ok(id.clone()),
                 _ =>  {
@@ -1142,7 +1145,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         },
         EdgeAppCommands::Validate { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
-            match EdgeAppManifest::ensure_manifest_is_validated(&manifest_path) {
+            match EdgeAppManifest::ensure_manifest_is_valid(&manifest_path) {
                 Ok(()) => {
                     println!("Manifest file is valid.");
                 },

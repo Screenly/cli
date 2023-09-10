@@ -319,8 +319,8 @@ impl EdgeAppCommand {
     }
 
     pub fn upload(self, path: &Path, app_id: Option<String>) -> Result<u32, CommandError> {
-        let data = fs::read_to_string(path)?;
-        let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+        EdgeAppManifest::ensure_manifest_is_valid(path)?;
+        let mut manifest = EdgeAppManifest::new(path)?;
 
         // override app_id if user passed it
         if let Some(id) = app_id {
