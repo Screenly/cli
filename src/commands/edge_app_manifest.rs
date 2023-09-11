@@ -121,10 +121,30 @@ impl EdgeAppManifest {
         match EdgeAppManifest::new(path) {
             Ok(_) => Ok(()),
             Err(e) => {
-                Err(CommandError::InvalidManifest(e.to_string()))
+                Err(CommandError::InvalidManifest(beautify_error_message(&e.to_string())))
             }
         }
     }
+}
+
+fn beautify_error_message(error: &str) -> String {
+    let prefix = "parse error: ";
+    let field_str = "Field";
+    let suffix = " at line";
+
+    let mut stripped = error;
+
+    if let Some(s) = error.strip_prefix(prefix) {
+        stripped = s;
+    }
+
+    if stripped.contains(field_str) {
+        if let Some(end_index) = stripped.find(suffix) {
+            return stripped[0..end_index].to_string();
+        }
+    }
+
+    stripped.to_string()
 }
 
 #[cfg(test)]

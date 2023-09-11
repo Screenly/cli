@@ -82,7 +82,7 @@ where
     match SettingType::from_str(&s.to_lowercase()) {
         Ok(setting_type) => Ok(setting_type),
         Err(_) => Err(serde::de::Error::custom(format!(
-            "Field type should be one of the following:\n{}",
+            "Setting type should be one of the following:\n{}",
             valid_setting_types
         ))),
     }
