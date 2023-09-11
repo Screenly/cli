@@ -23,6 +23,23 @@ where
     }
 }
 
+pub fn deserialize_string_field<'de, D>(
+    field_name: &'static str, 
+    error_on_empty: bool,
+    deserializer: D,
+) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: String = String::deserialize(deserializer)?;
+
+    if s.trim().is_empty() && error_on_empty {
+        Err(serde::de::Error::custom(format!("Field \"{}\" cannot be empty", field_name)))
+    } else {
+        Ok(s)
+    }
+}
+
 pub fn string_field_is_none_or_empty(opt: &Option<String>) -> bool {
     opt.as_ref().map_or(true, |s| s.is_empty())
 }

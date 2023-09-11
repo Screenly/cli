@@ -1623,14 +1623,14 @@ mod tests {
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
                 Setting {
                     type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
             ]
         );
@@ -1742,7 +1742,7 @@ mod tests {
                     "default_value": "",
                     "title": "asetting",
                     "optional": false,
-                    "help_text": "",
+                    "help_text": "help text",
                 }));
             then.status(201).json_body(json!(
             [{
@@ -1751,7 +1751,7 @@ mod tests {
                 "default_value": "",
                 "title": "asetting",
                 "optional": false,
-                "help_text": "",
+                "help_text": "help text",
             }]));
         });
 
@@ -1770,7 +1770,7 @@ mod tests {
                     "default_value": "",
                     "title": "nsetting",
                     "optional": false,
-                    "help_text": "",
+                    "help_text": "help text",
                 }));
             then.status(200).json_body(json!(
             [{
@@ -1779,7 +1779,7 @@ mod tests {
                 "default_value": "",
                 "title": "nsetting",
                 "optional": false,
-                "help_text": "",
+                "help_text": "help text",
             }]));
         });
 
@@ -2003,14 +2003,14 @@ mod tests {
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "yes".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
                 Setting {
                     type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
             ]
         );
@@ -2052,14 +2052,14 @@ settings:
                     title: "excluded_setting".to_string(),
                     optional: false,
                     default_value: "0".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
                 Setting {
                     type_: SettingType::String,
                     title: "included_setting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
             ]
         );
@@ -2086,14 +2086,14 @@ settings:
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
                 Setting {
                     type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "help text".to_string(),
                 },
             ]
         );

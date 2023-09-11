@@ -58,35 +58,35 @@ fn deserialize_user_version<'de, D>(deserializer: D) -> Result<Option<String>, D
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_option_string_field("user_version", true, deserializer)
+    deserialize_option_string_field("user_version", false, deserializer)
 }
 
 fn deserialize_description<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_option_string_field("description", true, deserializer)
+    deserialize_option_string_field("description", false, deserializer)
 }
 
 fn deserialize_icon<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_option_string_field("icon", true, deserializer)
+    deserialize_option_string_field("icon", false, deserializer)
 }
 
 fn deserialize_author<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_option_string_field("author", true, deserializer)
+    deserialize_option_string_field("author", false, deserializer)
 }
 
 fn deserialize_homepage_url<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_option_string_field("homepage_url", true, deserializer)
+    deserialize_option_string_field("homepage_url", false, deserializer)
 }
 
 impl EdgeAppManifest {
@@ -129,19 +129,11 @@ impl EdgeAppManifest {
 
 fn beautify_error_message(error: &str) -> String {
     let prefix = "parse error: ";
-    let field_str = "Field";
-    let suffix = " at line";
 
     let mut stripped = error;
 
     if let Some(s) = error.strip_prefix(prefix) {
         stripped = s;
-    }
-
-    if stripped.contains(field_str) {
-        if let Some(end_index) = stripped.find(suffix) {
-            return stripped[0..end_index].to_string();
-        }
     }
 
     stripped.to_string()
@@ -370,19 +362,18 @@ settings:
     }
 
     #[test]
-    fn test_ensure_manifest_is_valid_when_empty_field_should_return_error() {
+    fn test_ensure_manifest_is_valid_when_required_empty_field_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
 app_id: test_app
-homepage_url: ''
 settings:
   username:
     type: string
     default_value: stranger
     title: username
     optional: true
-    help_text: An example of a setting that is used in index.html
+    help_text: ''
 "#;
 
         write_to_tempfile(&dir, file_name, content);

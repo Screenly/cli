@@ -6,6 +6,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, EnumString, Display};
 
+use crate::commands::serde_utils::deserialize_string_field;
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
     #[default]
@@ -29,6 +31,7 @@ pub struct Setting {
     #[serde(default)]
     pub title: String,
     pub optional: bool,
+    #[serde(deserialize_with = "deserialize_help_text")]
     pub help_text: String,
 }
 
@@ -86,4 +89,11 @@ where
             valid_setting_types
         ))),
     }
+}
+
+fn deserialize_help_text<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    deserialize_string_field("help_text", true, deserializer)
 }
