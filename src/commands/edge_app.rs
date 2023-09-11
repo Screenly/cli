@@ -339,7 +339,7 @@ impl EdgeAppCommand {
         let revision = self.get_latest_revision(actual_app_id).unwrap_or(0);
 
         let remote_files = self.get_version_asset_signatures(actual_app_id, revision)?;
-        let changed_files = detect_changed_files(&local_files, &remote_files)?;
+        let mut changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
         let remote_settings = serde_json::from_value::<Vec<Setting>>(commands::get(
@@ -373,7 +373,7 @@ impl EdgeAppCommand {
         let revision =
             self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
 
-        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &changed_files)?;
+        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &mut changed_files)?;
         debug!("Files uploaded");
 
         self.ensure_assets_processing_finished(actual_app_id, revision)?;
@@ -756,18 +756,29 @@ impl EdgeAppCommand {
         edge_app_dir: &Path,
         app_id: &str,
         revision: u32,
-        changed_files: &FileChanges,
+        changed_files: &mut FileChanges,
     ) -> Result<(), CommandError> {
         debug!("Changed files: {:#?}", changed_files);
 
-        if !changed_files.copies.is_empty() {
-            self.copy_edge_app_assets(app_id, revision, &changed_files.copies)?;
-        }
+        changed_files.copied = self.copy_edge_app_assets(
+            app_id,
+            revision,
+            changed_files
+                .get_local_signatures()
+                .iter()
+                .cloned()
+                .collect(),
+        )?;
 
         debug!("Uploading edge app assets");
+        let files_to_upload = changed_files.get_files_to_upload();
+        if files_to_upload.is_empty() {
+            debug!("No files to upload");
+            return Ok(());
+        }
 
-        let file_paths: Vec<PathBuf> = changed_files
-            .uploads
+        debug!("Uploading edge app files: {:#?}", files_to_upload);
+        let file_paths: Vec<PathBuf> = files_to_upload
             .iter()
             .map(|file| edge_app_dir.join(&file.path))
             .collect();
@@ -825,18 +836,23 @@ impl EdgeAppCommand {
         &self,
         app_id: &str,
         revision: u32,
-        asset_signatures: &[String],
-    ) -> Result<(), CommandError> {
+        mut asset_signatures: Vec<String>,
+    ) -> Result<Vec<String>, CommandError> {
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
+
+        asset_signatures.sort();
         let payload = json!({
             "app_id": app_id,
             "revision": revision,
             "signatures": asset_signatures,
         });
 
-        let _response = commands::post(&self.authentication, "v4/edge-apps/copy-assets", &payload)?;
-        Ok(())
+        let response = commands::post(&self.authentication, "v4/edge-apps/copy-assets", &payload)?;
+        let copied_assets = serde_json::from_value::<Vec<String>>(response)?;
+
+        debug!("Copied assets: {:?}", copied_assets);
+        Ok(copied_assets)
     }
 
     fn upload_edge_app_assets(
@@ -952,6 +968,7 @@ mod tests {
     use httpmock::MockServer;
 
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
+    use crate::commands::edge_app_utils::EdgeAppFile;
     use tempfile::tempdir;
 
     #[test]
@@ -1800,6 +1817,21 @@ mod tests {
             }]));
         });
 
+        let copy_assets_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/copy-assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                ).json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "revision": 8,
+                    "signatures": ["0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"]
+                }));
+            then.status(201).json_body(json!([]));
+        });
+
         let upload_assets_mock = mock_server.mock(|when, then| {
             when.method(POST).path("/v4/assets");
             then.status(201).body("");
@@ -1893,6 +1925,7 @@ mod tests {
         installation_mock.assert();
         installation_mock_create.assert();
         revision_mock.assert();
+        copy_assets_mock.assert();
 
         assert!(result.is_ok());
     }
@@ -2536,5 +2569,224 @@ settings:
         };
 
         assert_eq!(new_manifest, expected_manifest);
+    }
+
+    #[test]
+    fn test_changed_files_when_not_all_files_are_copied_should_upload_missed_ones() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
+                Setting {
+                    type_: "string".to_string(),
+                    title: "asetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+                Setting {
+                    type_: "string".to_string(),
+                    title: "nsetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+            ],
+        };
+
+        let mock_server = MockServer::start();
+
+        let copy_assets_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/copy-assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "revision": 7,
+                    "signatures": ["somesig", "somesig1", "somesig2"]
+                }));
+            then.status(201).json_body(json!(["somesig"]));
+        });
+
+        let upload_assets_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets")
+                .body_contains("test222");
+            then.status(201).body("");
+        });
+        let upload_assets_mock2 = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets")
+                .body_contains("test333");
+            then.status(201).body("");
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test").unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let screenly_path = temp_dir.path().join("screenly.yml");
+        let path = screenly_path.as_path();
+        let edge_app_dir = path.parent().ok_or(CommandError::MissingField).unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test111").unwrap();
+        let mut file1 = File::create(temp_dir.path().join("index1.html")).unwrap();
+        write!(file1, "test222").unwrap();
+        let mut file2 = File::create(temp_dir.path().join("index2.html")).unwrap();
+        write!(file2, "test333").unwrap();
+
+        let mut changed_files = FileChanges::new(
+            &vec![
+                EdgeAppFile {
+                    path: "index.html".to_owned(),
+                    signature: "somesig".to_owned(),
+                },
+                EdgeAppFile {
+                    path: "index1.html".to_owned(),
+                    signature: "somesig1".to_owned(),
+                },
+                EdgeAppFile {
+                    path: "index2.html".to_owned(),
+                    signature: "somesig2".to_owned(),
+                },
+            ],
+            &vec![],
+            true,
+        );
+
+        let result = command.upload_changed_files(
+            edge_app_dir,
+            "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+            7,
+            &mut changed_files,
+        );
+
+        // Twice for somesig1 and somesig2
+        upload_assets_mock.assert();
+        upload_assets_mock2.assert();
+        copy_assets_mock.assert();
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_changed_files_when_all_files_are_copied_should_not_upload() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
+                Setting {
+                    type_: "string".to_string(),
+                    title: "asetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+                Setting {
+                    type_: "string".to_string(),
+                    title: "nsetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+            ],
+        };
+
+        let mock_server = MockServer::start();
+
+        let copy_assets_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/copy-assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "revision": 7,
+                    "signatures": ["somesig", "somesig1", "somesig2"]
+                }));
+            then.status(201)
+                .json_body(json!(["somesig", "somesig1", "somesig2"]));
+        });
+
+        let upload_assets_mock = mock_server.mock(|when, then| {
+            when.method(POST).path("/v4/assets");
+            then.status(201).body("");
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test").unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let screenly_path = temp_dir.path().join("screenly.yml");
+        let path = screenly_path.as_path();
+        let edge_app_dir = path.parent().ok_or(CommandError::MissingField).unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test111").unwrap();
+        let mut file1 = File::create(temp_dir.path().join("index1.html")).unwrap();
+        write!(file1, "test222").unwrap();
+        let mut file2 = File::create(temp_dir.path().join("index2.html")).unwrap();
+        write!(file2, "test333").unwrap();
+
+        let mut changed_files = FileChanges::new(
+            &vec![
+                EdgeAppFile {
+                    path: "index.html".to_owned(),
+                    signature: "somesig".to_owned(),
+                },
+                EdgeAppFile {
+                    path: "index1.html".to_owned(),
+                    signature: "somesig1".to_owned(),
+                },
+                EdgeAppFile {
+                    path: "index2.html".to_owned(),
+                    signature: "somesig2".to_owned(),
+                },
+            ],
+            &vec![],
+            true,
+        );
+
+        let result = command.upload_changed_files(
+            edge_app_dir,
+            "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+            7,
+            &mut changed_files,
+        );
+
+        upload_assets_mock.assert_hits(0);
+        copy_assets_mock.assert();
+
+        assert!(result.is_ok());
     }
 }

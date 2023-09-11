@@ -12,7 +12,7 @@ use walkdir::{DirEntry, WalkDir};
 #[derive(Debug, Clone)]
 pub struct EdgeAppFile {
     pub(crate) path: String,
-    signature: String,
+    pub signature: String,
 }
 
 #[derive(Debug)]
@@ -23,23 +23,37 @@ pub struct SettingChanges {
 
 #[derive(Debug)]
 pub struct FileChanges {
-    pub uploads: Vec<EdgeAppFile>,
-    pub copies: Vec<String>,
+    pub local_files: Vec<EdgeAppFile>,
+    pub copied: Vec<String>,
     changes_detected: bool,
 }
 
 impl FileChanges {
-    pub fn new(uploads: &[EdgeAppFile], copies: &[String], changes_detected: bool) -> Self {
+    pub fn new(local_files: &[EdgeAppFile], copied: &[String], changes_detected: bool) -> Self {
         Self {
-            uploads: uploads.to_vec(),
-            copies: copies.to_vec(),
+            local_files: local_files.to_vec(),
+            copied: copied.to_vec(),
             changes_detected,
         }
     }
 
     pub fn has_changes(&self) -> bool {
         // not considering copies - copies are all assets from previous version anyhow
-        !self.uploads.is_empty() || self.changes_detected
+        self.changes_detected
+    }
+
+    pub fn get_local_signatures(&self) -> HashSet<String> {
+        self.local_files
+            .iter()
+            .map(|f| f.signature.clone())
+            .collect::<HashSet<String>>()
+    }
+
+    pub fn get_files_to_upload(&self) -> Vec<&EdgeAppFile> {
+        self.local_files
+            .iter()
+            .filter(|f| !self.copied.contains(&f.signature))
+            .collect::<Vec<&EdgeAppFile>>()
     }
 }
 
@@ -91,8 +105,7 @@ pub fn detect_changed_files(
     local_files: &[EdgeAppFile],
     remote_files: &[AssetSignature],
 ) -> Result<FileChanges, CommandError> {
-    let mut uploads: Vec<EdgeAppFile> = Vec::new();
-    let mut copies: Vec<String> = Vec::new();
+    let copied: Vec<String> = Vec::new();
     let mut signatures: HashSet<String> = HashSet::new();
 
     // Store remote file signatures in the hashmap
@@ -100,17 +113,12 @@ pub fn detect_changed_files(
         signatures.insert(remote_file.signature.clone());
     }
 
-    for local_file in local_files {
-        let local_signature = &local_file.signature;
+    let mut file_changes = FileChanges::new(local_files, &copied, false);
 
-        if signatures.contains(local_signature) {
-            copies.push(local_signature.clone());
-        } else {
-            uploads.push(local_file.clone());
-        }
-    }
+    let local_signatures = file_changes.get_local_signatures();
+    file_changes.changes_detected = local_signatures != signatures;
 
-    Ok(FileChanges::new(&uploads, &copies, !uploads.is_empty()))
+    Ok(file_changes)
 }
 
 pub fn detect_changed_settings(
@@ -373,8 +381,8 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert_eq!(changes.uploads.len(), 0);
-        assert_eq!(changes.copies.len(), 2);
+        assert_eq!(changes.local_files.len(), 2);
+        assert_eq!(changes.copied.len(), 0);
         assert!(!changes.changes_detected);
     }
 
@@ -407,8 +415,8 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert_eq!(changes.uploads.len(), 1);
-        assert_eq!(changes.copies.len(), 1);
+        assert_eq!(changes.local_files.len(), 2);
+        assert_eq!(changes.copied.len(), 0);
         assert!(changes.changes_detected);
     }
 
@@ -434,8 +442,36 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert_eq!(changes.uploads.len(), 2);
-        assert_eq!(changes.copies.len(), 0);
+        assert_eq!(changes.local_files.len(), 2);
+        assert_eq!(changes.copied.len(), 0);
+        assert!(changes.changes_detected);
+    }
+
+    #[test]
+    fn test_detect_changed_when_files_local_deleted_should_detect_changes() {
+        // Arrange
+        let local_files = vec![EdgeAppFile {
+            path: "file1".to_string(),
+            signature: "signature1".to_string(),
+        }];
+
+        let remote_files = vec![
+            AssetSignature {
+                signature: "signature1".to_string(),
+            },
+            AssetSignature {
+                signature: "signature2".to_string(),
+            },
+        ];
+
+        // Act
+        let result = detect_changed_files(&local_files, &remote_files);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.local_files.len(), 1);
+        assert_eq!(changes.copied.len(), 0);
         assert!(changes.changes_detected);
     }
 
