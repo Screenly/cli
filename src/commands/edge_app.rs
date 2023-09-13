@@ -393,7 +393,7 @@ impl EdgeAppCommand {
     pub fn promote_version(
         &self,
         app_id: &str,
-        revision: &u32,
+        revision: u32,
         channel: &String,
     ) -> Result<(), CommandError> {
         let secrets = self.get_undefined_secrets(app_id)?;
@@ -440,7 +440,7 @@ impl EdgeAppCommand {
         if channels.is_empty() {
             return Err(CommandError::MissingField);
         }
-        if &channels[0].channel != channel || &channels[0].app_revision != revision {
+        if &channels[0].channel != channel || channels[0].app_revision != revision {
             return Err(CommandError::MissingField);
         }
 
@@ -569,7 +569,7 @@ impl EdgeAppCommand {
         Err(CommandError::MissingField)
     }
 
-    fn get_latest_revision(&self, app_id: &str) -> Result<u32, CommandError> {
+    pub fn get_latest_revision(&self, app_id: &str) -> Result<u32, CommandError> {
         let response = commands::get(
             &self.authentication,
             &format!(
@@ -1979,7 +1979,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest_for_test(vec![]);
 
-        let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
+        let result = command.promote_version(&manifest.app_id.unwrap(), 7, &"public".to_string());
 
         get_version_mock.assert();
         installation_mock.assert();
@@ -2269,7 +2269,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest_for_test(vec![]);
 
-        let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
+        let result = command.promote_version(&manifest.app_id.unwrap(), 7, &"public".to_string());
 
         installation_mock.assert();
         installation_mock_create.assert();
@@ -2352,7 +2352,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_edge_app_manifest_for_test(vec![]);
 
-        let result = command.promote_version(&manifest.app_id.unwrap(), &7, &"public".to_string());
+        let result = command.promote_version(&manifest.app_id.unwrap(), 7, &"public".to_string());
 
         get_version_mock.assert();
         installation_mock.assert();

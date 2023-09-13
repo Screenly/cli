@@ -12,7 +12,6 @@ use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::StatusCode;
 
 pub use edge_app_settings::SettingType;
-pub use edge_app_settings::Setting;
 
 pub mod asset;
 pub mod edge_app;
@@ -613,6 +612,7 @@ mod tests {
             "published": true
         }]"#;
         let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
+
         let output = edge_app_versions.format(OutputType::HumanReadable);
         assert_eq!(
             output,
@@ -627,4 +627,3 @@ mod tests {
         );
     }
 }
-
