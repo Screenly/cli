@@ -24,15 +24,13 @@ pub struct SettingChanges {
 #[derive(Debug)]
 pub struct FileChanges {
     pub local_files: Vec<EdgeAppFile>,
-    pub copied: Vec<String>,
     changes_detected: bool,
 }
 
 impl FileChanges {
-    pub fn new(local_files: &[EdgeAppFile], copied: &[String], changes_detected: bool) -> Self {
+    pub fn new(local_files: &[EdgeAppFile], changes_detected: bool) -> Self {
         Self {
             local_files: local_files.to_vec(),
-            copied: copied.to_vec(),
             changes_detected,
         }
     }
@@ -49,10 +47,10 @@ impl FileChanges {
             .collect::<HashSet<String>>()
     }
 
-    pub fn get_files_to_upload(&self) -> Vec<&EdgeAppFile> {
+    pub fn get_files_to_upload(&self, exclude_signatures: Vec<String>) -> Vec<&EdgeAppFile> {
         self.local_files
             .iter()
-            .filter(|f| !self.copied.contains(&f.signature))
+            .filter(|f| !exclude_signatures.contains(&f.signature))
             .collect::<Vec<&EdgeAppFile>>()
     }
 }
@@ -105,7 +103,6 @@ pub fn detect_changed_files(
     local_files: &[EdgeAppFile],
     remote_files: &[AssetSignature],
 ) -> Result<FileChanges, CommandError> {
-    let copied: Vec<String> = Vec::new();
     let mut signatures: HashSet<String> = HashSet::new();
 
     // Store remote file signatures in the hashmap
@@ -113,7 +110,7 @@ pub fn detect_changed_files(
         signatures.insert(remote_file.signature.clone());
     }
 
-    let mut file_changes = FileChanges::new(local_files, &copied, false);
+    let mut file_changes = FileChanges::new(local_files, false);
 
     let local_signatures = file_changes.get_local_signatures();
     file_changes.changes_detected = local_signatures != signatures;
@@ -382,7 +379,6 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.local_files.len(), 2);
-        assert_eq!(changes.copied.len(), 0);
         assert!(!changes.changes_detected);
     }
 
@@ -416,7 +412,6 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.local_files.len(), 2);
-        assert_eq!(changes.copied.len(), 0);
         assert!(changes.changes_detected);
     }
 
@@ -443,7 +438,6 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.local_files.len(), 2);
-        assert_eq!(changes.copied.len(), 0);
         assert!(changes.changes_detected);
     }
 
@@ -471,7 +465,6 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.local_files.len(), 1);
-        assert_eq!(changes.copied.len(), 0);
         assert!(changes.changes_detected);
     }
 

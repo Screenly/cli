@@ -339,7 +339,7 @@ impl EdgeAppCommand {
         let revision = self.get_latest_revision(actual_app_id).unwrap_or(0);
 
         let remote_files = self.get_version_asset_signatures(actual_app_id, revision)?;
-        let mut changed_files = detect_changed_files(&local_files, &remote_files)?;
+        let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
         let remote_settings = serde_json::from_value::<Vec<Setting>>(commands::get(
@@ -373,7 +373,7 @@ impl EdgeAppCommand {
         let revision =
             self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
 
-        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &mut changed_files)?;
+        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &changed_files)?;
         debug!("Files uploaded");
 
         self.ensure_assets_processing_finished(actual_app_id, revision)?;
@@ -756,11 +756,11 @@ impl EdgeAppCommand {
         edge_app_dir: &Path,
         app_id: &str,
         revision: u32,
-        changed_files: &mut FileChanges,
+        changed_files: &FileChanges,
     ) -> Result<(), CommandError> {
         debug!("Changed files: {:#?}", changed_files);
 
-        changed_files.copied = self.copy_edge_app_assets(
+        let copied_signatures = self.copy_edge_app_assets(
             app_id,
             revision,
             changed_files
@@ -771,7 +771,7 @@ impl EdgeAppCommand {
         )?;
 
         debug!("Uploading edge app assets");
-        let files_to_upload = changed_files.get_files_to_upload();
+        let files_to_upload = changed_files.get_files_to_upload(copied_signatures);
         if files_to_upload.is_empty() {
             debug!("No files to upload");
             return Ok(());
@@ -2666,7 +2666,6 @@ settings:
                     signature: "somesig2".to_owned(),
                 },
             ],
-            &vec![],
             true,
         );
 
@@ -2773,7 +2772,6 @@ settings:
                     signature: "somesig2".to_owned(),
                 },
             ],
-            &vec![],
             true,
         );
 
