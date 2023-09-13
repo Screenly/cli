@@ -119,6 +119,8 @@ pub enum CommandError {
     RevisionNotFound(String),
     #[error("Manifest file validation failed with error: {0}")]
     InvalidManifest(String),
+    #[error("Edge App Manifest (screenly.yml) doesn't exist under provided path: {0}. Enter a valid command line --path parameter or invoke command in a directory containing Edge App Manifest")]
+    MisingManifest(String),
 }
 
 pub fn get(

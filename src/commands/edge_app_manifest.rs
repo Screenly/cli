@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use std::fs;
 use std::fs::File;
+use std::io::ErrorKind;
 use std::io::Write;
 use std::path::Path;
 
@@ -17,7 +18,11 @@ use crate::commands::serde_utils::{
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EdgeAppManifest {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        deserialize_with = "deserialize_app_id",
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
     pub app_id: Option<String>,
     #[serde(
         deserialize_with = "deserialize_user_version",
@@ -57,6 +62,17 @@ pub struct EdgeAppManifest {
     pub settings: Vec<Setting>,
 }
 
+fn deserialize_app_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let maybe_app_id = deserialize_option_string_field("app_id", true, deserializer);
+
+    maybe_app_id.map_err(|_e| {
+        serde::de::Error::custom("Enter a valid ULID `app_id` parameter either in the maniphest file or as a command line parameter (e.g. `--app_id XXXXXXXXXXXXXXXX`). Field \"app_id\" cannot be empty in the maniphest file (screenly.yml)")
+    })
+}
+
 fn deserialize_user_version<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
@@ -93,10 +109,21 @@ where
 }
 
 impl EdgeAppManifest {
-    pub fn new(path: &Path) -> Result<Self, CommandError> {
-        let data = fs::read_to_string(path)?;
-        let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
-        Ok(manifest)
+    pub fn new(path: &Path) -> Result<EdgeAppManifest, CommandError> {
+        match fs::read_to_string(path) {
+            Ok(data) => {
+                let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+                Ok(manifest)
+            }
+            Err(e) => {
+                if e.kind() == ErrorKind::NotFound {
+                    if let Some(2) = e.raw_os_error() {
+                        return Err(CommandError::MisingManifest(format!("{}", path.display())));
+                    }
+                }
+                Err(CommandError::InvalidManifest(e.to_string()))
+            }
+        }
     }
 
     pub fn save_to_file(manifest: &EdgeAppManifest, path: &Path) -> Result<(), CommandError> {
@@ -493,6 +520,26 @@ settings:
         let content = r#"---
 app_id: test_app
 asdqweuser_version: test version
+settings:
+  username:
+    type: bool
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);
+        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
+    }
+
+    #[test]
+    fn test_ensure_manifest_is_valid_when_empty_required_field_should_return_error() {
+        let dir = tempdir().unwrap();
+        let file_name = "screenly.yml";
+        let content = r#"---
+app_id: ''
 settings:
   username:
     type: bool
