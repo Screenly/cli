@@ -23,6 +23,21 @@ where
     }
 }
 
+pub fn serialize_non_empty_string_field<S>(
+    field_name: &'static str,
+    value: &String,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if value.trim().is_empty() {
+        Err(serde::ser::Error::custom(format!("Field \"{}\" cannot be empty", field_name)))
+    } else {
+        serializer.serialize_str(value)
+    }
+}
+
 pub fn deserialize_string_field<'de, D>(
     field_name: &'static str, 
     error_on_empty: bool,

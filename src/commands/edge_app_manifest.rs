@@ -13,6 +13,7 @@ use crate::commands::edge_app_settings::{Setting, serialize_settings, deserializ
 use crate::commands::serde_utils::{deserialize_option_string_field, string_field_is_none_or_empty};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EdgeAppManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub app_id: Option<String>,
@@ -149,6 +150,16 @@ mod tests {
         let file_path = dir.path().join(file_name);
         std::fs::write(&file_path, content).unwrap();
         file_path
+    }
+
+    fn serialize_deserialize_cycle(manifest: EdgeAppManifest) -> Result<EdgeAppManifest, CommandError> {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("screenly.yml");
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path)?;
+        let new_manifest = EdgeAppManifest::new(&file_path)?;
+
+        Ok(new_manifest)
     }
 
     #[test]
@@ -315,6 +326,72 @@ settings:
     }
 
     #[test]
+    fn test_save_manifest_to_file_should_fail_on_empty_help_text_in_setting() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("screenly.yml");
+
+        let manifest = EdgeAppManifest {
+            app_id: Some("test_app".to_string()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "".to_string(),
+            }],
+            ..Default::default()
+        };
+
+        assert!(EdgeAppManifest::save_to_file(&manifest, &file_path).is_err());
+    }
+
+    #[test]
+    fn test_serialize_deserialize_cycle_should_pass_on_valid_struct() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("test_app".to_string()),
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("test_author".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }]
+        };
+
+        let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
+
+        assert_eq!(manifest, deserialized_manifest);
+    }
+
+    #[test]
+    fn test_serialize_deserialize_cycle_should_pass_on_valid_struct_missing_optional_fields() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("test_app".to_string()),
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: None,
+            author: Some("test_author".to_string()),
+            homepage_url: None,
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: "stranger".to_string(),
+                optional: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }]
+        };
+
+        let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
+
+        assert_eq!(manifest, deserialized_manifest);
+    }
+
+    #[test]
     fn test_ensure_manifest_is_valid_when_file_non_existent_should_return_error() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
@@ -387,6 +464,27 @@ settings:
         let file_name = "screenly.yml";
         let content = r#"---
 app_id: test_app
+settings:
+  username:
+    type: bool
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);        
+        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
+    }
+
+    #[test]
+    fn test_ensure_manifest_is_valid_when_invalid_field_should_return_error() {
+        let dir = tempdir().unwrap();
+        let file_name = "screenly.yml";
+        let content = r#"---
+app_id: test_app
+asdqweuser_version: test version
 settings:
   username:
     type: bool

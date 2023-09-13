@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, EnumString, Display};
 
-use crate::commands::serde_utils::deserialize_string_field;
+use crate::commands::serde_utils::{serialize_non_empty_string_field, deserialize_string_field};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
@@ -19,6 +19,7 @@ pub enum SettingType {
 
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Setting {
     #[serde(
         rename = "type", 
@@ -31,7 +32,10 @@ pub struct Setting {
     #[serde(default)]
     pub title: String,
     pub optional: bool,
-    #[serde(deserialize_with = "deserialize_help_text")]
+    #[serde( 
+        serialize_with = "serialize_help_text",
+        deserialize_with = "deserialize_help_text"
+    )]
     pub help_text: String,
 }
 
@@ -89,6 +93,13 @@ where
             valid_setting_types
         ))),
     }
+}
+
+fn serialize_help_text<S>(value: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serialize_non_empty_string_field("help_text", value, serializer)
 }
 
 fn deserialize_help_text<'de, D>(deserializer: D) -> Result<String, D::Error>
