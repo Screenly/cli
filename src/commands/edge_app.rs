@@ -79,6 +79,7 @@ impl EdgeAppCommand {
 
         let manifest = EdgeAppManifest {
             app_id: Some(app_id),
+            entrypoint: Some("index.html".to_string()),
             settings: vec![Setting {
                 title: "greeting".to_string(),
                 type_: "string".to_string(),
@@ -1001,6 +1002,7 @@ mod tests {
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }]
         );
+        assert_eq!(manifest.entrypoint, Some("index.html".to_string()));
 
         let data_index_html = fs::read_to_string(tmp_dir.path().join("index.html")).unwrap();
         assert_eq!(data_index_html, include_str!("../../data/index.html"));
