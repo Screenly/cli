@@ -55,7 +55,7 @@ impl PlaylistCommand {
         let predicate = self.get_playlist_field(uuid, "predicate")?;
         let response = commands::get(
             &self.authentication,
-            &format!("v4/playlist_items?select=asset_id,duration&playlist_id=eq.{uuid}&order=position.asc"),
+            &format!("v4/playlist-items?select=asset_id,duration&playlist_id=eq.{uuid}&order=position.asc"),
         )?;
 
         PlaylistFile::new(predicate, uuid.to_string(), response)
@@ -74,7 +74,7 @@ impl PlaylistCommand {
         commands::delete(
             &self.authentication,
             &format!(
-                "v4/playlist_items?playlist_id=eq.{id}",
+                "v4/playlist-items?playlist_id=eq.{id}",
                 id = playlist.playlist_id
             ),
         )?;
@@ -94,7 +94,7 @@ impl PlaylistCommand {
 
         Ok(PlaylistItems::new(commands::post(
             &self.authentication,
-            "v4/playlist_items",
+            "v4/playlist-items",
             &json!(new_items),
         )?))
     }
@@ -113,7 +113,7 @@ impl PlaylistCommand {
         // selecting duration and playlist_id just so that we can convert it to PlaylistItem
         let response = commands::get(
             &self.authentication,
-            &format!("v4/playlist_items?select=position,asset_id,duration&playlist_id=eq.{playlist_uuid}&order=position.desc&limit=1"),
+            &format!("v4/playlist-items?select=position,asset_id,duration&playlist_id=eq.{playlist_uuid}&order=position.desc&limit=1"),
         )?;
 
         let playlist_items = serde_json::from_value::<Vec<PlaylistItem>>(response)?;
@@ -130,7 +130,7 @@ impl PlaylistCommand {
 
         Ok(PlaylistItems::new(commands::post(
             &self.authentication,
-            "v4/playlist_items",
+            "v4/playlist-items",
             &payload,
         )?))
     }
@@ -254,7 +254,7 @@ mod tests {
 
         let get_playlist_items_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .header("Authorization", "Token token");
             then.status(200).json_body(playlist_items_response);
         });
@@ -342,7 +342,7 @@ mod tests {
         // then delete request to delete old playlist items
         let delete_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .query_param("playlist_id", "eq.test-playlist-id")
                 .header("Authorization", "Token token");
             then.status(200).json_body(json!({}));
@@ -351,7 +351,7 @@ mod tests {
         // then post request to create new playlist items
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .header("Authorization", "Token token")
                 .json_body(items_request);
             then.status(201).json_body(json!({}));
@@ -408,7 +408,7 @@ mod tests {
         // request to get the highest position
         let get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .query_param("playlist_id", "eq.test-playlist-id")
                 .query_param("select", "position,asset_id,duration")
                 .query_param("order", "position.desc")
@@ -421,7 +421,7 @@ mod tests {
         // then post request to create new playlist items
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .header("Authorization", "Token token")
                 .json_body(items_request);
             then.status(201).json_body(json!({}));
@@ -488,7 +488,7 @@ mod tests {
         let mock_server = MockServer::start();
         let get_items_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .header("Authorization", "Token token");
             then.status(200).json_body(playlist_items_response);
         });
@@ -504,7 +504,7 @@ mod tests {
         // then delete request to delete old playlist items
         let delete_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .query_param("playlist_id", "eq.test-playlist-id")
                 .header("Authorization", "Token token");
             then.status(200).json_body(json!({}));
@@ -513,7 +513,7 @@ mod tests {
         // then post request to create new playlist items
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/playlist_items")
+                .path("/v4/playlist-items")
                 .header("Authorization", "Token token")
                 .json_body(items_request);
             then.status(201).json_body(json!({}));
