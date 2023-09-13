@@ -4,9 +4,9 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::IntoEnumIterator;
-use strum_macros::{EnumIter, EnumString, Display};
+use strum_macros::{Display, EnumIter, EnumString};
 
-use crate::commands::serde_utils::{serialize_non_empty_string_field, deserialize_string_field};
+use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
@@ -22,7 +22,7 @@ pub enum SettingType {
 #[serde(deny_unknown_fields)]
 pub struct Setting {
     #[serde(
-        rename = "type", 
+        rename = "type",
         serialize_with = "serialize_setting_type",
         deserialize_with = "deserialize_setting_type"
     )]
@@ -32,7 +32,7 @@ pub struct Setting {
     #[serde(default)]
     pub title: String,
     pub optional: bool,
-    #[serde( 
+    #[serde(
         serialize_with = "serialize_help_text",
         deserialize_with = "deserialize_help_text"
     )]
@@ -84,7 +84,8 @@ where
     let valid_setting_types = SettingType::iter()
         .map(|t| t.to_string())
         .collect::<Vec<_>>()
-        .join("\n") + "\n";
+        .join("\n")
+        + "\n";
 
     match SettingType::from_str(&s.to_lowercase()) {
         Ok(setting_type) => Ok(setting_type),
@@ -95,7 +96,7 @@ where
     }
 }
 
-fn serialize_help_text<S>(value: &String, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_help_text<S>(value: &str, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {

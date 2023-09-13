@@ -9,8 +9,10 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::commands::edge_app_settings::{Setting, serialize_settings, deserialize_settings};
-use crate::commands::serde_utils::{deserialize_option_string_field, string_field_is_none_or_empty};
+use crate::commands::edge_app_settings::{deserialize_settings, serialize_settings, Setting};
+use crate::commands::serde_utils::{
+    deserialize_option_string_field, string_field_is_none_or_empty,
+};
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -121,9 +123,9 @@ impl EdgeAppManifest {
     pub fn ensure_manifest_is_valid(path: &Path) -> Result<(), CommandError> {
         match EdgeAppManifest::new(path) {
             Ok(_) => Ok(()),
-            Err(e) => {
-                Err(CommandError::InvalidManifest(beautify_error_message(&e.to_string())))
-            }
+            Err(e) => Err(CommandError::InvalidManifest(beautify_error_message(
+                &e.to_string(),
+            ))),
         }
     }
 }
@@ -143,16 +145,22 @@ fn beautify_error_message(error: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use crate::commands::edge_app_settings::SettingType;
+    use tempfile::tempdir;
 
-    fn write_to_tempfile(dir: &tempfile::TempDir, file_name: &str, content: &str) -> std::path::PathBuf {
+    fn write_to_tempfile(
+        dir: &tempfile::TempDir,
+        file_name: &str,
+        content: &str,
+    ) -> std::path::PathBuf {
         let file_path = dir.path().join(file_name);
         std::fs::write(&file_path, content).unwrap();
         file_path
     }
 
-    fn serialize_deserialize_cycle(manifest: EdgeAppManifest) -> Result<EdgeAppManifest, CommandError> {
+    fn serialize_deserialize_cycle(
+        manifest: EdgeAppManifest,
+    ) -> Result<EdgeAppManifest, CommandError> {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
 
@@ -180,7 +188,7 @@ mod tests {
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
-            }]
+            }],
         };
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
@@ -224,7 +232,7 @@ settings:
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
-            }]
+            }],
         };
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
@@ -266,7 +274,7 @@ settings:
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
-            }]
+            }],
         };
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
@@ -360,7 +368,7 @@ settings:
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
-            }]
+            }],
         };
 
         let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
@@ -383,7 +391,7 @@ settings:
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
-            }]
+            }],
         };
 
         let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
@@ -395,7 +403,7 @@ settings:
     fn test_ensure_manifest_is_valid_when_file_non_existent_should_return_error() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
-    
+
         assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
@@ -415,7 +423,7 @@ settings:
 "#;
 
         write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);        
+        let file_path = dir.path().join(file_name);
         assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_ok());
     }
 
@@ -454,7 +462,7 @@ settings:
 "#;
 
         write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);        
+        let file_path = dir.path().join(file_name);
         assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
@@ -474,7 +482,7 @@ settings:
 "#;
 
         write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);        
+        let file_path = dir.path().join(file_name);
         assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
@@ -495,7 +503,7 @@ settings:
 "#;
 
         write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);        
+        let file_path = dir.path().join(file_name);
         assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
     }
 
@@ -514,7 +522,7 @@ settings:
                 default_value: "stranger".to_string(),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
-            }]
+            }],
         };
 
         let result = EdgeAppManifest::prepare_payload(&manifest);

@@ -1,10 +1,8 @@
 use crate::authentication::Authentication;
 use crate::commands;
-use crate::commands::{
-    CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps
-};
 use crate::commands::edge_app_manifest::EdgeAppManifest;
-use crate::commands::edge_app_settings::{SettingType, Setting};
+use crate::commands::edge_app_settings::{Setting, SettingType};
+use crate::commands::{CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps};
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
@@ -1616,24 +1614,22 @@ mod tests {
 
     #[test]
     fn test_upload_should_send_correct_requests() {
-        let mut manifest = create_edge_app_manifest_for_test(
-            vec![
-                Setting {
-                    type_: SettingType::String,
-                    title: "asetting".to_string(),
-                    optional: false,
-                    default_value: "".to_string(),
-                    help_text: "help text".to_string(),
-                },
-                Setting {
-                    type_: SettingType::String,
-                    title: "nsetting".to_string(),
-                    optional: false,
-                    default_value: "".to_string(),
-                    help_text: "help text".to_string(),
-                },
-            ]
-        );
+        let mut manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::String,
+                title: "asetting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "nsetting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+        ]);
 
         manifest.user_version = None;
         manifest.author = None;
@@ -1996,24 +1992,22 @@ mod tests {
         let file_path = dir.path().join("test_manifest.yml");
 
         // The EdgeAppManifest structure from your example
-        let manifest = create_edge_app_manifest_for_test(
-            vec![
-                Setting {
-                    type_: SettingType::String,
-                    title: "asetting".to_string(),
-                    optional: false,
-                    default_value: "yes".to_string(),
-                    help_text: "help text".to_string(),
-                },
-                Setting {
-                    type_: SettingType::String,
-                    title: "nsetting".to_string(),
-                    optional: false,
-                    default_value: "".to_string(),
-                    help_text: "help text".to_string(),
-                },
-            ]
-        );
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::String,
+                title: "asetting".to_string(),
+                optional: false,
+                default_value: "yes".to_string(),
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "nsetting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+        ]);
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
         let config = Config::new("".to_owned());
@@ -2045,24 +2039,22 @@ settings:
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest_with_varied_settings.yml");
 
-        let manifest = create_edge_app_manifest_for_test( 
-            vec![
-                Setting {
-                    type_: SettingType::Secret,
-                    title: "excluded_setting".to_string(),
-                    optional: false,
-                    default_value: "0".to_string(),
-                    help_text: "help text".to_string(),
-                },
-                Setting {
-                    type_: SettingType::String,
-                    title: "included_setting".to_string(),
-                    optional: false,
-                    default_value: "".to_string(),
-                    help_text: "help text".to_string(),
-                },
-            ]
-        );
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::Secret,
+                title: "excluded_setting".to_string(),
+                optional: false,
+                default_value: "0".to_string(),
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "included_setting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+        ]);
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
         let config = Config::new("".to_owned());
@@ -2079,24 +2071,22 @@ settings:
 
     #[test]
     fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
-        let manifest = create_edge_app_manifest_for_test(
-            vec![
-                Setting {
-                    type_: SettingType::String,
-                    title: "asetting".to_string(),
-                    optional: false,
-                    default_value: "".to_string(),
-                    help_text: "help text".to_string(),
-                },
-                Setting {
-                    type_: SettingType::String,
-                    title: "nsetting".to_string(),
-                    optional: false,
-                    default_value: "".to_string(),
-                    help_text: "help text".to_string(),
-                },
-            ]
-        );
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::String,
+                title: "asetting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "nsetting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+        ]);
 
         let mock_server = MockServer::start();
 

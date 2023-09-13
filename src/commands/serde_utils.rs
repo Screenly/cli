@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer};
 
 pub fn deserialize_option_string_field<'de, D>(
-    field_name: &'static str, 
+    field_name: &'static str,
     error_on_empty: bool,
     deserializer: D,
 ) -> Result<Option<String>, D::Error>
@@ -14,7 +14,10 @@ where
         None => Ok(None),
         Some(ref s) if s.trim().is_empty() => {
             if error_on_empty {
-                Err(serde::de::Error::custom(format!("Field \"{}\" cannot be empty", field_name)))
+                Err(serde::de::Error::custom(format!(
+                    "Field \"{}\" cannot be empty",
+                    field_name
+                )))
             } else {
                 Ok(None)
             }
@@ -25,21 +28,24 @@ where
 
 pub fn serialize_non_empty_string_field<S>(
     field_name: &'static str,
-    value: &String,
+    value: &str,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
     if value.trim().is_empty() {
-        Err(serde::ser::Error::custom(format!("Field \"{}\" cannot be empty", field_name)))
+        Err(serde::ser::Error::custom(format!(
+            "Field \"{}\" cannot be empty",
+            field_name
+        )))
     } else {
         serializer.serialize_str(value)
     }
 }
 
 pub fn deserialize_string_field<'de, D>(
-    field_name: &'static str, 
+    field_name: &'static str,
     error_on_empty: bool,
     deserializer: D,
 ) -> Result<String, D::Error>
@@ -49,7 +55,10 @@ where
     let s: String = String::deserialize(deserializer)?;
 
     if s.trim().is_empty() && error_on_empty {
-        Err(serde::de::Error::custom(format!("Field \"{}\" cannot be empty", field_name)))
+        Err(serde::de::Error::custom(format!(
+            "Field \"{}\" cannot be empty",
+            field_name
+        )))
     } else {
         Ok(s)
     }

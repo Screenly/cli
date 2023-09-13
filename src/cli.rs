@@ -11,10 +11,10 @@ use thiserror::Error;
 
 use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
 use crate::commands;
+use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
 use crate::commands::playlist::PlaylistCommand;
 use crate::commands::{CommandError, Formatter, OutputType, PlaylistFile};
-use crate::commands::edge_app_manifest::EdgeAppManifest;
 const DEFAULT_ASSET_DURATION: u32 = 15;
 
 #[derive(Error, Debug)]
@@ -518,19 +518,16 @@ fn get_actual_app_id(
     path: &Option<String>,
 ) -> Result<String, CommandError> {
     match app_id {
-        Some(id) if id.is_empty() => {
-            Err(CommandError::EmptyAppId)
-        },
+        Some(id) if id.is_empty() => Err(CommandError::EmptyAppId),
         Some(id) => Ok(id.clone()),
         None => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
             EdgeAppManifest::ensure_manifest_is_valid(manifest_path.as_path())?;
 
-            let manifest =
-                EdgeAppManifest::new(manifest_path.as_path()).unwrap();
+            let manifest = EdgeAppManifest::new(manifest_path.as_path()).unwrap();
             match manifest.app_id {
-                Some(id) if !id.is_empty() => Ok(id.clone()),
-                _ =>  {
+                Some(id) if !id.is_empty() => Ok(id),
+                _ => {
                     error!("Edge app id is not specified. Please specify it using --app-id option or add it to the manifest.");
                     Err(CommandError::MissingAppId)
                 }
@@ -1168,13 +1165,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         EdgeAppCommands::GenerateMockData { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
             edge_app_command.generate_mock_data(&manifest_path).unwrap();
-        },
+        }
         EdgeAppCommands::Validate { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
             match EdgeAppManifest::ensure_manifest_is_valid(&manifest_path) {
                 Ok(()) => {
                     println!("Manifest file is valid.");
-                },
+                }
                 Err(e) => {
                     eprintln!("{e}");
                     std::process::exit(1);

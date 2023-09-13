@@ -1,7 +1,7 @@
 use crate::commands::edge_app::AssetSignature;
-use crate::commands::CommandError;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_settings::Setting;
+use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
 use std::collections::{HashMap, HashSet};
@@ -170,10 +170,10 @@ pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::SettingType;
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
-    use crate::commands::SettingType;
 
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
