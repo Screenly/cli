@@ -463,9 +463,13 @@ impl EdgeAppCommand {
     }
 
     pub fn delete_app(&self, app_id: &str) -> Result<(), CommandError> {
-        commands::delete(
+        commands::patch(
             &self.authentication,
             &format!("v4/edge-apps?id=eq.{}", app_id),
+            &json!(
+            {
+                "deleted": true,
+            }),
         )?;
 
         Ok(())
@@ -948,7 +952,7 @@ mod tests {
     use super::*;
     use crate::authentication::Config;
 
-    use httpmock::Method::{DELETE, GET, PATCH, POST};
+    use httpmock::Method::{GET, PATCH, POST};
     use httpmock::MockServer;
 
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
@@ -2481,15 +2485,18 @@ settings:
     fn test_delete_app_should_send_correct_request() {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
-            when.method(DELETE)
+            when.method(PATCH)
                 .path("/v4/edge-apps")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .header("Authorization", "Token token")
-                .query_param("id", "eq.test-id");
-            then.status(204);
+                .query_param("id", "eq.test-id")
+                .json_body(json!({
+                    "deleted": true,
+                }));
+            then.status(200);
         });
 
         let config = Config::new(mock_server.base_url());
