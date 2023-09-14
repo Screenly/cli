@@ -329,7 +329,7 @@ impl EdgeAppCommand {
         }
         let actual_app_id = match manifest.app_id {
             Some(ref id) => id,
-            None => return Err(CommandError::MissingField),
+            None => return Err(CommandError::MissingAppId),
         };
 
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
@@ -2610,5 +2610,55 @@ settings:
             .is_ok());
 
         create_version_mock.assert();
+    }
+
+    #[test]
+    fn test_upload_without_app_id_should_fail() {
+        let mock_server = MockServer::start();
+
+        let manifest = EdgeAppManifest {
+            app_id: None,
+            entrypoint: None,
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![
+                Setting {
+                    type_: "string".to_string(),
+                    title: "asetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+                Setting {
+                    type_: "string".to_string(),
+                    title: "nsetting".to_string(),
+                    optional: false,
+                    default_value: "".to_string(),
+                    help_text: "".to_string(),
+                },
+            ],
+        };
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test").unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let result = command.upload(temp_dir.path().join("screenly.yml").as_path(), None);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "App id is required. Either in manifest or with --app-id."
+        );
     }
 }
