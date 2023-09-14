@@ -2618,6 +2618,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: None,
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
