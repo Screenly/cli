@@ -79,6 +79,7 @@ impl EdgeAppCommand {
 
         let manifest = EdgeAppManifest {
             app_id: Some(app_id),
+            entrypoint: Some("index.html".to_string()),
             settings: vec![Setting {
                 title: "greeting".to_string(),
                 type_: "string".to_string(),
@@ -545,7 +546,7 @@ impl EdgeAppCommand {
         manifest: &EdgeAppManifest,
         file_tree: HashMap<String, String>,
     ) -> Result<u32, CommandError> {
-        let json = json!({
+        let mut json = json!({
            "app_id": manifest.app_id,
            "user_version": manifest.user_version,
            "description": manifest.description,
@@ -554,6 +555,10 @@ impl EdgeAppCommand {
            "homepage_url": manifest.homepage_url,
            "file_tree": file_tree,
         });
+
+        if let Some(entrypoint) = &manifest.entrypoint {
+            json["entrypoint"] = json!(entrypoint);
+        }
 
         let response = commands::post(
             &self.authentication,
@@ -997,6 +1002,7 @@ mod tests {
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }]
         );
+        assert_eq!(manifest.entrypoint, Some("index.html".to_string()));
 
         let data_index_html = fs::read_to_string(tmp_dir.path().join("index.html")).unwrap();
         assert_eq!(data_index_html, include_str!("../../data/index.html"));
@@ -1330,6 +1336,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -1455,6 +1462,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -1537,6 +1545,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -1617,6 +1626,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -1641,6 +1651,7 @@ mod tests {
     fn test_upload_should_send_correct_requests() {
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -1996,6 +2007,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2023,6 +2035,7 @@ mod tests {
         // The EdgeAppManifest structure from your example
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2078,6 +2091,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2118,6 +2132,7 @@ settings:
     fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2224,6 +2239,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2320,6 +2336,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2411,6 +2428,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2463,6 +2481,7 @@ settings:
         let command = EdgeAppCommand::new(authentication);
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2504,6 +2523,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2527,6 +2547,7 @@ settings:
 
         let expected_manifest = EdgeAppManifest {
             app_id: None,
+            entrypoint: None,
             user_version: "1".to_string(),
             description: "asdf".to_string(),
             icon: "asdf".to_string(),
@@ -2536,6 +2557,59 @@ settings:
         };
 
         assert_eq!(new_manifest, expected_manifest);
+    }
+
+    #[test]
+    fn test_create_version_when_entrypoint_present_should_include_in_payload() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
+            user_version: "1".to_string(),
+            description: "asdf".to_string(),
+            icon: "asdf".to_string(),
+            author: "asdf".to_string(),
+            homepage_url: "asdfasdf".to_string(),
+            settings: vec![],
+        };
+
+        let mock_server = MockServer::start();
+
+        let create_version_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "entrypoint": "entrypoint.html",
+                    "user_version": "1",
+                    "description": "asdf",
+                    "icon": "asdf",
+                    "author": "asdf",
+                    "homepage_url": "asdfasdf",
+                    "file_tree": {}
+                }));
+            then.status(201).json_body(json!([{"revision": 8}]));
+        });
+
+        let temp_dir = tempdir().unwrap();
+        let temp_path = temp_dir.path().join("screenly.yml");
+        let manifest_path = temp_path.as_path();
+        EdgeAppManifest::save_to_file(&manifest, manifest_path).unwrap();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let edge_app_command = EdgeAppCommand::new(authentication);
+
+        let file_tree = HashMap::from([]);
+        assert!(edge_app_command
+            .create_version(&manifest, file_tree)
+            .is_ok());
+
+        create_version_mock.assert();
     }
 
     #[test]

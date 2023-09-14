@@ -231,6 +231,8 @@ pub struct EdgeAppManifest {
         default
     )]
     pub settings: Vec<Setting>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entrypoint: Option<String>,
 }
 
 // maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
