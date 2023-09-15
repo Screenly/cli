@@ -183,6 +183,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![
                 Setting {
                     type_: SettingType::String,

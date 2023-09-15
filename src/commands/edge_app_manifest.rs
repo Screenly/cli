@@ -55,6 +55,12 @@ pub struct EdgeAppManifest {
     )]
     pub homepage_url: Option<String>,
     #[serde(
+        deserialize_with = "deserialize_entrypoint",
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
+    pub entrypoint: Option<String>,
+    #[serde(
         serialize_with = "serialize_settings",
         deserialize_with = "deserialize_settings",
         default
@@ -108,6 +114,13 @@ where
     deserialize_option_string_field("homepage_url", false, deserializer)
 }
 
+fn deserialize_entrypoint<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    deserialize_option_string_field("entrypoint", false, deserializer)
+}
+
 impl EdgeAppManifest {
     pub fn new(path: &Path) -> Result<EdgeAppManifest, CommandError> {
         match fs::read_to_string(path) {
@@ -141,6 +154,7 @@ impl EdgeAppManifest {
             ("icon", &manifest.icon),
             ("author", &manifest.author),
             ("homepage_url", &manifest.homepage_url),
+            ("entrypoint", &manifest.entrypoint),
         ]
         .iter()
         .filter_map(|(key, value)| value.as_ref().map(|v| (*key, json!(v))))
@@ -209,6 +223,7 @@ mod tests {
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -229,6 +244,7 @@ description: test_description
 icon: test_icon
 author: test_author
 homepage_url: test_url
+entrypoint: entrypoint.html
 settings:
   username:
     type: string
@@ -253,6 +269,7 @@ settings:
             icon: Some("test_icon".to_string()),
             author: None,
             homepage_url: Some("test_url".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -271,6 +288,7 @@ app_id: test_app
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
+entrypoint: entrypoint.html
 settings:
   username:
     type: string
@@ -295,6 +313,7 @@ settings:
             icon: Some("test_icon".to_string()),
             author: Some("".to_string()),
             homepage_url: Some("test_url".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -313,6 +332,7 @@ app_id: test_app
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
+entrypoint: entrypoint.html
 settings:
   username:
     type: string
@@ -389,6 +409,7 @@ settings:
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -412,6 +433,7 @@ settings:
             icon: None,
             author: Some("test_author".to_string()),
             homepage_url: None,
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -563,6 +585,7 @@ settings:
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
@@ -579,6 +602,7 @@ settings:
         assert_eq!(result["icon"], json!("test_icon"));
         assert_eq!(result["author"], json!("test_author"));
         assert_eq!(result["homepage_url"], json!("test_url"));
+        assert_eq!(result["entrypoint"], json!("entrypoint.html"));
     }
 
     #[test]
@@ -600,5 +624,6 @@ settings:
         assert_eq!(result["icon"], json!("test_icon"));
         assert_eq!(result.contains_key("author"), false);
         assert_eq!(result["homepage_url"], json!("test_url"));
+        assert_eq!(result.contains_key("entrypoint"), false);
     }
 }

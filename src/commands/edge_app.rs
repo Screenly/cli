@@ -78,6 +78,7 @@ impl EdgeAppCommand {
 
         let manifest = EdgeAppManifest {
             app_id: Some(app_id),
+            entrypoint: Some("index.html".to_string()),
             settings: vec![Setting {
                 title: "greeting".to_string(),
                 type_: SettingType::Secret,
@@ -957,6 +958,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings,
         }
     }
@@ -1004,6 +1006,7 @@ mod tests {
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }]
         );
+        assert_eq!(manifest.entrypoint, Some("index.html".to_string()));
 
         let data_index_html = fs::read_to_string(tmp_dir.path().join("index.html")).unwrap();
         assert_eq!(data_index_html, include_str!("../../data/index.html"));
@@ -1716,6 +1719,7 @@ mod tests {
                     "description": "asdf",
                     "icon": "asdf",
                     "homepage_url": "asdfasdf",
+                    "entrypoint": "entrypoint.html",
                     "file_tree": {
                         "index.html": "0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"
                     }
@@ -2438,9 +2442,98 @@ settings:
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![],
         };
 
         assert_eq!(new_manifest, expected_manifest);
+    }
+
+    #[test]
+    fn test_create_version_when_entrypoint_present_should_include_in_payload() {
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let mock_server = MockServer::start();
+
+        let create_version_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "user_version": "1",
+                    "description": "asdf",
+                    "icon": "asdf",
+                    "author": "asdf",
+                    "homepage_url": "asdfasdf",
+                    "entrypoint": "entrypoint.html",
+                    "file_tree": {}
+                }));
+            then.status(201).json_body(json!([{"revision": 8}]));
+        });
+
+        let temp_dir = tempdir().unwrap();
+        let temp_path = temp_dir.path().join("screenly.yml");
+        let manifest_path = temp_path.as_path();
+        EdgeAppManifest::save_to_file(&manifest, manifest_path).unwrap();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let edge_app_command = EdgeAppCommand::new(authentication);
+
+        let file_tree = HashMap::from([]);
+        assert!(edge_app_command
+            .create_version(&manifest, file_tree)
+            .is_ok());
+
+        create_version_mock.assert();
+    }
+
+    #[test]
+    fn test_upload_without_app_id_should_fail() {
+        let mock_server = MockServer::start();
+
+        let mut manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::String,
+                title: "asetting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "nsetting".to_string(),
+                optional: false,
+                default_value: "".to_string(),
+                help_text: "help text".to_string(),
+            },
+        ]);
+
+        manifest.app_id = None;
+        manifest.entrypoint = None;
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test").unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let result = command.upload(temp_dir.path().join("screenly.yml").as_path(), None);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "App id is required. Either in manifest or with --app-id."
+        );
     }
 }

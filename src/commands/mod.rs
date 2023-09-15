@@ -111,7 +111,7 @@ pub enum CommandError {
     AssetProcessingError(String),
     #[error("Warning: these secrets are undefined: {0}.")]
     UndefinedSecrets(String),
-    #[error("App id is required. Either in manifest or with --app-id .")]
+    #[error("App id is required. Either in manifest or with --app-id.")]
     MissingAppId,
     #[error("Non empty App id is required.")]
     EmptyAppId,
