@@ -28,6 +28,8 @@ serde_yaml = "0.9.17"
 sha1 = "0.10.5"
 sha2 = "0.10.7"
 simple_logger = { version = "4.0.0", features= ["colors"]}
+strum = "0.25"
+strum_macros = "0.25"
 term = "0.7.0"
 thiserror = "1.0.37"
 sentry = "0.31.5"
