@@ -118,7 +118,7 @@ fn deserialize_entrypoint<'de, D>(deserializer: D) -> Result<Option<String>, D::
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_option_string_field("entrypoint", false, deserializer)
+    deserialize_option_string_field("entrypoint", true, deserializer)
 }
 
 impl EdgeAppManifest {
