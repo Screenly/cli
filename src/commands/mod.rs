@@ -113,7 +113,7 @@ pub enum CommandError {
     UndefinedSecrets(String),
     #[error("App id is required. Either in manifest or with --app-id.")]
     MissingAppId,
-    #[error("Non empty App id is required.")]
+    #[error("App id cannot be empty. Provide it either in manifest or with --app-id.")]
     EmptyAppId,
     #[error("Edge App Revision {0} not found")]
     RevisionNotFound(String),
