@@ -1,12 +1,7 @@
 use crate::{Authentication, AuthenticationError};
 use prettytable::{cell, Cell, Row};
-use std::collections::HashMap;
 
 use log::debug;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::path::Path;
 use std::time::Duration;
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -16,13 +11,18 @@ use thiserror::Error;
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::StatusCode;
 
+pub use edge_app_settings::SettingType;
+
 pub mod asset;
 pub mod edge_app;
+pub mod edge_app_manifest;
 pub(crate) mod edge_app_server;
+pub(crate) mod edge_app_settings;
 mod edge_app_utils;
 mod ignorer;
 pub(crate) mod playlist;
 pub mod screen;
+pub(crate) mod serde_utils;
 
 pub enum OutputType {
     HumanReadable,
@@ -111,10 +111,16 @@ pub enum CommandError {
     AssetProcessingError(String),
     #[error("Warning: these secrets are undefined: {0}.")]
     UndefinedSecrets(String),
-    #[error("App id is required. Either in manifest or with --app-id .")]
+    #[error("App id is required. Either in manifest or with --app-id.")]
     MissingAppId,
+    #[error("App id cannot be empty. Provide it either in manifest or with --app-id.")]
+    EmptyAppId,
     #[error("Edge App Revision {0} not found")]
     RevisionNotFound(String),
+    #[error("Manifest file validation failed with error: {0}")]
+    InvalidManifest(String),
+    #[error("Edge App Manifest (screenly.yml) doesn't exist under provided path: {0}. Enter a valid command line --path parameter or invoke command in a directory containing Edge App Manifest")]
+    MisingManifest(String),
 }
 
 pub fn get(
@@ -213,80 +219,6 @@ pub fn patch<T: Serialize + ?Sized>(
     match serde_json::from_str(&response.text()?) {
         Ok(v) => Ok(v),
         Err(_) => Ok(serde_json::Value::Null),
-    }
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct EdgeAppManifest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_id: Option<String>,
-    pub user_version: String,
-    pub description: String,
-    pub icon: String,
-    pub author: String,
-    pub homepage_url: String,
-    #[serde(
-        serialize_with = "serialize_settings",
-        deserialize_with = "deserialize_settings",
-        default
-    )]
-    pub settings: Vec<Setting>,
-}
-
-// maybe we can use a better name as we have EdgeAppSettings which is the same but serde_json::Value inside
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Setting {
-    #[serde(rename = "type")]
-    pub type_: String,
-    #[serde(default)]
-    pub default_value: String,
-    #[serde(default)]
-    pub title: String,
-    pub optional: bool,
-    pub help_text: String,
-}
-
-fn deserialize_settings<'de, D>(deserializer: D) -> Result<Vec<Setting>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let map: HashMap<String, Setting> = serde::Deserialize::deserialize(deserializer)?;
-    let mut settings: Vec<Setting> = map
-        .into_iter()
-        .map(|(title, mut setting)| {
-            setting.title = title;
-            setting
-        })
-        .collect();
-    settings.sort_by_key(|s| s.title.clone());
-    Ok(settings)
-}
-
-fn serialize_settings<S>(settings: &[Setting], serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    use serde::ser::SerializeMap;
-
-    let mut map = serializer.serialize_map(Some(settings.len()))?;
-    for setting in settings {
-        map.serialize_entry(&setting.title, &setting)?;
-    }
-    map.end()
-}
-
-impl EdgeAppManifest {
-    pub fn new(path: &Path) -> Result<Self, CommandError> {
-        let data = fs::read_to_string(path)?;
-        let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
-        Ok(manifest)
-    }
-
-    pub fn save_to_file(manifest: &EdgeAppManifest, path: &Path) -> Result<(), CommandError> {
-        let yaml = serde_yaml::to_string(&manifest)?;
-        let manifest_file = File::create(path)?;
-        write!(&manifest_file, "---\n{yaml}")?;
-        Ok(())
     }
 }
 
@@ -657,47 +589,6 @@ impl Formatter for PlaylistItems {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_save_to_file_should_save_yaml_correctly() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("test.yaml");
-
-        let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
-            settings: vec![Setting {
-                title: "username".to_string(),
-                type_: "string".to_string(),
-                default_value: "stranger".to_string(),
-                optional: true,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
-            ..Default::default()
-        };
-
-        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
-
-        let contents = fs::read_to_string(file_path).unwrap();
-
-        let expected_contents = r#"---
-app_id: test_app
-user_version: ''
-description: ''
-icon: ''
-author: ''
-homepage_url: ''
-settings:
-  username:
-    type: string
-    default_value: stranger
-    title: username
-    optional: true
-    help_text: An example of a setting that is used in index.html
-"#;
-
-        assert_eq!(contents, expected_contents);
-    }
 
     #[test]
     fn test_edge_app_versions_formatter_format_output_properly() {
