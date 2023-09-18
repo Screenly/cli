@@ -2574,25 +2574,26 @@ settings:
     fn test_changed_files_when_not_all_files_are_copied_should_upload_missed_ones() {
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            user_version: "1".to_string(),
-            description: "asdf".to_string(),
-            icon: "asdf".to_string(),
-            author: "asdf".to_string(),
-            homepage_url: "asdfasdf".to_string(),
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: None,
             settings: vec![
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "asdf".to_string(),
                 },
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "asdf".to_string(),
                 },
             ],
         };
@@ -2687,25 +2688,26 @@ settings:
     fn test_changed_files_when_all_files_are_copied_should_not_upload() {
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            user_version: "1".to_string(),
-            description: "asdf".to_string(),
-            icon: "asdf".to_string(),
-            author: "asdf".to_string(),
-            homepage_url: "asdfasdf".to_string(),
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: None,
             settings: vec![
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "sdfg".to_string(),
                 },
                 Setting {
-                    type_: "string".to_string(),
+                    type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: "".to_string(),
-                    help_text: "".to_string(),
+                    help_text: "asdf".to_string(),
                 },
             ],
         };
