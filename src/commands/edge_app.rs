@@ -502,6 +502,11 @@ impl EdgeAppCommand {
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
 
+        if edge_app_dir.join(MOCK_DATA_FILENAME).exists() {
+            println!("Mock data for Edge App Emulator already exists.");
+            return Ok(());
+        }
+
         let default_metadata = Metadata::default();
 
         let mut settings: HashMap<String, serde_yaml::Value> = HashMap::new();
@@ -525,6 +530,7 @@ impl EdgeAppCommand {
 
         fs::write(edge_app_dir.join(MOCK_DATA_FILENAME), mock_data_yaml)?;
 
+        println!("Generated mock data for Edge App Emulator.");        
         Ok(())
     }
     fn get_undefined_secrets(&self, app_id: &str) -> Result<Vec<String>, CommandError> {
