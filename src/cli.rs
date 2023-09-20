@@ -317,7 +317,7 @@ pub enum EdgeAppCommands {
         #[arg(short, long, value_parser = parse_key_values::<Secrets>)]
         secrets: Option<Secrets>,
 
-        /// Generate mock data when running the emulator.
+        /// Generates mock data to be used with Edge App run
         #[arg(long)]
         generate_mock_data: bool,
     },
@@ -1155,7 +1155,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 
             if *generate_mock_data {
                 let manifest_path = transform_edge_app_path_to_manifest(path);
-                edge_app_command.generate_mock_data(&manifest_path).unwrap();
+                match edge_app_command.generate_mock_data(&manifest_path) {
+                    Ok(_) => std::process::exit(0),
+                    Err(e) => {
+                        eprintln!("Failed to generate mock data: {e}.");
+                        std::process::exit(1);
+                    }
+                }
             }
 
             let path = match path {
@@ -1164,7 +1170,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             };
 
             if !path.join(MOCK_DATA_FILENAME).exists() {
-                eprintln!("Error: No mock-data exist. Please run \"screenly edge-app run --generate-mock-data\".");
+                eprintln!("Error: No mock-data exist. Please run \"screenly edge-app run --generate-mock-data\" and try again.");
                 std::process::exit(1);
             }
 

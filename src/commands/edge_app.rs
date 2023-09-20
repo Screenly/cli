@@ -530,7 +530,7 @@ impl EdgeAppCommand {
 
         fs::write(edge_app_dir.join(MOCK_DATA_FILENAME), mock_data_yaml)?;
 
-        println!("Generated mock data for Edge App Emulator.");        
+        println!("Generated mock data for Edge App Emulator.");
         Ok(())
     }
     fn get_undefined_secrets(&self, app_id: &str) -> Result<Vec<String>, CommandError> {
