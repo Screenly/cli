@@ -1158,7 +1158,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 match edge_app_command.generate_mock_data(&manifest_path) {
                     Ok(_) => std::process::exit(0),
                     Err(e) => {
-                        eprintln!("Failed to generate mock data: {e}.");
+                        eprintln!("Mock data generation failed: {e}.");
                         std::process::exit(1);
                     }
                 }

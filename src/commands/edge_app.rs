@@ -306,7 +306,7 @@ impl EdgeAppCommand {
             }
 
             println!(
-                "Edge app emulator is running at {}/index.html",
+                "Edge App emulator is running at {}/index.html",
                 address_shared.lock().unwrap().as_ref().unwrap()
             );
 
@@ -503,7 +503,7 @@ impl EdgeAppCommand {
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
 
         if edge_app_dir.join(MOCK_DATA_FILENAME).exists() {
-            println!("Mock data for Edge App Emulator already exists.");
+            println!("Mock data for Edge App emulator already exists.");
             return Ok(());
         }
 
@@ -530,7 +530,7 @@ impl EdgeAppCommand {
 
         fs::write(edge_app_dir.join(MOCK_DATA_FILENAME), mock_data_yaml)?;
 
-        println!("Generated mock data for Edge App Emulator.");
+        println!("Mock data for Edge App emulator was generated.");
         Ok(())
     }
     fn get_undefined_secrets(&self, app_id: &str) -> Result<Vec<String>, CommandError> {
