@@ -318,8 +318,8 @@ pub enum EdgeAppCommands {
         secrets: Option<Secrets>,
 
         /// Generates mock data to be used with Edge App run
-        #[arg(long)]
-        generate_mock_data: bool,
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        generate_mock_data: Option<bool>,
     },
 
     /// Version commands.
@@ -1153,7 +1153,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 Vec::new()
             };
 
-            if *generate_mock_data {
+            if generate_mock_data.unwrap_or(false) {
                 let manifest_path = transform_edge_app_path_to_manifest(path);
                 match edge_app_command.generate_mock_data(&manifest_path) {
                     Ok(_) => std::process::exit(0),
