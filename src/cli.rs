@@ -316,13 +316,10 @@ pub enum EdgeAppCommands {
 
         #[arg(short, long, value_parser = parse_key_values::<Secrets>)]
         secrets: Option<Secrets>,
-    },
 
-    // Generates mock data to be used with Edge App run.
-    GenerateMockData {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        #[arg(short, long)]
-        path: Option<String>,
+        /// Generates mock data to be used with Edge App run
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        generate_mock_data: Option<bool>,
     },
 
     /// Version commands.
@@ -1145,26 +1142,39 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         }
-        EdgeAppCommands::Run { path, secrets } => {
+        EdgeAppCommands::Run {
+            path,
+            secrets,
+            generate_mock_data,
+        } => {
             let secrets = if let Some(secret_pairs) = secrets {
                 secret_pairs.secrets.clone()
             } else {
                 Vec::new()
             };
+
+            if generate_mock_data.unwrap_or(false) {
+                let manifest_path = transform_edge_app_path_to_manifest(path);
+                match edge_app_command.generate_mock_data(&manifest_path) {
+                    Ok(_) => std::process::exit(0),
+                    Err(e) => {
+                        eprintln!("Mock data generation failed: {e}.");
+                        std::process::exit(1);
+                    }
+                }
+            }
+
             let path = match path {
                 Some(path) => PathBuf::from(path),
                 None => env::current_dir().unwrap(),
             };
+
             if !path.join(MOCK_DATA_FILENAME).exists() {
-                eprintln!("Error: No mock-data exist. Please run \"screenly edge-app generate-mock-data\" and try again.");
+                eprintln!("Error: No mock-data exist. Please run \"screenly edge-app run --generate-mock-data\" and try again.");
                 std::process::exit(1);
             }
 
             edge_app_command.run(path.as_path(), secrets).unwrap();
-        }
-        EdgeAppCommands::GenerateMockData { path } => {
-            let manifest_path = transform_edge_app_path_to_manifest(path);
-            edge_app_command.generate_mock_data(&manifest_path).unwrap();
         }
         EdgeAppCommands::Validate { path } => {
             let manifest_path = transform_edge_app_path_to_manifest(path);
