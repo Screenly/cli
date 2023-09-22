@@ -18,3 +18,8 @@ jobs:
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: rust-fmt-check
+        uses: mbrobbel/rustfmt-check@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          mode: review
