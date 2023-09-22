@@ -2657,8 +2657,8 @@ settings:
         let mut file2 = File::create(temp_dir.path().join("index2.html")).unwrap();
         write!(file2, "test333").unwrap();
 
-        let mut changed_files = FileChanges::new(
-            &vec![
+        let changed_files = FileChanges::new(
+            &[
                 EdgeAppFile {
                     path: "index.html".to_owned(),
                     signature: "somesig".to_owned(),
@@ -2679,7 +2679,7 @@ settings:
             edge_app_dir,
             "01H2QZ6Z8WXWNDC0KQ198XCZEW",
             7,
-            &mut changed_files,
+            &changed_files,
         );
 
         // Twice for somesig1 and somesig2
@@ -2764,8 +2764,8 @@ settings:
         let mut file2 = File::create(temp_dir.path().join("index2.html")).unwrap();
         write!(file2, "test333").unwrap();
 
-        let mut changed_files = FileChanges::new(
-            &vec![
+        let changed_files = FileChanges::new(
+            &[
                 EdgeAppFile {
                     path: "index.html".to_owned(),
                     signature: "somesig".to_owned(),
@@ -2786,7 +2786,7 @@ settings:
             edge_app_dir,
             "01H2QZ6Z8WXWNDC0KQ198XCZEW",
             7,
-            &mut changed_files,
+            &changed_files,
         );
 
         upload_assets_mock.assert_hits(0);
