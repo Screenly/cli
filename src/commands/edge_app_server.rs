@@ -1,7 +1,7 @@
 use crate::commands::ignorer::Ignorer;
 use anyhow::Result;
 use futures::future::{self, BoxFuture, FutureExt};
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fs;
 
 use serde::{Deserialize, Serialize};
@@ -127,7 +127,14 @@ async fn generate_content(
         );
         return Err(warp::reject::not_found());
     };
-    let data: MockData = serde_yaml::from_str(&content).expect("Failed to deserialize.");
+    let data: MockData = match serde_yaml::from_str(&content) {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!("Failed to parse mock data: {}", e);
+            return Err(warp::reject::not_found());
+        }
+    };
+
     let js_output = format_js(data, secrets);
 
     Ok(warp::reply::html(js_output))
