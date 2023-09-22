@@ -1,7 +1,7 @@
 use crate::commands::ignorer::Ignorer;
 use anyhow::Result;
 use futures::future::{self, BoxFuture, FutureExt};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fs;
 
 use serde::{Deserialize, Serialize};
@@ -110,42 +110,7 @@ impl Default for Metadata {
 #[derive(Debug, Default, Deserialize)]
 struct MockData {
     metadata: Metadata,
-    settings: Vec<(String, Value)>,
-}
-
-#[derive(Debug, Default, Deserialize, Clone)]
-struct MockDataStr {
-    metadata: Metadata,
-    settings: BTreeMap<String, String>,
-}
-
-impl MockData {
-    fn new_from_str(mock_data_str: &MockDataStr) -> Self {
-        let settings_val = mock_data_str
-            .settings
-            .iter()
-            .map(|(k, v)| {
-                if v.len() > 2
-                    && v.chars().nth(0) == Some('[')
-                    && v.chars().nth(v.len() - 1) == Some(']')
-                {
-                    let v = &v[1..(v.len() - 1)];
-                    let v = v
-                        .split(',')
-                        .map(|s| s.trim().replace(['"', '\''], ""))
-                        .collect::<Vec<_>>();
-                    (k.clone(), Value::Array(v.clone()))
-                } else {
-                    (k.clone(), Value::Str(v.clone()))
-                }
-            })
-            .collect::<Vec<(_, _)>>();
-
-        MockData {
-            metadata: mock_data_str.metadata.clone(),
-            settings: settings_val,
-        }
-    }
+    settings: HashMap<String, String>,
 }
 
 async fn generate_content(
@@ -162,26 +127,32 @@ async fn generate_content(
         );
         return Err(warp::reject::not_found());
     };
-
-    let data_str: MockDataStr = match serde_yaml::from_str(&content) {
-        Ok(data_str) => data_str,
+    let data: MockData = match serde_yaml::from_str(&content) {
+        Ok(data) => data,
         Err(e) => {
-            eprintln!("Mock data deserialization Error: {:?}. Use \"edge-app run --generate-mock-data\" to create mock data.", e);
+            eprintln!("Failed to parse mock data: {}", e);
             return Err(warp::reject::not_found());
         }
     };
 
-    let data = MockData::new_from_str(&data_str);
     let js_output = format_js(data, secrets);
 
     Ok(warp::reply::html(js_output))
 }
 
 fn format_js(data: MockData, secrets: &[(String, Value)]) -> String {
+    let mut settings: Vec<(String, Value)> = data
+        .settings
+        .into_iter()
+        .map(|(k, v)| (k, Value::Str(v)))
+        .collect();
+
+    settings.sort_by_key(|a| a.0.clone());
+
     format!(
         "var screenly = {{\n{metadata},\n{settings},\n{secrets},\n{cors_proxy}\n}};",
         metadata = format_section("metadata", &hashmap_from_metadata(&data.metadata)),
-        settings = format_section("settings", &data.settings),
+        settings = format_section("settings", &settings),
         secrets = format_section("secrets", secrets),
         cors_proxy = "    cors_proxy_url: \"http://127.0.0.1:8080\""
     )
@@ -340,22 +311,5 @@ settings:
             .unwrap();
 
         assert_eq!(resp.status(), 404);
-    }
-
-    #[tokio::test]
-    async fn test_server_mockdata_str_should_obtain_mockdata_from_str() {
-        let metadata = Metadata::default();
-        let mut settings = BTreeMap::new();
-
-        settings.insert("enable_analytics".to_string(), "true".to_string());
-        settings.insert("override_timezone".to_string(), "".to_string());
-        settings.insert("tag_manager_id".to_string(), "".to_string());
-
-        let mockdata_str = MockDataStr { metadata, settings };
-        let mockdata = MockData::new_from_str(&mockdata_str);
-        let (k, v) = mockdata.settings.first().unwrap();
-
-        assert_eq!(*k, "enable_analytics");
-        assert_eq!(*v, Value::Str("true".to_string()));
     }
 }

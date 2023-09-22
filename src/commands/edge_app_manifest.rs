@@ -619,11 +619,11 @@ settings:
 
         let result = EdgeAppManifest::prepare_payload(&manifest);
         assert_eq!(result["app_id"], json!("test_app"));
-        assert_eq!(result.contains_key("user_version"), false);
+        assert!(!result.contains_key("user_version"));
         assert_eq!(result["description"], json!("test_description"));
         assert_eq!(result["icon"], json!("test_icon"));
-        assert_eq!(result.contains_key("author"), false);
+        assert!(!result.contains_key("author"));
         assert_eq!(result["homepage_url"], json!("test_url"));
-        assert_eq!(result.contains_key("entrypoint"), false);
+        assert!(!result.contains_key("entrypoint"));
     }
 }
