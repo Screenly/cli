@@ -1,7 +1,7 @@
 use crate::commands::ignorer::Ignorer;
 use anyhow::Result;
 use futures::future::{self, BoxFuture, FutureExt};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fs;
 
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use warp::{Filter, Rejection, Reply};
 
 pub const MOCK_DATA_FILENAME: &str = "mock-data.yml";
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Value {
     Str(String),
     Array(Vec<String>),
@@ -116,12 +116,12 @@ struct MockData {
 #[derive(Debug, Default, Deserialize, Clone)]
 struct MockDataStr {
     metadata: Metadata,
-    settings: BTreeMap<String, String>,
+    settings: HashMap<String, String>,
 }
 
 impl MockData {
     fn new_from_str(mock_data_str: &MockDataStr) -> Self {
-        let settings_val = mock_data_str
+        let mut settings_val = mock_data_str
             .settings
             .iter()
             .map(|(k, v)| {
@@ -134,13 +134,14 @@ impl MockData {
                         .split(',')
                         .map(|s| s.trim().replace(['"', '\''], ""))
                         .collect::<Vec<_>>();
-                    (k.clone(), Value::Array(v.clone()))
+                    (k.to_owned(), Value::Array(v))
                 } else {
-                    (k.clone(), Value::Str(v.clone()))
+                    (k.to_owned(), Value::Str(v.to_owned()))
                 }
             })
             .collect::<Vec<(_, _)>>();
 
+        settings_val.sort();
         MockData {
             metadata: mock_data_str.metadata.clone(),
             settings: settings_val,
@@ -345,7 +346,7 @@ settings:
     #[tokio::test]
     async fn test_server_mockdata_str_should_obtain_mockdata_from_str() {
         let metadata = Metadata::default();
-        let mut settings = BTreeMap::new();
+        let mut settings = HashMap::new();
 
         settings.insert("enable_analytics".to_string(), "true".to_string());
         settings.insert("override_timezone".to_string(), "".to_string());
