@@ -1,6 +1,6 @@
 use crate::commands::CommandError;
-
-use crate::pb_signature::signature::Hash;
+ 
+  use crate::pb_signature::signature::Hash;
 use crate::pb_signature::Signature;
 use protobuf::Message;
 use sha2::Digest;

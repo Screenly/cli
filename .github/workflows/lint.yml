@@ -15,7 +15,8 @@ jobs:
         uses: actions/checkout@v2
 
       - name: rust-clippy-check
-        uses: actions-rs/clippy-check@v1.0.7
+        uses: actions-rs/clippy-check@v1
+        args: --all-features
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: rust-fmt-check
