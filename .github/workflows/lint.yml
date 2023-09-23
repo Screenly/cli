@@ -19,7 +19,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: rust-fmt-check
-        uses: mbrobbel/rustfmt-check@master
+        uses: actions-rust-lang/rustfmt@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          mode: review
