@@ -4,11 +4,9 @@ use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::{header, StatusCode};
 use thiserror::Error;
 
-// const API_BASE_URL: &str = "https://api.screenlyappstage.com/api";
-const API_BASE_URL: &str = "https://api.screenlyapp.com/api";
-// use this one for local development
-// but also uncomment unsafe certificate lines "danger_accept_invalid_certs(true)".
-// const API_BASE_URL: &str = "https://login.screenly.local/api";
+include!(concat!(env!("OUT_DIR"), "/config.rs"));
+// for local development
+// also uncomment unsafe certificate lines "danger_accept_invalid_certs(true)".
 
 pub struct Config {
     pub url: String,
