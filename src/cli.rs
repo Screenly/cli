@@ -1094,14 +1094,14 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 
             match edge_app_command.delete_app(&actual_app_id) {
                 Ok(()) => {
-                    info!("Edge App Deletion in Progress.\nRequest to delete the Edge App has been received and is now being processed. The deletion is marked for asynchronous handling, so it won't happen instantly.");
+                    println!("Edge App Deletion in Progress.\nRequest to delete the Edge App has been received and is now being processed. The deletion is marked for asynchronous handling, so it won't happen instantly.");
                     // If the user didn't specify an app id, we need to clear it from the manifest
                     if app_id.is_none() {
                         match edge_app_command
                             .clear_app_id(transform_edge_app_path_to_manifest(path).as_path())
                         {
                             Ok(()) => {
-                                info!("App id cleared from manifest.");
+                                println!("App id cleared from manifest.");
                             }
                             Err(e) => {
                                 error!("Error occurred while clearing manifest: {}", e);
