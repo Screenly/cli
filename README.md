@@ -111,6 +111,16 @@ $ cargo build --release
 the `screenly` binary will be located in `target/release` directory.
 
 
+
+To utilize an alternative API server (non-production), employ the API_SERVER_NAME environment variable for configuring the desired API server URL. Available options include: 'prod', 'local', and 'stage'.
+
+```bash
+$ API_SERVER_NAME=local cargo build --release
+```
+
+```bash
+
+
 ## GitHub Action
 
 Our CLI is also available as a GitHub Action workflow.
