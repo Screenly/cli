@@ -79,13 +79,24 @@ impl EdgeAppCommand {
         let manifest = EdgeAppManifest {
             app_id: Some(app_id),
             entrypoint: Some("index.html".to_string()),
-            settings: vec![Setting {
-                title: "greeting".to_string(),
-                type_: SettingType::Secret,
-                default_value: "stranger".to_string(),
-                optional: true,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
+            settings: vec![
+                Setting {
+                    title: "secret_word".to_string(),
+                    type_: SettingType::Secret,
+                    default_value: None,
+                    optional: true,
+                    help_text: "An example of a secret setting that is used in index.html"
+                        .to_string(),
+                },
+                Setting {
+                    title: "greeting".to_string(),
+                    type_: SettingType::String,
+                    default_value: Some("Unknown".to_string()),
+                    optional: true,
+                    help_text: "An example of a string setting that is used in index.html"
+                        .to_string(),
+                },
+            ],
             ..Default::default()
         };
 
@@ -512,9 +523,13 @@ impl EdgeAppCommand {
         let mut settings: HashMap<String, serde_yaml::Value> = HashMap::new();
         for setting in &manifest.settings {
             if setting.type_ != SettingType::Secret {
+                let settings_default_value = match setting.default_value {
+                    Some(ref default_value) => default_value.clone(),
+                    None => "".to_owned(),
+                };
                 settings.insert(
                     setting.title.clone(),
-                    serde_yaml::Value::String(setting.default_value.clone()),
+                    serde_yaml::Value::String(settings_default_value),
                 );
             }
         }
@@ -1021,13 +1036,24 @@ mod tests {
         assert_eq!(manifest.app_id, Some("test-id".to_owned()));
         assert_eq!(
             manifest.settings,
-            vec![Setting {
-                title: "greeting".to_string(),
-                type_: SettingType::Secret,
-                default_value: "stranger".to_string(),
-                optional: true,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }]
+            vec![
+                Setting {
+                    title: "greeting".to_string(),
+                    type_: SettingType::String,
+                    default_value: Some("Unknown".to_string()),
+                    optional: true,
+                    help_text: "An example of a string setting that is used in index.html"
+                        .to_string(),
+                },
+                Setting {
+                    title: "secret_word".to_string(),
+                    type_: SettingType::Secret,
+                    default_value: None,
+                    optional: true,
+                    help_text: "An example of a secret setting that is used in index.html"
+                        .to_string(),
+                }
+            ]
         );
         assert_eq!(manifest.entrypoint, Some("index.html".to_string()));
 
@@ -1645,14 +1671,14 @@ mod tests {
                 type_: SettingType::String,
                 title: "asetting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
             Setting {
                 type_: SettingType::String,
                 title: "nsetting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2040,14 +2066,14 @@ mod tests {
                 type_: SettingType::String,
                 title: "asetting".to_string(),
                 optional: false,
-                default_value: "yes".to_string(),
+                default_value: Some("yes".to_string()),
                 help_text: "help text".to_string(),
             },
             Setting {
                 type_: SettingType::String,
                 title: "nsetting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2087,14 +2113,14 @@ settings:
                 type_: SettingType::Secret,
                 title: "excluded_setting".to_string(),
                 optional: false,
-                default_value: "0".to_string(),
+                default_value: None,
                 help_text: "help text".to_string(),
             },
             Setting {
                 type_: SettingType::String,
                 title: "included_setting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2119,14 +2145,14 @@ settings:
                 type_: SettingType::String,
                 title: "asetting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
             Setting {
                 type_: SettingType::String,
                 title: "nsetting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2541,14 +2567,14 @@ settings:
                 type_: SettingType::String,
                 title: "asetting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
             Setting {
                 type_: SettingType::String,
                 title: "nsetting".to_string(),
                 optional: false,
-                default_value: "".to_string(),
+                default_value: Some("".to_string()),
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2591,14 +2617,14 @@ settings:
                     type_: SettingType::String,
                     title: "asetting".to_string(),
                     optional: false,
-                    default_value: "".to_string(),
+                    default_value: Some("".to_string()),
                     help_text: "asdf".to_string(),
                 },
                 Setting {
                     type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
-                    default_value: "".to_string(),
+                    default_value: Some("".to_string()),
                     help_text: "asdf".to_string(),
                 },
             ],
@@ -2705,14 +2731,14 @@ settings:
                     type_: SettingType::String,
                     title: "asetting".to_string(),
                     optional: false,
-                    default_value: "".to_string(),
+                    default_value: Some("".to_string()),
                     help_text: "sdfg".to_string(),
                 },
                 Setting {
                     type_: SettingType::String,
                     title: "nsetting".to_string(),
                     optional: false,
-                    default_value: "".to_string(),
+                    default_value: Some("".to_string()),
                     help_text: "asdf".to_string(),
                 },
             ],

@@ -227,7 +227,7 @@ mod tests {
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -273,7 +273,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -317,7 +317,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -355,7 +355,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -390,7 +390,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "".to_string(),
             }],
@@ -413,7 +413,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -437,7 +437,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -589,7 +589,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],

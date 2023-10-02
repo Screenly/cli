@@ -27,8 +27,8 @@ pub struct Setting {
         deserialize_with = "deserialize_setting_type"
     )]
     pub type_: SettingType,
-    #[serde(default)]
-    pub default_value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<String>,
     #[serde(default)]
     pub title: String,
     pub optional: bool,
