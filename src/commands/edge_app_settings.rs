@@ -64,6 +64,25 @@ where
             setting
         })
         .collect();
+
+    for setting in &settings {
+        if setting.type_ == SettingType::Secret && setting.default_value.is_some() {
+            return Err(serde::de::Error::custom(format!(
+                "Setting \"{}\" is of type \"secret\" and cannot have a default value",
+                setting.title
+            )));
+        }
+        if setting.type_ == SettingType::String
+            && !setting.optional
+            && setting.default_value.is_none()
+        {
+            return Err(serde::de::Error::custom(format!(
+                "Setting \"{}\" is of type \"string\" and is not optional, it must have a default value",
+                setting.title
+            )));
+        }
+    }
+
     settings.sort_by_key(|s| s.title.clone());
     Ok(settings)
 }
