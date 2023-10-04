@@ -149,3 +149,34 @@ with:
   screenly_api_token: ${{ secrets.SCREENLY_API_TOKEN }}
   cli_commands: screen list
 ```
+
+### Protobuf generation
+
+There is a signature.proto protobuf file used for file signature generation.
+pb_signature.rs is generated from signature.proto using the following command:
+
+```bash
+$ cargo install protobuf-codegen
+$ protoc --rust_out . signature.proto
+$ mv signature.rs src/pb_signature.rs
+```
+
+### Protocol Buffers (Protobuf) Generation
+In order to generate the file signature, we utilize the signature.proto protobuf file. The corresponding Rust file, pb_signature.rs, is derived from signature.proto using the following steps:
+
+Install the Protobuf code generator for Rust:
+
+```bash
+$ cargo install protobuf-codegen
+```
+Generate the Rust code from signature.proto:
+
+```bash
+$ protoc --rust_out . signature.proto
+```
+
+Move the generated signature.rs to the appropriate source directory (src/pb_signature.rs in this case):
+
+```bash
+$ mv signature.rs src/pb_signature.rs
+```
