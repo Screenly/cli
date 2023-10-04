@@ -15,7 +15,7 @@ inputs:
     required: true
   cli_version:
     description: "Screenly CLI version."
-    default: "v0.2.1"
+    default: "v0.2.0"
 
 runs:
   using: 'composite'
