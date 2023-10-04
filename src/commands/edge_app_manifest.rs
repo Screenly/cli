@@ -227,7 +227,7 @@ mod tests {
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -273,7 +273,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -317,7 +317,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -355,7 +355,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -390,7 +390,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "".to_string(),
             }],
@@ -413,7 +413,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -437,7 +437,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
@@ -577,6 +577,51 @@ settings:
     }
 
     #[test]
+    fn test_ensure_manifest_is_valid_when_secret_field_has_default_value_should_fail() {
+        let dir = tempdir().unwrap();
+        let file_name = "screenly.yml";
+        let content = r#"---
+app_id: test_app
+settings:
+  username:
+    type: secret
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains(
+            "Setting \"username\" is of type \"secret\" and cannot have a default value"
+        ));
+    }
+
+    #[test]
+    fn test_ensure_manifest_is_valid_when_required_string_field_has_no_default_value_should_fail() {
+        let dir = tempdir().unwrap();
+        let file_name = "screenly.yml";
+        let content = r#"---
+app_id: test_app
+settings:
+  username:
+    type: string
+    title: username
+    optional: false
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        write_to_tempfile(&dir, file_name, content);
+        let file_path = dir.path().join(file_name);
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Setting \"username\" is of type \"string\" and is not optional, it must have a default value"));
+    }
+
+    #[test]
     fn test_prepare_manifest_payload_includes_some_fields() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
@@ -589,7 +634,7 @@ settings:
             settings: vec![Setting {
                 title: "username".to_string(),
                 type_: SettingType::String,
-                default_value: "stranger".to_string(),
+                default_value: Some("stranger".to_string()),
                 optional: true,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],

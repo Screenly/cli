@@ -192,14 +192,14 @@ mod tests {
             settings: vec![
                 Setting {
                     type_: SettingType::String,
-                    default_value: "5".to_string(),
+                    default_value: Some("5".to_string()),
                     title: "display_time".to_string(),
                     optional: true,
                     help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
                 },
                 Setting {
                     type_: SettingType::String,
-                    default_value: "6".to_string(),
+                    default_value: Some("6".to_string()),
                     title: "google_maps_api_key".to_string(),
                     optional: true,
                     help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
@@ -216,14 +216,14 @@ mod tests {
         let remote_settings = vec![
             Setting {
                 type_: SettingType::String,
-                default_value: "5".to_string(),
+                default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
                 type_: SettingType::String,
-                default_value: "6".to_string(),
+                default_value: Some("6".to_string()),
                 title: "google_maps_api_key".to_string(),
                 optional: true,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
@@ -247,21 +247,21 @@ mod tests {
         let remote_settings = vec![
             Setting {
                 type_: SettingType::String,
-                default_value: "5".to_string(),
+                default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
                 type_: SettingType::String,
-                default_value: "6".to_string(),
+                default_value: Some("6".to_string()),
                 title: "google_maps_api_key".to_string(),
                 optional: true,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
             },
             Setting {
                 type_: SettingType::String,
-                default_value: "10".to_string(),
+                default_value: Some("10".to_string()),
                 title: "new_setting".to_string(),
                 optional: false,
                 help_text: "New setting description".to_string(),
@@ -285,7 +285,7 @@ mod tests {
         let remote_settings = vec![
             Setting {
                 type_: SettingType::String,
-                default_value: "5".to_string(),
+                default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
@@ -311,14 +311,14 @@ mod tests {
         let remote_settings = vec![
             Setting {
                 type_: SettingType::String,
-                default_value: "5".to_string(),
+                default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
                 type_: SettingType::String,
-                default_value: "7".to_string(), // Modified default value
+                default_value: Some("7".to_string()), // Modified default value
                 title: "google_maps_api_key".to_string(),
                 optional: true,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
@@ -334,7 +334,7 @@ mod tests {
         assert_eq!(changes.creates.len(), 0);
         assert_eq!(changes.updates.len(), 1);
         assert_eq!(changes.updates[0].title, "google_maps_api_key");
-        assert_eq!(changes.updates[0].default_value, "6");
+        assert_eq!(changes.updates[0].default_value, Some("6".to_owned()));
     }
 
     #[test]
