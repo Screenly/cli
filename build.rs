@@ -3,9 +3,9 @@ use std::fs;
 use std::path::Path;
 
 const CONFIG: &str = "config.rs";
-const LOCAL_API_URL: &str = "https://login.screenly.local/api";
-const STAGE_API_URL: &str = "https://api.screenlyappstage.com/api";
-const PROD_API_URL: &str = "https://api.screenlyapp.com/api";
+const LOCAL_API_URL: &str = "https://login.screenly.local";
+const STAGE_API_URL: &str = "https://api.screenlyappstage.com";
+const PROD_API_URL: &str = "https://api.screenlyapp.com";
 
 fn main() {
     let out_dir = env::var_os("OUT_DIR").unwrap();
