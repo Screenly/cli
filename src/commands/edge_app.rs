@@ -413,7 +413,7 @@ impl EdgeAppCommand {
             )?));
         }
 
-        debug!("All secrets are defined.");
+        debug!("All settings are defined.");
 
         let get_response = commands::get(
             &self.authentication,
@@ -554,7 +554,7 @@ impl EdgeAppCommand {
         let undefined_secrets_response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/secrets/undefined?installation_id={}",
+                "v4/edge-apps/settings/undefined?installation_id={}",
                 installation_id
             ),
         )?;
@@ -2007,7 +2007,7 @@ mod tests {
         //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
         let undefined_secrets_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/secrets/undefined")
+                .path("/v4/edge-apps/settings/undefined")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -2312,7 +2312,7 @@ settings:
         //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
         let undefined_secrets_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/secrets/undefined")
+                .path("/v4/edge-apps/settings/undefined")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -2335,7 +2335,7 @@ settings:
         undefined_secrets_mock.assert();
 
         assert!(!&result.is_ok());
-        assert!(result.unwrap_err().to_string().contains("Warning: these secrets are undefined: [\"undefined_secret\",\"another_undefined_secret\"]."));
+        assert!(result.unwrap_err().to_string().contains("Warning: these settings are required to be defined: [\"undefined_secret\",\"another_undefined_secret\"]."));
     }
 
     #[test]
@@ -2396,7 +2396,7 @@ settings:
         //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
         let undefined_secrets_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/secrets/undefined")
+                .path("/v4/edge-apps/settings/undefined")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
