@@ -406,9 +406,9 @@ impl EdgeAppCommand {
         revision: u32,
         channel: &String,
     ) -> Result<(), CommandError> {
-        let secrets = self.get_undefined_secrets(app_id)?;
+        let secrets = self.get_undefined_settings(app_id)?;
         if !secrets.is_empty() {
-            return Err(CommandError::UndefinedSecrets(serde_json::to_string(
+            return Err(CommandError::UndefinedSettings(serde_json::to_string(
                 &secrets,
             )?));
         }
@@ -548,10 +548,10 @@ impl EdgeAppCommand {
         println!("Mock data for Edge App emulator was generated.");
         Ok(())
     }
-    fn get_undefined_secrets(&self, app_id: &str) -> Result<Vec<String>, CommandError> {
+    fn get_undefined_settings(&self, app_id: &str) -> Result<Vec<String>, CommandError> {
         let installation_id = self.get_or_create_installation(app_id)?;
 
-        let undefined_secrets_response = commands::get(
+        let undefined_settings_response = commands::get(
             &self.authentication,
             &format!(
                 "v4/edge-apps/settings/undefined?installation_id={}",
@@ -559,7 +559,7 @@ impl EdgeAppCommand {
             ),
         )?;
 
-        let titles = serde_json::from_value::<Vec<String>>(undefined_secrets_response)?;
+        let titles = serde_json::from_value::<Vec<String>>(undefined_settings_response)?;
 
         Ok(titles)
     }
@@ -2005,7 +2005,7 @@ mod tests {
         });
 
         //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
-        let undefined_secrets_mock = mock_server.mock(|when, then| {
+        let undefined_settings_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/settings/undefined")
                 .header("Authorization", "Token token")
@@ -2049,7 +2049,7 @@ mod tests {
         get_version_mock.assert();
         installation_mock.assert();
         installation_mock_create.assert();
-        undefined_secrets_mock.assert();
+        undefined_settings_mock.assert();
         promote_mock.assert();
 
         assert!(&result.is_ok());
@@ -2270,7 +2270,7 @@ settings:
     }
 
     #[test]
-    fn test_promote_when_there_are_undefined_secrets_should_fail() {
+    fn test_promote_when_there_are_undefined_settings_should_fail() {
         let mock_server = MockServer::start();
 
         let installation_mock = mock_server.mock(|when, then| {
@@ -2310,7 +2310,7 @@ settings:
         });
 
         //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
-        let undefined_secrets_mock = mock_server.mock(|when, then| {
+        let undefined_settings_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/settings/undefined")
                 .header("Authorization", "Token token")
@@ -2332,7 +2332,7 @@ settings:
 
         installation_mock.assert();
         installation_mock_create.assert();
-        undefined_secrets_mock.assert();
+        undefined_settings_mock.assert();
 
         assert!(!&result.is_ok());
         assert!(result.unwrap_err().to_string().contains("Warning: these settings are required to be defined: [\"undefined_secret\",\"another_undefined_secret\"]."));
@@ -2394,7 +2394,7 @@ settings:
         });
 
         //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
-        let undefined_secrets_mock = mock_server.mock(|when, then| {
+        let undefined_settings_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/settings/undefined")
                 .header("Authorization", "Token token")
@@ -2416,7 +2416,7 @@ settings:
         get_version_mock.assert();
         installation_mock.assert();
         installation_mock_create.assert();
-        undefined_secrets_mock.assert();
+        undefined_settings_mock.assert();
 
         assert!(!&result.is_ok());
         assert!(result
