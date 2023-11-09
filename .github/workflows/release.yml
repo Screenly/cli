@@ -27,7 +27,7 @@ jobs:
         build:
 #          - linux
 #          - macos
-          - windows
+          - windows-64-gnu
         include:
 #          - build: linux
 #            os: ubuntu-22.04
