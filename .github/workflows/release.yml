@@ -25,8 +25,8 @@ jobs:
     strategy:
       matrix:
         build:
-          - linux
-          - macos
+#          - linux
+#          - macos
           - windows
         include:
 #          - build: linux
