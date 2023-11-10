@@ -6,6 +6,7 @@ on:
       - 'v*'
       - 'test'
 
+
 jobs:
   build-release:
     name: deploy
