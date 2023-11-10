@@ -24,11 +24,16 @@ jobs:
         build:
           - linux
           - macos
+          - windows
         include:
           - build: linux
             os: ubuntu-22.04
             rust: stable
             target: x86_64-unknown-linux-gnu
+          - build: linux-musl
+            os: ubuntu-22.04
+            rust: stable
+            target: x86_64-unknown-linux-musl
           - build: macos
             os: macos-12
             rust: stable
@@ -37,10 +42,14 @@ jobs:
             os: macos-12
             rust: stable
             target: aarch64-apple-darwin
-          - build: linux-musl
+          - build: windows
             os: ubuntu-22.04
             rust: stable
-            target: x86_64-unknown-linux-musl
+            target: x86_64-pc-windows-gnu
+          - build: windows-32
+            os: ubuntu-22.04
+            rust: stable
+            target: i686-pc-windows-gnu
 
     steps:
       - name: Checkout repository
@@ -59,11 +68,13 @@ jobs:
           echo "CARGO=cross" >> $GITHUB_ENV
           echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
           echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+
       - name: Show command used for Cargo
         run: |
           echo "cargo command is: ${{ env.CARGO }}"
           echo "target flag is: ${{ env.TARGET_FLAGS }}"
           echo "target dir is: ${{ env.TARGET_DIR }}"
+
       - name: Build release binary
         run: ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
 
@@ -75,8 +86,10 @@ jobs:
         shell: bash
         run: |
           cd target/${{ matrix.target }}/release
-          tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly
+          extension=$([[ "${{ matrix.build }}" == "windows" ]] && echo ".exe" || echo "")
+          tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly$extension
           cd -
+
       - name: Publish
         uses: softprops/action-gh-release@v1
         # TODO: if any of the build step fails, the release should be deleted.
