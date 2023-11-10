@@ -22,25 +22,30 @@ jobs:
     strategy:
       matrix:
         build:
-          - linux
-          - macos
+#          - linux
+#          - macos
+          - windows
         include:
-          - build: linux
+#          - build: linux
+#            os: ubuntu-22.04
+#            rust: stable
+#            target: x86_64-unknown-linux-gnu
+#          - build: linux-musl
+#            os: ubuntu-22.04
+#            rust: stable
+#            target: x86_64-unknown-linux-musl
+#          - build: macos
+#            os: macos-12
+#            rust: stable
+#            target: x86_64-apple-darwin
+#          - build: macos-aarch64
+#            os: macos-12
+#            rust: stable
+#            target: aarch64-apple-darwin
+          - build: windows
             os: ubuntu-22.04
             rust: stable
-            target: x86_64-unknown-linux-gnu
-          - build: macos
-            os: macos-12
-            rust: stable
-            target: x86_64-apple-darwin
-          - build: macos-aarch64
-            os: macos-12
-            rust: stable
-            target: aarch64-apple-darwin
-          - build: linux-musl
-            os: ubuntu-22.04
-            rust: stable
-            target: x86_64-unknown-linux-musl
+            target: x86_64-pc-windows-gnu
 
     steps:
       - name: Checkout repository
@@ -59,11 +64,13 @@ jobs:
           echo "CARGO=cross" >> $GITHUB_ENV
           echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
           echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+
       - name: Show command used for Cargo
         run: |
           echo "cargo command is: ${{ env.CARGO }}"
           echo "target flag is: ${{ env.TARGET_FLAGS }}"
           echo "target dir is: ${{ env.TARGET_DIR }}"
+
       - name: Build release binary
         run: ${{ env.CARGO }} build --verbose --release ${{ env.TARGET_FLAGS }}
 
@@ -75,8 +82,10 @@ jobs:
         shell: bash
         run: |
           cd target/${{ matrix.target }}/release
-          tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly
+          extension=$([[ "${{ matrix.build }}" == "windows" ]] && echo ".exe" || echo "")
+          tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly$extension
           cd -
+
       - name: Publish
         uses: softprops/action-gh-release@v1
         # TODO: if any of the build step fails, the release should be deleted.
@@ -85,34 +94,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-docker-image:
-    name: docker
-    needs: build-release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Build container
-        run: |
-          docker build . \
-          --build-arg "RELEASE=$GITHUB_REF_NAME" \
-          -t "screenly/cli:$GITHUB_REF_NAME"
-
-      - name: Tag container
-        run: |
-          docker tag \
-          "screenly/cli:$GITHUB_REF_NAME" \
-          "screenly/cli:latest"
-
-      - name: Login to DockerHub
-        if: success() && github.event_name != 'pull_request'
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Push Docker containers
-        run: |
-          docker push "screenly/cli:$GITHUB_REF_NAME"
-          docker push "screenly/cli:latest"
+#  build-docker-image:
+#    name: docker
+#    needs: build-release
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v3
+#
+#      - name: Build container
+#        run: |
+#          docker build . \
+#          --build-arg "RELEASE=$GITHUB_REF_NAME" \
+#          -t "screenly/cli:$GITHUB_REF_NAME"
+#
+#      - name: Tag container
+#        run: |
+#          docker tag \
+#          "screenly/cli:$GITHUB_REF_NAME" \
+#          "screenly/cli:latest"
+#
+#      - name: Login to DockerHub
+#        if: success() && github.event_name != 'pull_request'
+#        uses: docker/login-action@v1
+#        with:
+#          username: ${{ secrets.DOCKER_USERNAME }}
+#          password: ${{ secrets.DOCKER_PASSWORD }}
+#
+#      - name: Push Docker containers
+#        run: |
+#          docker push "screenly/cli:$GITHUB_REF_NAME"
+#          docker push "screenly/cli:latest"
