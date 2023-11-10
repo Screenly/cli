@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           cd target/${{ matrix.target }}/release
-          if [[ "${{ matrix.build }}" == "windows" ]]; then
+          if [[ "${{ matrix.build }}" == windows* ]]; then
             zip ../../../screenly-cli-${{ matrix.target }}.zip screenly.exe
           else
             tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly
