@@ -53,7 +53,6 @@ pub async fn run_server(
         .and(warp::path("screenly.js"))
         .and(warp::query::<HashMap<String, String>>())
         .and_then({
-            let dir_path = dir_path;
             move |params: HashMap<String, String>| {
                 let dir_path = dir_path.clone();
                 let secrets_clone = secrets_clone.clone();

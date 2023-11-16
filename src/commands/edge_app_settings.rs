@@ -72,15 +72,6 @@ where
                 setting.title
             )));
         }
-        if setting.type_ == SettingType::String
-            && !setting.optional
-            && setting.default_value.is_none()
-        {
-            return Err(serde::de::Error::custom(format!(
-                "Setting \"{}\" is of type \"string\" and is not optional, it must have a default value",
-                setting.title
-            )));
-        }
     }
 
     settings.sort_by_key(|s| s.title.clone());
