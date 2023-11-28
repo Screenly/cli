@@ -22,49 +22,44 @@
       });
     in
     {
-      overlays.default = final: _prev: {
-        screenly-cli = final.rustPlatform.buildRustPackage rec {
+      overlays.default = final: _prev: let 
+        inherit ((builtins.fromTOML(builtins.readFile ./Cargo.toml)).package) version;
+        inherit (final) openssl perl pkg-config stdenv lib darwin rustPlatform;
+      in {
+        screenly-cli = rustPlatform.buildRustPackage rec {
+          inherit version;
           pname = "screenly-cli";
-          version = "0.2.3";
 
-          src = final.fetchFromGitHub {
-            owner = "screenly";
-            repo = "cli";
-            rev = "refs/tags/v${version}";
-            hash = "sha256-rQK1EYb1xYtcxq0Oj4eY9PCFMoaYinr42W8NkG36ps0=";
-          };
+          src = lib.cleanSource ./.;
 
-          # This can be removed if/when the next tagged release contains the Cargo.lock.
-          # The patch adds the correct Cargo.lock for v0.2.3 to the sources before the configure
-          # phase.
-          cargoPatches = [
-            (final.fetchpatch {
-              url = "https://gist.githubusercontent.com/jnsgruk/851afc2da1d18ca91e34677c7e72aebb/raw/517e82390f3aa9dbd95793563d7b442186a08940/Cargo.lock";
-              hash = "sha256-Cqc1PHRhgS3zK19bSqpU2v+R3jSlOY6oaLJXpUy6+50=";
-            })
+          cargoLock.lockFile = ./Cargo.lock;
+
+          nativeBuildInputs = [
+            pkg-config 
+            perl 
           ];
 
-          cargoHash = "sha256-TzJ56Wuk77qrxDLL17fYEj4i/YhAS6DRmjoqrzb+5AA=";
-
-          nativeBuildInputs = with final; [ pkg-config perl ];
-
-          buildInputs = with final; [
+          buildInputs = [
             openssl
-          ] ++ final.lib.optionals stdenv.isDarwin [ CoreFoundation Security ];
+          ] ++ lib.optionals stdenv.isDarwin [
+            darwin.apple_sdk.frameworks.CoreFoundation
+            darwin.apple_sdk.frameworks.Security
+          ];
 
           meta = {
             description = "Command Line Interface (CLI) for Screenly.";
             homepage = "https://github.com/Screenly/cli";
-            license = final.lib.licenses.mit;
+            license = lib.licenses.mit;
             mainProgram = "screenly";
-            platforms = final.lib.platforms.unix;
-            maintainers = with final.lib.maintainers; [ jnsgruk vpetersson ];
+            platforms = lib.platforms.unix;
+            maintainers = with lib.maintainers; [ jnsgruk vpetersson ];
           };
         };
       };
 
-      packages = forAllSystems (system: {
+      packages = forAllSystems (system: rec {
         inherit (pkgsForSystem system) screenly-cli;
+        default = screenly-cli;
       });
 
       devShells = forAllSystems (system: {
