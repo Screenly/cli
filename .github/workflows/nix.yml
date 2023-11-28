@@ -1,0 +1,35 @@
+name: Nix
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'src/**'
+      - 'Cargo.toml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'src/**'
+      - 'Cargo.toml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout flake
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        uses: DeterminateSystems/nix-installer-action@v8
+
+      - name: Setup magic-nix-cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Build screenly-cli
+        run: nix build .#screenly-cli
