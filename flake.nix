@@ -22,40 +22,44 @@
       });
     in
     {
-      overlays.default = final: _prev: let 
-        inherit ((builtins.fromTOML(builtins.readFile ./Cargo.toml)).package) version;
-        inherit (final) openssl perl pkg-config stdenv lib darwin rustPlatform;
-      in {
-        screenly-cli = rustPlatform.buildRustPackage rec {
-          inherit version;
-          pname = "screenly-cli";
+      overlays.default = final: _prev:
+        let
+          inherit ((builtins.fromTOML (builtins.readFile ./Cargo.toml)).package) version;
+          inherit (final) openssl perl pkg-config stdenv lib darwin rustPlatform;
+        in
+        {
+          screenly-cli = rustPlatform.buildRustPackage rec {
+            inherit version;
+            pname = "screenly-cli";
 
-          src = lib.cleanSource ./.;
+            src = lib.cleanSource ./.;
 
-          cargoLock.lockFile = ./Cargo.lock;
+            cargoLock.lockFile = ./Cargo.lock;
 
-          nativeBuildInputs = [
-            pkg-config 
-            perl 
-          ];
+            nativeBuildInputs = [
+              pkg-config
+              perl
+            ];
 
-          buildInputs = [
-            openssl
-          ] ++ lib.optionals stdenv.isDarwin [
-            darwin.apple_sdk.frameworks.CoreFoundation
-            darwin.apple_sdk.frameworks.Security
-          ];
+            buildInputs = [
+              openssl
+            ] ++ lib.optionals stdenv.isDarwin [
+              darwin.apple_sdk.frameworks.CoreFoundation
+              darwin.apple_sdk.frameworks.CoreServices
+              darwin.apple_sdk.frameworks.Security
+              darwin.apple_sdk.frameworks.SystemConfiguration
+            ];
 
-          meta = {
-            description = "Command Line Interface (CLI) for Screenly.";
-            homepage = "https://github.com/Screenly/cli";
-            license = lib.licenses.mit;
-            mainProgram = "screenly";
-            platforms = lib.platforms.unix;
-            maintainers = with lib.maintainers; [ jnsgruk vpetersson ];
+            meta = {
+              description = "Command Line Interface (CLI) for Screenly.";
+              homepage = "https://github.com/Screenly/cli";
+              license = lib.licenses.mit;
+              mainProgram = "screenly";
+              platforms = lib.platforms.unix;
+              maintainers = with lib.maintainers; [ jnsgruk vpetersson ];
+            };
           };
         };
-      };
 
       packages = forAllSystems (system: rec {
         inherit (pkgsForSystem system) screenly-cli;
