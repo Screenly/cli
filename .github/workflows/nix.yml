@@ -9,6 +9,8 @@ on:
       - 'flake.lock'
       - 'src/**'
       - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/nix.yml'
   pull_request:
     branches:
       - master
@@ -17,10 +19,15 @@ on:
       - 'flake.lock'
       - 'src/**'
       - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/nix.yml'
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout flake
         uses: actions/checkout@v4
