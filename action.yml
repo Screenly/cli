@@ -39,7 +39,7 @@ runs:
       id: run-cli
       run: |
         {
-          echo 'response<<EOF'
+          echo 'response=<<EOF'
           API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }}
           echo EOF
         } >> "$GITHUB_OUTPUT"
