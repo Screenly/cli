@@ -16,6 +16,10 @@ inputs:
   cli_version:
     description: "Screenly CLI version."
     default: "v0.2.3"
+outputs:
+  cli_commands_response:
+    description: "The response from the Screenly CLI command(s)."
+    value: ${{ steps.run-cli.outputs.response }}
 
 runs:
   using: 'composite'
@@ -36,4 +40,5 @@ runs:
       run: |
         API_TOKEN=${{ inputs.screenly_api_token }} \
           /tmp/screenly ${{ inputs.cli_commands }}
+        echo "::set-output name=response::$?"
       shell: bash
