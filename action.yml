@@ -38,9 +38,5 @@ runs:
     - name: Run CLI
       id: run-cli
       run: |
-        {
-          echo 'response=<<EOF'
-          API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }}
-          echo EOF
-        } >> "$GITHUB_OUTPUT"
+        echo "response=$(API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       shell: bash
