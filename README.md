@@ -118,9 +118,6 @@ To utilize an alternative API server (non-production), employ the API_SERVER_NAM
 $ API_SERVER_NAME=local cargo build --release
 ```
 
-```bash
-
-
 ## GitHub Action
 
 Our CLI is also available as a GitHub Action workflow.
