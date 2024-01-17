@@ -38,5 +38,9 @@ runs:
     - name: Run CLI
       id: run-cli
       run: |
-        echo "response=$(API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+        set -o pipefail
+        output=$(API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ')
+        exit_code=$?
+        echo "response=$output" >> "$GITHUB_OUTPUT"
+        exit $exit_code
       shell: bash
