@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use std::str::FromStr;
+use std::ops::Not;
 
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter, EnumString};
 
-use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
+use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field, deserialize_bool_field};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
@@ -37,6 +38,8 @@ pub struct Setting {
         deserialize_with = "deserialize_help_text"
     )]
     pub help_text: String,
+    #[serde(deserialize_with = "deserialize_is_global", skip_serializing_if = "<&bool>::not")]
+    pub is_global: bool
 }
 
 pub fn serialize_settings<S>(settings: &[Setting], serializer: S) -> Result<S::Ok, S::Error>
@@ -118,4 +121,11 @@ where
     D: serde::de::Deserializer<'de>,
 {
     deserialize_string_field("help_text", true, deserializer)
+}
+
+fn deserialize_is_global<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserialize_bool_field("is_global", deserializer)
 }

@@ -85,6 +85,7 @@ impl EdgeAppCommand {
                     type_: SettingType::Secret,
                     default_value: None,
                     optional: true,
+                    is_global: false,
                     help_text: "An example of a secret setting that is used in index.html"
                         .to_string(),
                 },
@@ -93,6 +94,7 @@ impl EdgeAppCommand {
                     type_: SettingType::String,
                     default_value: Some("Unknown".to_string()),
                     optional: true,
+                    is_global: false,
                     help_text: "An example of a string setting that is used in index.html"
                         .to_string(),
                 },
@@ -1042,6 +1044,7 @@ mod tests {
                     type_: SettingType::String,
                     default_value: Some("Unknown".to_string()),
                     optional: true,
+                    is_global: false,
                     help_text: "An example of a string setting that is used in index.html"
                         .to_string(),
                 },
@@ -1050,6 +1053,7 @@ mod tests {
                     type_: SettingType::Secret,
                     default_value: None,
                     optional: true,
+                    is_global: false,
                     help_text: "An example of a secret setting that is used in index.html"
                         .to_string(),
                 }
@@ -1672,6 +1676,7 @@ mod tests {
                 title: "asetting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
@@ -1679,6 +1684,7 @@ mod tests {
                 title: "nsetting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2067,6 +2073,7 @@ mod tests {
                 title: "asetting".to_string(),
                 optional: false,
                 default_value: Some("yes".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
@@ -2074,6 +2081,7 @@ mod tests {
                 title: "nsetting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2114,6 +2122,7 @@ settings:
                 title: "excluded_setting".to_string(),
                 optional: false,
                 default_value: None,
+                is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
@@ -2121,6 +2130,7 @@ settings:
                 title: "included_setting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2146,6 +2156,7 @@ settings:
                 title: "asetting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
@@ -2153,6 +2164,7 @@ settings:
                 title: "nsetting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2568,6 +2580,7 @@ settings:
                 title: "asetting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
@@ -2575,6 +2588,7 @@ settings:
                 title: "nsetting".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
+                is_global: false,
                 help_text: "help text".to_string(),
             },
         ]);
@@ -2618,6 +2632,7 @@ settings:
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
+                    is_global: false,
                     help_text: "asdf".to_string(),
                 },
                 Setting {
@@ -2625,6 +2640,7 @@ settings:
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
+                    is_global: false,
                     help_text: "asdf".to_string(),
                 },
             ],
@@ -2732,6 +2748,7 @@ settings:
                     title: "asetting".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
+                    is_global: false,
                     help_text: "sdfg".to_string(),
                 },
                 Setting {
@@ -2739,6 +2756,7 @@ settings:
                     title: "nsetting".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
+                    is_global: false,
                     help_text: "asdf".to_string(),
                 },
             ],

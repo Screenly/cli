@@ -229,6 +229,7 @@ mod tests {
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
         };
@@ -275,6 +276,7 @@ settings:
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
         };
@@ -319,6 +321,7 @@ settings:
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
         };
@@ -357,6 +360,7 @@ settings:
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
             ..Default::default()
@@ -392,6 +396,7 @@ settings:
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "".to_string(),
             }],
             ..Default::default()
@@ -415,6 +420,7 @@ settings:
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
         };
@@ -439,6 +445,7 @@ settings:
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
         };
@@ -487,6 +494,7 @@ settings:
     type: string
     default_value: stranger
     title: username
+    is_global: false,
     help_text: An example of a setting that is used in index.html
 "#;
 
@@ -507,6 +515,7 @@ settings:
     default_value: stranger
     title: username
     optional: true
+    is_global: false,
     help_text: ''
 "#;
 
@@ -527,6 +536,7 @@ settings:
     default_value: stranger
     title: username
     optional: true
+    is_global: false,
     help_text: An example of a setting that is used in index.html
 "#;
 
@@ -548,6 +558,7 @@ settings:
     default_value: stranger
     title: username
     optional: true
+    is_global: false,
     help_text: An example of a setting that is used in index.html
 "#;
 
@@ -568,6 +579,7 @@ settings:
     default_value: stranger
     title: username
     optional: true
+    is_global: false
     help_text: An example of a setting that is used in index.html
 "#;
 
@@ -622,6 +634,54 @@ settings:
     }
 
     #[test]
+    fn test_save_manifest_to_file_with_is_global_true_should_save_yaml_correctly() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("screenly.yml");
+
+        let manifest = EdgeAppManifest {
+            app_id: Some("test_app".to_string()),
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("test_author".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: Some("stranger".to_string()),
+                optional: true,
+                is_global: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }],
+        };
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let contents = fs::read_to_string(file_path).unwrap();
+
+        let expected_contents = r#"---
+app_id: test_app
+user_version: test_version
+description: test_description
+icon: test_icon
+author: test_author
+homepage_url: test_url
+entrypoint: entrypoint.html
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    help_text: An example of a setting that is used in index.html
+    is_global: true
+"#;
+
+        assert_eq!(contents, expected_contents);
+    }
+
+    #[test]
     fn test_prepare_manifest_payload_includes_some_fields() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
@@ -636,6 +696,7 @@ settings:
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
+                is_global: false,
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
         };
