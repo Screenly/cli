@@ -431,6 +431,31 @@ settings:
     }
 
     #[test]
+    fn test_serialize_deserialize_cycle_with_is_global_setting_should_pass() {
+        let manifest = EdgeAppManifest {
+            app_id: Some("test_app".to_string()),
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("test_author".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
+            settings: vec![Setting {
+                title: "username".to_string(),
+                type_: SettingType::String,
+                default_value: Some("stranger".to_string()),
+                optional: true,
+                is_global: true,
+                help_text: "An example of a setting that is used in index.html".to_string(),
+            }],
+        };
+
+        let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
+
+        assert_eq!(manifest, deserialized_manifest);
+    }
+
+    #[test]
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct_missing_optional_fields() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),

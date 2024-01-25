@@ -67,15 +67,3 @@ where
 pub fn string_field_is_none_or_empty(opt: &Option<String>) -> bool {
     opt.as_ref().map_or(true, |s| s.is_empty())
 }
-
-pub fn deserialize_bool_field<'de, D>(
-    field_name: &'static str,
-    deserializer: D,
-) -> Result<bool, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value: bool = true;
-    // let value: bool = bool::deserialize(deserializer)?;
-    Ok(value)
-}

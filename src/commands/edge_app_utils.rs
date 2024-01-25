@@ -364,6 +364,50 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_changed_settings_when_is_global_changed_on_setting_should_detect_changes() {
+        // Arrange
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
+            settings: vec![
+                Setting {
+                    type_: SettingType::String,
+                    default_value: Some("5".to_string()),
+                    title: "display_time".to_string(),
+                    optional: true,
+                    is_global: true,
+                    help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                },
+            ],
+        };
+
+        let remote_settings = vec![
+            Setting {
+                type_: SettingType::String,
+                default_value: Some("5".to_string()),
+                title: "display_time".to_string(),
+                optional: true,
+                is_global: false,
+                help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+            },
+        ];
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 0);
+        assert_eq!(changes.updates.len(), 1);
+    }
+
+    #[test]
     fn test_detect_changed_files_no_changes() {
         // Arrange
         let local_files = vec![

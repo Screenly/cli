@@ -1759,6 +1759,7 @@ mod tests {
                 "title": "nsetting".to_string(),
                 "optional": true,
                 "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                "is_global": false,
             }]));
         });
 
@@ -2837,5 +2838,58 @@ settings:
         copy_assets_mock.assert();
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_is_global_setting_should_pass_is_global_property() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        //  v4/edge-apps/settings?app_id=eq.{}
+        let settings_mock_create = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "type": "secret",
+                    "default_value": "",
+                    "title": "ssetting",
+                    "optional": false,
+                    "help_text": "help text",
+                    "is_global": true
+                }));
+            then.status(201).json_body(json!(
+            [{
+                "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                "type": "secret",
+                "default_value": "",
+                "title": "ssetting",
+                "optional": false,
+                "help_text": "help text",
+                "is_global": true,
+            }]));
+        });
+
+        let setting = Setting {
+            type_: SettingType::Secret,
+            title: "ssetting".to_string(),
+            optional: false,
+            default_value: Some("".to_string()),
+            is_global: true,
+            help_text: "help text".to_string(),
+        };
+        command
+            .create_setting("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(), &setting)
+            .unwrap();
+
+        settings_mock_create.assert();
     }
 }
