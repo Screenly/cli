@@ -121,6 +121,8 @@ pub enum CommandError {
     InvalidManifest(String),
     #[error("Edge App Manifest (screenly.yml) doesn't exist under provided path: {0}. Enter a valid command line --path parameter or invoke command in a directory containing Edge App Manifest")]
     MisingManifest(String),
+    #[error("Setting does not exist: {0}.")]
+    SettingDoesNotExist(String),
 }
 
 pub fn get(
