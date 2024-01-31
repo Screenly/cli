@@ -230,26 +230,7 @@ impl EdgeAppCommand {
         setting_key: &str,
         setting_value: &str,
     ) -> Result<(), CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/settings?select=is_global&app_id=eq.{}&title=eq.{}",
-                app_id, setting_key,
-            ),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct SettingIsGlobal {
-            is_global: bool,
-        }
-
-        let setting_list = serde_json::from_value::<Vec<SettingIsGlobal>>(response)?;
-
-        if setting_list.is_empty() {
-            return Err(CommandError::SettingDoesNotExist(setting_key.to_string()));
-        }
-
-        let setting = &setting_list[0];
+        let _is_setting_global = self.is_setting_global(app_id, setting_key)?;
 
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
         struct SettingValue {
@@ -260,7 +241,7 @@ impl EdgeAppCommand {
         let settings_values_payload: Value;
         let settings_values_patch_url: String;
 
-        if setting.is_global {
+        if _is_setting_global {
             setting_url = format!(
                 "v4/edge-apps/settings/values?select=title&app_id=eq.{}&title=eq.{}",
                 app_id, setting_key,
@@ -325,18 +306,31 @@ impl EdgeAppCommand {
         secret_key: &str,
         secret_value: &str,
     ) -> Result<(), CommandError> {
-        let installation_id = self.get_or_create_installation(app_id)?;
+        let _is_setting_global = self.is_setting_global(app_id, secret_key)?;
 
-        commands::post(
-            &self.authentication,
-            "v4/edge-apps/secrets/values",
-            &json!(
+        let payload = if _is_setting_global {
+            json!(
+                {
+                    "app_id": app_id,
+                    "title": secret_key,
+                    "value": secret_value,
+                }
+            )
+        } else {
+            let installation_id = self.get_or_create_installation(app_id)?;
+            json!(
                 {
                     "installation_id": installation_id,
                     "title": secret_key,
                     "value": secret_value,
                 }
-            ),
+            )
+        };
+
+        commands::post(
+            &self.authentication,
+            "v4/edge-apps/secrets/values",
+            &payload,
         )?;
 
         Ok(())
@@ -1018,6 +1012,31 @@ impl EdgeAppCommand {
         )?;
 
         Ok(())
+    }
+
+    fn is_setting_global(&self, app_id: &str, setting_key: &str) -> Result<bool, CommandError> {
+        let response = commands::get(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/settings?select=is_global&app_id=eq.{}&title=eq.{}",
+                app_id, setting_key,
+            ),
+        )?;
+
+        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        struct SettingIsGlobal {
+            is_global: bool,
+        }
+
+        let setting_list = serde_json::from_value::<Vec<SettingIsGlobal>>(response)?;
+
+        if setting_list.is_empty() {
+            return Err(CommandError::SettingDoesNotExist(setting_key.to_string()));
+        }
+
+        let setting = &setting_list[0];
+
+        Ok(setting.is_global)
     }
 }
 
@@ -1858,6 +1877,25 @@ mod tests {
     fn test_set_secrets_should_send_correct_request() {
         let mock_server = MockServer::start();
 
+        let setting_get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "is_global")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("title", "eq.best_secret_setting");
+
+            then.status(200).json_body(json!([
+                {
+                    "is_global": false,
+                }
+            ]));
+        });
+
         let installation_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps/installations")
@@ -1924,8 +1962,70 @@ mod tests {
             "best_secret_setting",
             "best_secret_value",
         );
+
+        setting_get_mock.assert();
         installation_mock.assert();
         installation_mock_create.assert();
+        secrets_values_mock_post.assert();
+        debug!("result: {:?}", result);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_global_secrets_should_send_correct_request() {
+        let mock_server = MockServer::start();
+
+        let setting_get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "is_global")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("title", "eq.best_secret_setting");
+
+            then.status(200).json_body(json!([
+                {
+                    "is_global": true,
+                }
+            ]));
+        });
+
+        // "v4/edge-apps/secrets/values"
+
+        let secrets_values_mock_post = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps/secrets/values")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!(
+                    {
+                        "title": "best_secret_setting",
+                        "value": "best_secret_value",
+                        "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW"
+                    }
+                ));
+            then.status(204).json_body(json!({}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let result = command.set_secret(
+            &manifest.app_id.unwrap(),
+            "best_secret_setting",
+            "best_secret_value",
+        );
+
+        setting_get_mock.assert();
         secrets_values_mock_post.assert();
         debug!("result: {:?}", result);
         assert!(result.is_ok());
