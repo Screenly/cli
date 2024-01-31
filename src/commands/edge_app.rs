@@ -623,7 +623,7 @@ impl EdgeAppCommand {
             &json,
         )?;
         if let Some(arr) = response.as_array() {
-            if let Some(obj) = arr.get(0) {
+            if let Some(obj) = arr.first() {
                 if let Some(revision) = obj["revision"].as_u64() {
                     debug!("New version revision: {}", revision);
                     return Ok(revision as u32);
@@ -649,7 +649,7 @@ impl EdgeAppCommand {
         }
 
         let versions: Vec<EdgeAppVersion> = serde_json::from_value(response)?;
-        if let Some(version) = versions.get(0) {
+        if let Some(version) = versions.first() {
             Ok(version.revision)
         } else {
             Err(CommandError::MissingField)
