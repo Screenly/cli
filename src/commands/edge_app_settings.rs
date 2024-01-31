@@ -7,9 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter, EnumString};
 
-use crate::commands::serde_utils::{
-    deserialize_string_field, serialize_non_empty_string_field,
-};
+use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
