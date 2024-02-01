@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use std::ops::Not;
 use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -37,6 +38,8 @@ pub struct Setting {
         deserialize_with = "deserialize_help_text"
     )]
     pub help_text: String,
+    #[serde(default = "bool::default", skip_serializing_if = "<&bool>::not")]
+    pub is_global: bool,
 }
 
 pub fn serialize_settings<S>(settings: &[Setting], serializer: S) -> Result<S::Ok, S::Error>

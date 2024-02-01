@@ -195,6 +195,7 @@ mod tests {
                     default_value: Some("5".to_string()),
                     title: "display_time".to_string(),
                     optional: true,
+                    is_global: false,
                     help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
                 },
                 Setting {
@@ -202,6 +203,7 @@ mod tests {
                     default_value: Some("6".to_string()),
                     title: "google_maps_api_key".to_string(),
                     optional: true,
+                    is_global: false,
                     help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
                 },
             ],
@@ -219,6 +221,7 @@ mod tests {
                 default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
+                is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
@@ -226,6 +229,7 @@ mod tests {
                 default_value: Some("6".to_string()),
                 title: "google_maps_api_key".to_string(),
                 optional: true,
+                is_global: false,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
             },
         ];
@@ -250,6 +254,7 @@ mod tests {
                 default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
+                is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
@@ -257,6 +262,7 @@ mod tests {
                 default_value: Some("6".to_string()),
                 title: "google_maps_api_key".to_string(),
                 optional: true,
+                is_global: false,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
             },
             Setting {
@@ -264,6 +270,7 @@ mod tests {
                 default_value: Some("10".to_string()),
                 title: "new_setting".to_string(),
                 optional: false,
+                is_global: false,
                 help_text: "New setting description".to_string(),
             },
         ];
@@ -288,6 +295,7 @@ mod tests {
                 default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
+                is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
         ];
@@ -314,6 +322,7 @@ mod tests {
                 default_value: Some("5".to_string()),
                 title: "display_time".to_string(),
                 optional: true,
+                is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
@@ -321,6 +330,7 @@ mod tests {
                 default_value: Some("7".to_string()), // Modified default value
                 title: "google_maps_api_key".to_string(),
                 optional: true,
+                is_global: false,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
             },
         ];
@@ -351,6 +361,50 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.creates.len(), 2);
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_is_global_changed_on_setting_should_detect_changes() {
+        // Arrange
+        let manifest = EdgeAppManifest {
+            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some("entrypoint.html".to_owned()),
+            settings: vec![
+                Setting {
+                    type_: SettingType::String,
+                    default_value: Some("5".to_string()),
+                    title: "display_time".to_string(),
+                    optional: true,
+                    is_global: true,
+                    help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                },
+            ],
+        };
+
+        let remote_settings = vec![
+            Setting {
+                type_: SettingType::String,
+                default_value: Some("5".to_string()),
+                title: "display_time".to_string(),
+                optional: true,
+                is_global: false,
+                help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+            },
+        ];
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 0);
+        assert_eq!(changes.updates.len(), 1);
     }
 
     #[test]
