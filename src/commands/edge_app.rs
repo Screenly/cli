@@ -46,6 +46,22 @@ pub struct EdgeAppCreationResponse {
     pub name: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EdgeAppVersion {
+    #[serde(default)]
+    pub user_version: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub entrypoint: Option<String>,
+    #[serde(default)]
+    pub homepage_url: Option<String>,
+}
+
 impl EdgeAppCommand {
     pub fn new(authentication: Authentication) -> Self {
         Self { authentication }
@@ -164,6 +180,22 @@ impl EdgeAppCommand {
                 app_id
             ),
         )?))
+    }
+
+    pub fn get_latest_version(&self, app_id: &str) -> Result<Option<EdgeAppVersion>, CommandError> {
+        let response = commands::get(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/versions?select=user_version,description,icon,author,entrypoint,homepage_url&app_id=eq.{}&order=revision.desc&limit=1",
+                app_id
+            ),
+        )?;
+
+        let versions = serde_json::from_value::<Vec<EdgeAppVersion>>(response)?;
+        if versions.is_empty() {
+            return Ok(None);
+        }
+        Ok(versions.first().cloned())
     }
 
     pub fn list_settings(&self, app_id: &str) -> Result<EdgeAppSettings, CommandError> {
@@ -384,6 +416,9 @@ impl EdgeAppCommand {
             None => return Err(CommandError::MissingAppId),
         };
 
+        let version_metadata_changed =
+            self.detect_version_metadata_changes(actual_app_id, &manifest)?;
+
         let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
 
         let local_files = collect_paths_for_upload(edge_app_dir)?;
@@ -416,7 +451,8 @@ impl EdgeAppCommand {
         };
 
         debug!("File tree changed: {}", file_tree_changed);
-        if !self.requires_upload(&changed_files) && !file_tree_changed {
+        if !self.requires_upload(&changed_files) && !file_tree_changed && !version_metadata_changed
+        {
             return Err(CommandError::NoChangesToUpload(
                 "No changes detected".to_owned(),
             ));
@@ -1037,6 +1073,27 @@ impl EdgeAppCommand {
         let setting = &setting_list[0];
 
         Ok(setting.is_global)
+    }
+
+    pub fn detect_version_metadata_changes(
+        &self,
+        app_id: &str,
+        manifest: &EdgeAppManifest,
+    ) -> Result<bool, CommandError> {
+        let version = self.get_latest_version(app_id)?;
+
+        match version {
+            Some(_version) => Ok(_version
+                != EdgeAppVersion {
+                    user_version: manifest.user_version.clone(),
+                    description: manifest.description.clone(),
+                    icon: manifest.icon.clone(),
+                    author: manifest.author.clone(),
+                    entrypoint: manifest.entrypoint.clone(),
+                    homepage_url: manifest.homepage_url.clone(),
+                }),
+            None => Ok(false),
+        }
     }
 }
 
@@ -2052,11 +2109,40 @@ mod tests {
             },
         ]);
 
+        let mock_server = MockServer::start();
+
         manifest.user_version = None;
         manifest.author = None;
         manifest.entrypoint = None;
 
-        let mock_server = MockServer::start();
+        // "v4/edge-apps/versions?select=user_version,description,icon,author,entrypoint&app_id=eq.{}&order=revision.desc&limit=1",
+        let last_versions_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param(
+                    "select",
+                    "user_version,description,icon,author,entrypoint,homepage_url",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("order", "revision.desc")
+                .query_param("limit", "1");
+            then.status(200).json_body(json!([
+                {
+                    "user_version": "1",
+                    "description": "desc",
+                    "icon": "icon",
+                    "author": "author",
+                    "entrypoint": "entrypoint",
+                    "homepage_url": "homepage_url"
+                }
+            ]));
+        });
+
         // "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
         let assets_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2298,6 +2384,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let result = command.upload(temp_dir.path().join("screenly.yml").as_path(), None);
 
+        last_versions_mock.assert();
         assets_mock.assert();
         file_tree_from_version_mock.assert();
         settings_mock.assert();
@@ -2313,6 +2400,207 @@ mod tests {
         copy_assets_mock.assert();
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_detect_version_metadata_changes_when_no_changes_should_return_false() {
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::String,
+                title: "asetting".to_string(),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "nsetting".to_string(),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+        ]);
+
+        let mock_server = MockServer::start();
+
+        let last_versions_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param(
+                    "select",
+                    "user_version,description,icon,author,entrypoint,homepage_url",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("order", "revision.desc")
+                .query_param("limit", "1");
+            then.status(200).json_body(json!([
+                {
+                    "user_version": "1",
+                    "description": "asdf",
+                    "icon": "asdf",
+                    "author": "asdf",
+                    "entrypoint": "entrypoint.html",
+                    "homepage_url": "asdfasdf",
+                }
+            ]));
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let manifest =
+            EdgeAppManifest::new(temp_dir.path().join("screenly.yml").as_path()).unwrap();
+        let result =
+            command.detect_version_metadata_changes(&manifest.app_id.clone().unwrap(), &manifest);
+
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+        last_versions_mock.assert();
+    }
+
+    #[test]
+    fn test_detect_version_metadata_changes_when_has_changes_should_return_true() {
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::String,
+                title: "asetting".to_string(),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "nsetting".to_string(),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+        ]);
+
+        let mock_server = MockServer::start();
+
+        let last_versions_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param(
+                    "select",
+                    "user_version,description,icon,author,entrypoint,homepage_url",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("order", "revision.desc")
+                .query_param("limit", "1");
+            then.status(200).json_body(json!([
+                {
+                    "user_version": "new_version",
+                    "description": "description",
+                    "icon": "another_icon",
+                    "author": "asdf",
+                    "entrypoint": "entrypoint.html",
+                    "homepage_url": "asdfasdf",
+                }
+            ]));
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let manifest =
+            EdgeAppManifest::new(temp_dir.path().join("screenly.yml").as_path()).unwrap();
+        let result =
+            command.detect_version_metadata_changes(&manifest.app_id.clone().unwrap(), &manifest);
+
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+        last_versions_mock.assert();
+    }
+
+    #[test]
+    fn test_detect_version_metadata_changes_when_no_version_exist_should_return_false() {
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                type_: SettingType::String,
+                title: "asetting".to_string(),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                type_: SettingType::String,
+                title: "nsetting".to_string(),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+        ]);
+
+        let mock_server = MockServer::start();
+
+        let last_versions_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param(
+                    "select",
+                    "user_version,description,icon,author,entrypoint,homepage_url",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("order", "revision.desc")
+                .query_param("limit", "1");
+            then.status(200).json_body(json!([]));
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let manifest =
+            EdgeAppManifest::new(temp_dir.path().join("screenly.yml").as_path()).unwrap();
+        let result =
+            command.detect_version_metadata_changes(&manifest.app_id.clone().unwrap(), &manifest);
+
+        assert!(result.is_ok());
+        assert!(!result.unwrap());
+        last_versions_mock.assert();
     }
 
     #[test]
