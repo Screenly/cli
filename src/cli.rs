@@ -971,7 +971,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 
                 let revision = if *latest {
                     match edge_app_command.get_latest_revision(&actual_app_id) {
-                        Ok(rev) => rev,
+                        Ok(rev) => match rev {
+                            Some(rev) => rev.revision,
+                            None => {
+                                println!("Failed to get latest edge app revision.");
+                                std::process::exit(1);
+                            }
+                        },
                         Err(e) => {
                             println!("Failed to get latest edge app revision: {}", e);
                             std::process::exit(1);

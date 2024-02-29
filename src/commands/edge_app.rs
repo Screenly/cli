@@ -60,6 +60,8 @@ pub struct EdgeAppVersion {
     pub entrypoint: Option<String>,
     #[serde(default)]
     pub homepage_url: Option<String>,
+    #[serde(default)]
+    pub revision: u32,
 }
 
 impl EdgeAppCommand {
@@ -180,22 +182,6 @@ impl EdgeAppCommand {
                 app_id
             ),
         )?))
-    }
-
-    pub fn get_latest_version(&self, app_id: &str) -> Result<Option<EdgeAppVersion>, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/versions?select=user_version,description,icon,author,entrypoint,homepage_url&app_id=eq.{}&order=revision.desc&limit=1",
-                app_id
-            ),
-        )?;
-
-        let versions = serde_json::from_value::<Vec<EdgeAppVersion>>(response)?;
-        if versions.is_empty() {
-            return Ok(None);
-        }
-        Ok(versions.first().cloned())
     }
 
     pub fn list_settings(&self, app_id: &str) -> Result<EdgeAppSettings, CommandError> {
@@ -424,7 +410,10 @@ impl EdgeAppCommand {
         let local_files = collect_paths_for_upload(edge_app_dir)?;
         ensure_edge_app_has_all_necessary_files(&local_files)?;
 
-        let revision = self.get_latest_revision(actual_app_id).unwrap_or(0);
+        let revision = match self.get_latest_revision(actual_app_id)? {
+            Some(revision) => revision.revision,
+            None => 0,
+        };
 
         let remote_files = self.get_version_asset_signatures(actual_app_id, revision)?;
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
@@ -664,26 +653,25 @@ impl EdgeAppCommand {
         Err(CommandError::MissingField)
     }
 
-    pub fn get_latest_revision(&self, app_id: &str) -> Result<u32, CommandError> {
+    pub fn get_latest_revision(
+        &self,
+        app_id: &str,
+    ) -> Result<Option<EdgeAppVersion>, CommandError> {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=revision&order=revision.desc&limit=1&app_id=eq.{}",
+                "v4/edge-apps/versions?select=user_version,description,icon,author,entrypoint,homepage_url,revision&app_id=eq.{}&order=revision.desc&limit=1",
                 app_id
             ),
         )?;
 
-        #[derive(Deserialize)]
-        struct EdgeAppVersion {
-            revision: u32,
-        }
+        let versions: Vec<EdgeAppVersion> =
+            serde_json::from_value::<Vec<EdgeAppVersion>>(response)?;
 
-        let versions: Vec<EdgeAppVersion> = serde_json::from_value(response)?;
-        if let Some(version) = versions.first() {
-            Ok(version.revision)
-        } else {
-            Err(CommandError::MissingField)
+        if versions.is_empty() {
+            return Ok(None);
         }
+        Ok(versions.first().cloned())
     }
 
     fn get_file_tree(
@@ -1080,7 +1068,7 @@ impl EdgeAppCommand {
         app_id: &str,
         manifest: &EdgeAppManifest,
     ) -> Result<bool, CommandError> {
-        let version = self.get_latest_version(app_id)?;
+        let version = self.get_latest_revision(app_id)?;
 
         match version {
             Some(_version) => Ok(_version
@@ -1091,6 +1079,7 @@ impl EdgeAppCommand {
                     author: manifest.author.clone(),
                     entrypoint: manifest.entrypoint.clone(),
                     homepage_url: manifest.homepage_url.clone(),
+                    revision: _version.revision,
                 }),
             None => Ok(false),
         }
@@ -2126,7 +2115,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2138,7 +2127,8 @@ mod tests {
                     "icon": "icon",
                     "author": "author",
                     "entrypoint": "entrypoint",
-                    "homepage_url": "homepage_url"
+                    "homepage_url": "homepage_url",
+                    "revision": 7,
                 }
             ]));
         });
@@ -2157,22 +2147,6 @@ mod tests {
                 .query_param("app_revision", "eq.7")
                 .query_param("type", "eq.edge-app-file");
             then.status(200).json_body(json!([{"signature": "sig"}]));
-        });
-
-        // v4/edge-apps/versions?select=revision&order=revision.desc&limit=1&app_id=eq.{}
-        let revision_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/versions")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "revision")
-                .query_param("order", "revision.desc")
-                .query_param("limit", "1")
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
-            then.status(200).json_body(json!([{"revision": 7}]));
         });
 
         // v4/edge-apps/versions?select=file_tree&app_id=eq.{}&revision=eq.{}
@@ -2384,7 +2358,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let result = command.upload(temp_dir.path().join("screenly.yml").as_path(), None);
 
-        last_versions_mock.assert();
+        last_versions_mock.assert_hits(2);
         assets_mock.assert();
         file_tree_from_version_mock.assert();
         settings_mock.assert();
@@ -2396,7 +2370,6 @@ mod tests {
         publish_mock.assert();
         installation_mock.assert();
         installation_mock_create.assert();
-        revision_mock.assert();
         copy_assets_mock.assert();
 
         assert!(result.is_ok());
@@ -2435,7 +2408,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2448,6 +2421,7 @@ mod tests {
                     "author": "asdf",
                     "entrypoint": "entrypoint.html",
                     "homepage_url": "asdfasdf",
+                    "revision": 1
                 }
             ]));
         });
@@ -2505,7 +2479,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2518,6 +2492,7 @@ mod tests {
                     "author": "asdf",
                     "entrypoint": "entrypoint.html",
                     "homepage_url": "asdfasdf",
+                    "revision": 1,
                 }
             ]));
         });
@@ -2575,7 +2550,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
