@@ -177,3 +177,13 @@ Move the generated signature.rs to the appropriate source directory (src/pb_sign
 ```bash
 $ mv signature.rs src/pb_signature.rs
 ```
+
+## Release
+
+- Merge PRs: Merge all pertinent PRs into the master branch.
+- Update Version in Cargo.toml and action.yml: Bump the version number in Cargo.toml and action.yml file.
+- Update Version in Other Files: Ensure that the new version number is also updated in the project's Dockerfile and GitHub Actions configurations.
+- Create Release Branch and Tag:
+  - Create a new branch named after the release, for instance, release-1.0.0.
+  - Create a git tag to trigger the release action. This will automate the release process. for instance v0.2.3.
+- Update homebrew repo: Once you have created the release please update the homebrew repo to use the latest version.
