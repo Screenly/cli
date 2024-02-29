@@ -974,12 +974,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         Ok(rev) => match rev {
                             Some(rev) => rev.revision,
                             None => {
-                                println!("Failed to get latest edge app revision.");
+                                println!("Failed to get latest Edge App revision.");
                                 std::process::exit(1);
                             }
                         },
                         Err(e) => {
-                            println!("Failed to get latest edge app revision: {}", e);
+                            println!("Failed to get latest Edge App revision: {}", e);
                             std::process::exit(1);
                         }
                     }
