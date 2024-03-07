@@ -136,7 +136,7 @@ pub fn detect_changed_settings(
     let mut new_iter = new_settings.iter().peekable();
 
     while let (Some(&remote_setting), Some(&new_setting)) = (remote_iter.peek(), new_iter.peek()) {
-        match remote_setting.title.cmp(&new_setting.title) {
+        match remote_setting.name.cmp(&new_setting.name) {
             std::cmp::Ordering::Equal => {
                 if remote_setting != new_setting {
                     updates.push(new_setting.clone());
@@ -191,17 +191,19 @@ mod tests {
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![
                 Setting {
+                    name: "display_time".to_string(),
                     type_: SettingType::String,
                     default_value: Some("5".to_string()),
-                    title: "display_time".to_string(),
+                    title: "display time title".to_string(),
                     optional: true,
                     is_global: false,
                     help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
                 },
                 Setting {
+                    name: "google_maps_api_key".to_string(),
                     type_: SettingType::String,
                     default_value: Some("6".to_string()),
-                    title: "google_maps_api_key".to_string(),
+                    title: "Google maps title".to_string(),
                     optional: true,
                     is_global: false,
                     help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
@@ -217,17 +219,19 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
+                name: "display_time".to_string(),
                 type_: SettingType::String,
                 default_value: Some("5".to_string()),
-                title: "display_time".to_string(),
+                title: "display time title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
+                name: "google_maps_api_key".to_string(),
                 type_: SettingType::String,
                 default_value: Some("6".to_string()),
-                title: "google_maps_api_key".to_string(),
+                title: "Google maps title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
@@ -250,25 +254,28 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
+                name: "display_time".to_string(),
                 type_: SettingType::String,
                 default_value: Some("5".to_string()),
-                title: "display_time".to_string(),
+                title: "display time title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
+                name: "google_maps_api_key".to_string(),
                 type_: SettingType::String,
                 default_value: Some("6".to_string()),
-                title: "google_maps_api_key".to_string(),
+                title: "Google maps title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
             },
             Setting {
+                name: "new_setting".to_string(),
                 type_: SettingType::String,
                 default_value: Some("10".to_string()),
-                title: "new_setting".to_string(),
+                title: "new setting title".to_string(),
                 optional: false,
                 is_global: false,
                 help_text: "New setting description".to_string(),
@@ -291,9 +298,10 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
+                name: "display_time".to_string(),
                 type_: SettingType::String,
                 default_value: Some("5".to_string()),
-                title: "display_time".to_string(),
+                title: "display time title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
@@ -307,7 +315,7 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.creates.len(), 1);
-        assert_eq!(changes.creates[0].title, "google_maps_api_key");
+        assert_eq!(changes.creates[0].name, "google_maps_api_key");
     }
 
     // TODO: Update test, when patching is implemented
@@ -318,17 +326,19 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
+                name: "display_time".to_string(),
                 type_: SettingType::String,
                 default_value: Some("5".to_string()),
-                title: "display_time".to_string(),
+                title: "display time title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
             },
             Setting {
+                name: "google_maps_api_key".to_string(),
                 type_: SettingType::String,
                 default_value: Some("7".to_string()), // Modified default value
-                title: "google_maps_api_key".to_string(),
+                title: "Google maps title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
@@ -343,7 +353,7 @@ mod tests {
         let changes = result.unwrap();
         assert_eq!(changes.creates.len(), 0);
         assert_eq!(changes.updates.len(), 1);
-        assert_eq!(changes.updates[0].title, "google_maps_api_key");
+        assert_eq!(changes.updates[0].name, "google_maps_api_key");
         assert_eq!(changes.updates[0].default_value, Some("6".to_owned()));
     }
 
@@ -376,9 +386,10 @@ mod tests {
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![
                 Setting {
+                    name: "display_time".to_string(),
                     type_: SettingType::String,
                     default_value: Some("5".to_string()),
-                    title: "display_time".to_string(),
+                    title: "display time title".to_string(),
                     optional: true,
                     is_global: true,
                     help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
@@ -388,9 +399,10 @@ mod tests {
 
         let remote_settings = vec![
             Setting {
+                name: "display_time".to_string(),
                 type_: SettingType::String,
                 default_value: Some("5".to_string()),
-                title: "display_time".to_string(),
+                title: "display time title".to_string(),
                 optional: true,
                 is_global: false,
                 help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),

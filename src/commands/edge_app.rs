@@ -1,7 +1,7 @@
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
-use crate::commands::edge_app_settings::{Setting, SettingType};
+use crate::commands::edge_app_settings::{deserialize_settings_from_array, Setting, SettingType};
 use crate::commands::{CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps};
 use indicatif::ProgressBar;
 use log::debug;
@@ -99,7 +99,8 @@ impl EdgeAppCommand {
             entrypoint: Some("index.html".to_string()),
             settings: vec![
                 Setting {
-                    title: "secret_word".to_string(),
+                    name: "secret_word".to_string(),
+                    title: "secret title".to_string(),
                     type_: SettingType::Secret,
                     default_value: None,
                     optional: true,
@@ -108,7 +109,8 @@ impl EdgeAppCommand {
                         .to_string(),
                 },
                 Setting {
-                    title: "greeting".to_string(),
+                    name: "greeting".to_string(),
+                    title: "greeting title".to_string(),
                     type_: SettingType::String,
                     default_value: Some("Unknown".to_string()),
                     optional: true,
@@ -189,38 +191,38 @@ impl EdgeAppCommand {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/settings/values?select=title,value&installation_id=eq.{}",
+                "v4.1/edge-apps/settings/values?select=name,value&installation_id=eq.{}",
                 installation_id
             ),
         )?;
 
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
         struct SettingValue {
-            title: String,
+            name: String,
             value: String,
         }
         let settings: HashMap<String, String> =
             serde_json::from_value::<Vec<SettingValue>>(response)?
                 .into_iter()
-                .map(|setting| (setting.title, setting.value))
+                .map(|setting| (setting.name, setting.value))
                 .collect();
 
         let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
-                                                                                                             &format!("v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc&type=eq.string",
+                                                                                                             &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{}&order=name.asc&type=eq.string",
                                                                                                                       app_id,
                                                                                                              ))?)?;
 
         // Combine settings and values into one object
         for setting in app_settings.iter_mut() {
-            let title = setting
-                .get("title")
+            let name = setting
+                .get("name")
                 .and_then(|t| t.as_str())
                 .ok_or_else(|| {
-                    eprintln!("Title field not found in the setting.");
+                    eprintln!("Name field not found in the setting.");
                     CommandError::MissingField
                 })?;
 
-            let value = match settings.get(title) {
+            let value = match settings.get(name) {
                 Some(v) => v,
                 None => continue,
             };
@@ -235,7 +237,7 @@ impl EdgeAppCommand {
         let app_secrets: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(
             commands::get(
                 &self.authentication,
-                &format!("v4/edge-apps/settings?select=optional,title,help_text&app_id=eq.{}&order=title.asc&type=eq.secret", app_id,)
+                &format!("v4.1/edge-apps/settings?select=optional,name,help_text&app_id=eq.{}&order=name.asc&type=eq.secret", app_id,)
             )?
         )?;
 
@@ -252,7 +254,7 @@ impl EdgeAppCommand {
 
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
         struct SettingValue {
-            title: String,
+            name: String,
         }
 
         let setting_url: String;
@@ -261,35 +263,35 @@ impl EdgeAppCommand {
 
         if _is_setting_global {
             setting_url = format!(
-                "v4/edge-apps/settings/values?select=title&app_id=eq.{}&title=eq.{}",
+                "v4.1/edge-apps/settings/values?select=name&app_id=eq.{}&name=eq.{}",
                 app_id, setting_key,
             );
             settings_values_payload = json!(
                 {
                     "app_id": app_id,
-                    "title": setting_key,
+                    "name": setting_key,
                     "value": setting_value,
                 }
             );
             settings_values_patch_url = format!(
-                "v4/edge-apps/settings/values?app_id=eq.{}&title=eq.{}",
+                "v4.1/edge-apps/settings/values?app_id=eq.{}&name=eq.{}",
                 app_id, setting_key,
             );
         } else {
             let installation_id = self.get_or_create_installation(app_id)?;
             setting_url = format!(
-                "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}",
+                "v4.1/edge-apps/settings/values?select=name&installation_id=eq.{}&name=eq.{}",
                 installation_id, setting_key,
             );
             settings_values_payload = json!(
                 {
                     "installation_id": installation_id,
-                    "title": setting_key,
+                    "name": setting_key,
                     "value": setting_value,
                 }
             );
             settings_values_patch_url = format!(
-                "v4/edge-apps/settings/values?installation_id=eq.{}&title=eq.{}",
+                "v4.1/edge-apps/settings/values?installation_id=eq.{}&name=eq.{}",
                 installation_id, setting_key,
             );
         }
@@ -300,7 +302,7 @@ impl EdgeAppCommand {
         if setting_values.is_empty() {
             commands::post(
                 &self.authentication,
-                "v4/edge-apps/settings/values",
+                "v4.1/edge-apps/settings/values",
                 &settings_values_payload,
             )?;
         } else {
@@ -330,7 +332,7 @@ impl EdgeAppCommand {
             json!(
                 {
                     "app_id": app_id,
-                    "title": secret_key,
+                    "name": secret_key,
                     "value": secret_value,
                 }
             )
@@ -339,7 +341,7 @@ impl EdgeAppCommand {
             json!(
                 {
                     "installation_id": installation_id,
-                    "title": secret_key,
+                    "name": secret_key,
                     "value": secret_value,
                 }
             )
@@ -347,7 +349,7 @@ impl EdgeAppCommand {
 
         commands::post(
             &self.authentication,
-            "v4/edge-apps/secrets/values",
+            "v4.1/edge-apps/secrets/values",
             &payload,
         )?;
 
@@ -419,10 +421,10 @@ impl EdgeAppCommand {
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
-        let remote_settings = serde_json::from_value::<Vec<Setting>>(commands::get(
+        let remote_settings = deserialize_settings_from_array(commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc",
+                "v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{}&order=name.asc",
                 actual_app_id,
             ),
         )?)?;
@@ -592,7 +594,7 @@ impl EdgeAppCommand {
                     None => "".to_owned(),
                 };
                 settings.insert(
-                    setting.title.clone(),
+                    setting.name.clone(),
                     serde_yaml::Value::String(settings_default_value),
                 );
             }
@@ -872,14 +874,15 @@ impl EdgeAppCommand {
         let value = serde_json::to_value(setting)?;
         let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
         payload.insert("app_id".to_owned(), json!(app_id));
+        payload.insert("name".to_owned(), json!(setting.name));
 
         debug!("Creating setting: {:?}", &payload);
 
-        let response = commands::post(&self.authentication, "v4/edge-apps/settings", &payload);
+        let response = commands::post(&self.authentication, "v4.1/edge-apps/settings", &payload);
         if response.is_err() {
             let c = commands::get(
                 &self.authentication,
-                &format!("v4/edge-apps/settings?app_id=eq.{}", app_id),
+                &format!("v4.1/edge-apps/settings?app_id=eq.{}", app_id),
             )?;
             debug!("Existing settings: {:?}", c);
             return Err(CommandError::NoChangesToUpload("".to_owned()));
@@ -890,22 +893,23 @@ impl EdgeAppCommand {
 
     fn update_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
         let value = serde_json::to_value(setting)?;
-        let payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
+        let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
+        payload.insert("name".to_owned(), json!(setting.name));
 
         debug!("Updating setting: {:?}", &payload);
 
         let response = commands::patch(
             &self.authentication,
             &format!(
-                "v4/edge-apps/settings?app_id=eq.{id}&title=eq.{title}",
+                "v4.1/edge-apps/settings?app_id=eq.{id}&name=eq.{name}",
                 id = app_id,
-                title = setting.title
+                name = setting.name
             ),
             &payload,
         );
 
         if let Err(error) = response {
-            debug!("Failed to update setting: {}", setting.title);
+            debug!("Failed to update setting: {}", setting.name);
             return Err(error);
         }
 
@@ -1042,7 +1046,7 @@ impl EdgeAppCommand {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/settings?select=is_global&app_id=eq.{}&title=eq.{}",
+                "v4.1/edge-apps/settings?select=is_global&app_id=eq.{}&name=eq.{}",
                 app_id, setting_key,
             ),
         )?;
@@ -1148,7 +1152,8 @@ mod tests {
             manifest.settings,
             vec![
                 Setting {
-                    title: "greeting".to_string(),
+                    name: "greeting".to_string(),
+                    title: "greeting title".to_string(),
                     type_: SettingType::String,
                     default_value: Some("Unknown".to_string()),
                     optional: true,
@@ -1157,7 +1162,8 @@ mod tests {
                         .to_string(),
                 },
                 Setting {
-                    title: "secret_word".to_string(),
+                    name: "secret_word".to_string(),
+                    title: "secret title".to_string(),
                     type_: SettingType::Secret,
                     default_value: None,
                     optional: true,
@@ -1438,36 +1444,39 @@ mod tests {
 
         let settings_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("select", "type,default_value,optional,title,help_text")
+                .query_param("select", "name,type,default_value,optional,title,help_text")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("order", "title.asc");
+                .query_param("order", "name.asc");
 
             then.status(200).json_body(json!([
                 {
+                    "name": "Example setting1",
                     "type": "string",
                     "default_value": "stranger",
                     "optional": true,
-                    "title": "Example setting1",
+                    "title": "Example title1",
                     "help_text": "An example of a setting that is used in index.html"
                 },
                 {
+                    "name": "Example setting2",
                     "type": "string",
                     "default_value": "stranger",
                     "optional": true,
-                    "title": "Example setting2",
+                    "title": "Example title2",
                     "help_text": "An example of a setting that is used in index.html"
                 },
                 {
+                    "name": "Example setting3",
                     "type": "string",
                     "default_value": "stranger",
                     "optional": true,
-                    "title": "Example setting3",
+                    "title": "Example title3",
                     "help_text": "An example of a setting that is used in index.html"
                 }
             ]));
@@ -1475,22 +1484,22 @@ mod tests {
 
         let setting_values_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("select", "title,value")
+                .query_param("select", "name,value")
                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
 
             then.status(200).json_body(json!([
                 {
-                    "title": "Example setting1",
+                    "name": "Example setting1",
                     "value": "stranger"
                 },
                 {
-                    "title": "Example setting2",
+                    "name": "Example setting2",
                     "value": "stranger"
                 }
             ]));
@@ -1514,26 +1523,29 @@ mod tests {
             settings_json,
             json!([
                 {
+                    "name": "Example setting1",
                     "type": "string",
                     "default_value": "stranger",
                     "optional": true,
-                    "title": "Example setting1",
+                    "title": "Example title1",
                     "help_text": "An example of a setting that is used in index.html",
                     "value": "stranger",
                 },
                 {
+                    "name": "Example setting2",
                     "type": "string",
                     "default_value": "stranger",
                     "optional": true,
-                    "title": "Example setting2",
+                    "title": "Example title2",
                     "help_text": "An example of a setting that is used in index.html",
                     "value": "stranger"
                 },
                 {
+                    "name": "Example setting3",
                     "type": "string",
                     "default_value": "stranger",
                     "optional": true,
-                    "title": "Example setting3",
+                    "title": "Example title3",
                     "help_text": "An example of a setting that is used in index.html"
                 }
             ])
@@ -1546,7 +1558,7 @@ mod tests {
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1554,7 +1566,7 @@ mod tests {
                 )
                 .query_param("select", "is_global")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.best_setting");
+                .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
                 {
@@ -1602,21 +1614,21 @@ mod tests {
         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
         let setting_values_mock_get = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("title", "eq.best_setting")
-                .query_param("select", "title")
+                .query_param("name", "eq.best_setting")
+                .query_param("select", "name")
                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
             then.status(200).json_body(json!([]));
         });
 
         let setting_values_mock_post = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1624,7 +1636,7 @@ mod tests {
                 )
                 .json_body(json!(
                     {
-                        "title": "best_setting",
+                        "name": "best_setting",
                         "value": "best_value",
                         "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"
                     }
@@ -1653,7 +1665,7 @@ mod tests {
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1661,7 +1673,7 @@ mod tests {
                 )
                 .query_param("select", "is_global")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.best_setting");
+                .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
                 {
@@ -1692,18 +1704,18 @@ mod tests {
         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
         let setting_values_mock_get = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("title", "eq.best_setting")
-                .query_param("select", "title")
+                .query_param("name", "eq.best_setting")
+                .query_param("select", "name")
                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
             then.status(200).json_body(json!([
                 {
-                    "title": "best_setting",
+                    "name": "best_setting",
                     "value": "best_value",
                 }
             ]));
@@ -1711,13 +1723,13 @@ mod tests {
 
         let setting_values_mock_patch = mock_server.mock(|when, then| {
             when.method(PATCH)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("title", "eq.best_setting")
+                .query_param("name", "eq.best_setting")
                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
                 .json_body(json!(
                     {
@@ -1747,7 +1759,7 @@ mod tests {
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1755,7 +1767,7 @@ mod tests {
                 )
                 .query_param("select", "is_global")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.best_setting");
+                .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
                 {
@@ -1767,18 +1779,18 @@ mod tests {
         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
         let setting_values_mock_get = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("title", "eq.best_setting")
-                .query_param("select", "title")
+                .query_param("name", "eq.best_setting")
+                .query_param("select", "name")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
             then.status(200).json_body(json!([
                 {
-                    "title": "best_setting",
+                    "name": "best_setting",
                     "value": "best_value",
                 }
             ]));
@@ -1786,13 +1798,13 @@ mod tests {
 
         let setting_values_mock_patch = mock_server.mock(|when, then| {
             when.method(PATCH)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("title", "eq.best_setting")
+                .query_param("name", "eq.best_setting")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .json_body(json!(
                     {
@@ -1821,7 +1833,7 @@ mod tests {
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1829,7 +1841,7 @@ mod tests {
                 )
                 .query_param("select", "is_global")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.best_setting");
+                .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
                 {
@@ -1841,21 +1853,21 @@ mod tests {
         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
         let setting_values_mock_get = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("title", "eq.best_setting")
-                .query_param("select", "title")
+                .query_param("name", "eq.best_setting")
+                .query_param("select", "name")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
             then.status(200).json_body(json!([]));
         });
 
         let setting_values_mock_post = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/edge-apps/settings/values")
+                .path("/v4.1/edge-apps/settings/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1864,7 +1876,7 @@ mod tests {
                 .json_body(json!(
                     {
                         "value": "best_value1",
-                        "title": "best_setting",
+                        "name": "best_setting",
                         "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                     }
                 ));
@@ -1890,7 +1902,7 @@ mod tests {
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1898,7 +1910,7 @@ mod tests {
                 )
                 .query_param("select", "is_global")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.best_setting");
+                .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([]));
         });
@@ -1925,7 +1937,7 @@ mod tests {
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1933,7 +1945,7 @@ mod tests {
                 )
                 .query_param("select", "is_global")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.best_secret_setting");
+                .query_param("name", "eq.best_secret_setting");
 
             then.status(200).json_body(json!([
                 {
@@ -1982,7 +1994,7 @@ mod tests {
 
         let secrets_values_mock_post = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/edge-apps/secrets/values")
+                .path("/v4.1/edge-apps/secrets/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -1990,7 +2002,7 @@ mod tests {
                 )
                 .json_body(json!(
                     {
-                        "title": "best_secret_setting",
+                        "name": "best_secret_setting",
                         "value": "best_secret_value",
                         "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"
                     }
@@ -2023,7 +2035,7 @@ mod tests {
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -2031,7 +2043,7 @@ mod tests {
                 )
                 .query_param("select", "is_global")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.best_secret_setting");
+                .query_param("name", "eq.best_secret_setting");
 
             then.status(200).json_body(json!([
                 {
@@ -2044,7 +2056,7 @@ mod tests {
 
         let secrets_values_mock_post = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/edge-apps/secrets/values")
+                .path("/v4.1/edge-apps/secrets/values")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -2052,7 +2064,7 @@ mod tests {
                 )
                 .json_body(json!(
                     {
-                        "title": "best_secret_setting",
+                        "name": "best_secret_setting",
                         "value": "best_secret_value",
                         "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW"
                     }
@@ -2081,16 +2093,18 @@ mod tests {
     fn test_upload_should_send_correct_requests() {
         let mut manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "asetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "nsetting".to_string(),
+                title: "ntitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2167,19 +2181,20 @@ mod tests {
         //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
         let settings_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("select", "type,default_value,optional,title,help_text")
-                .query_param("order", "title.asc");
+                .query_param("select", "name,type,default_value,optional,title,help_text")
+                .query_param("order", "name.asc");
             then.status(200).json_body(json!([{
+                "name": "nsetting".to_string(),
                 "type": SettingType::String,
                 "default_value": "5".to_string(),
-                "title": "nsetting".to_string(),
+                "title": "ntitle".to_string(),
                 "optional": true,
                 "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
                 "is_global": false,
@@ -2209,26 +2224,28 @@ mod tests {
         //  v4/edge-apps/settings?app_id=eq.{}
         let settings_mock_create = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .json_body(json!({
+                    "name": "asetting",
                     "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                     "type": "string",
                     "default_value": "",
-                    "title": "asetting",
+                    "title": "atitle",
                     "optional": false,
                     "help_text": "help text",
                 }));
             then.status(201).json_body(json!(
             [{
+                "name": "asetting",
                 "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                 "type": "string",
                 "default_value": "",
-                "title": "asetting",
+                "title": "atitle",
                 "optional": false,
                 "help_text": "help text",
             }]));
@@ -2236,27 +2253,29 @@ mod tests {
 
         let settings_mock_patch = mock_server.mock(|when, then| {
             when.method(PATCH)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("title", "eq.nsetting")
+                .query_param("name", "eq.nsetting")
                 .json_body(json!({
+                    "name": "nsetting",
                     "type": "string",
                     "default_value": "",
-                    "title": "nsetting",
+                    "title": "ntitle",
                     "optional": false,
                     "help_text": "help text",
                 }));
             then.status(200).json_body(json!(
             [{
+                "name": "nsetting",
                 "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                 "type": "string",
                 "default_value": "",
-                "title": "nsetting",
+                "title": "ntitle",
                 "optional": false,
                 "help_text": "help text",
             }]));
@@ -2379,16 +2398,18 @@ mod tests {
     fn test_detect_version_metadata_changes_when_no_changes_should_return_false() {
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "asetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "nsetting".to_string(),
+                title: "ntitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2450,16 +2471,18 @@ mod tests {
     fn test_detect_version_metadata_changes_when_has_changes_should_return_true() {
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "asetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "nsetting".to_string(),
+                title: "ntitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2521,16 +2544,18 @@ mod tests {
     fn test_detect_version_metadata_changes_when_no_version_exist_should_return_false() {
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "asetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "nsetting".to_string(),
+                title: "ntitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2696,16 +2721,18 @@ mod tests {
         // The EdgeAppManifest structure from your example
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "asetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("yes".to_string()),
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "nsetting".to_string(),
+                title: "ntitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2745,16 +2772,18 @@ settings:
 
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "excluded_setting".to_string(),
                 type_: SettingType::Secret,
-                title: "excluded_setting".to_string(),
+                title: "excluded title".to_string(),
                 optional: false,
                 default_value: None,
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "included_setting".to_string(),
                 type_: SettingType::String,
-                title: "included_setting".to_string(),
+                title: "included title".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2779,16 +2808,18 @@ settings:
     fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "asetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "nsetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2844,31 +2875,31 @@ settings:
 
         let secrets_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("select", "optional,title,help_text")
+                .query_param("select", "optional,name,help_text")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("type", "eq.secret")
-                .query_param("order", "title.asc");
+                .query_param("order", "name.asc");
 
             then.status(200).json_body(json!([
                 {
                     "optional": true,
-                    "title": "Example secret1",
+                    "name": "Example secret1",
                     "help_text": "An example of a secret that is used in index.html"
                 },
                 {
                     "optional": true,
-                    "title": "Example secret2",
+                    "name": "Example secret2",
                     "help_text": "An example of a secret that is used in index.html"
                 },
                 {
                     "optional": false,
-                    "title": "Example secret3",
+                    "name": "Example secret3",
                     "help_text": "An example of a secret that is used in index.html"
                 }
             ]));
@@ -2891,17 +2922,17 @@ settings:
             json!([
                 {
                     "optional": true,
-                    "title": "Example secret1",
+                    "name": "Example secret1",
                     "help_text": "An example of a secret that is used in index.html",
                 },
                 {
                     "optional": true,
-                    "title": "Example secret2",
+                    "name": "Example secret2",
                     "help_text": "An example of a secret that is used in index.html",
                 },
                 {
                     "optional": false,
-                    "title": "Example secret3",
+                    "name": "Example secret3",
                     "help_text": "An example of a secret that is used in index.html"
                 }
             ])
@@ -3203,16 +3234,18 @@ settings:
 
         let mut manifest = create_edge_app_manifest_for_test(vec![
             Setting {
+                name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "asetting".to_string(),
+                title: "atitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
                 help_text: "help text".to_string(),
             },
             Setting {
+                name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "nsetting".to_string(),
+                title: "ntitle".to_string(),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -3255,16 +3288,18 @@ settings:
             entrypoint: None,
             settings: vec![
                 Setting {
+                    name: "asetting".to_string(),
                     type_: SettingType::String,
-                    title: "asetting".to_string(),
+                    title: "atitle".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
                     help_text: "asdf".to_string(),
                 },
                 Setting {
+                    name: "nsetting".to_string(),
                     type_: SettingType::String,
-                    title: "nsetting".to_string(),
+                    title: "ntitle".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
@@ -3371,16 +3406,18 @@ settings:
             entrypoint: None,
             settings: vec![
                 Setting {
+                    name: "asetting".to_string(),
                     type_: SettingType::String,
-                    title: "asetting".to_string(),
+                    title: "atitle".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
                     help_text: "sdfg".to_string(),
                 },
                 Setting {
+                    name: "nsetting".to_string(),
                     type_: SettingType::String,
-                    title: "nsetting".to_string(),
+                    title: "ntitle".to_string(),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
@@ -3477,27 +3514,29 @@ settings:
         //  v4/edge-apps/settings?app_id=eq.{}
         let settings_mock_create = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v4/edge-apps/settings")
+                .path("/v4.1/edge-apps/settings")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .json_body(json!({
+                    "name": "ssetting",
                     "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                     "type": "secret",
                     "default_value": "",
-                    "title": "ssetting",
+                    "title": "stitle",
                     "optional": false,
                     "help_text": "help text",
                     "is_global": true
                 }));
             then.status(201).json_body(json!(
             [{
+                "name": "ssetting",
                 "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                 "type": "secret",
                 "default_value": "",
-                "title": "ssetting",
+                "title": "stitle",
                 "optional": false,
                 "help_text": "help text",
                 "is_global": true,
@@ -3505,8 +3544,9 @@ settings:
         });
 
         let setting = Setting {
+            name: "ssetting".to_string(),
             type_: SettingType::Secret,
-            title: "ssetting".to_string(),
+            title: "stitle".to_string(),
             optional: false,
             default_value: Some("".to_string()),
             is_global: true,
