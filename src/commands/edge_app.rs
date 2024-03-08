@@ -237,7 +237,7 @@ impl EdgeAppCommand {
         let app_secrets: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(
             commands::get(
                 &self.authentication,
-                &format!("v4.1/edge-apps/settings?select=optional,name,help_text&app_id=eq.{}&order=name.asc&type=eq.secret", app_id,)
+                &format!("v4.1/edge-apps/settings?select=optional,name,title,help_text&app_id=eq.{}&order=name.asc&type=eq.secret", app_id,)
             )?
         )?;
 
@@ -2881,7 +2881,7 @@ settings:
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
-                .query_param("select", "optional,name,help_text")
+                .query_param("select", "optional,name,title,help_text")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("type", "eq.secret")
                 .query_param("order", "name.asc");

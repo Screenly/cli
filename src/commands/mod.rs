@@ -419,8 +419,8 @@ impl Formatter for EdgeAppSecrets {
     fn format(&self, output_type: OutputType) -> String {
         format_value(
             output_type,
-            vec!["Name", "Optional", "Help text"],
-            vec!["name", "optional", "help_text"],
+            vec!["Name", "Title", "Optional", "Help text"],
+            vec!["name", "title", "optional", "help_text"],
             self,
             Some(
                 |field_name: &str, field_value: &serde_json::Value| -> Cell {

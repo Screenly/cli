@@ -96,25 +96,29 @@ where
             for (key, value) in setting_data {
                 match key.as_str() {
                     "type" => {
-                        setting.type_ = deserialize_setting_type(value).unwrap();
+                        setting.type_ =
+                            deserialize_setting_type(value).expect("Failed to parse setting type.");
                     }
                     "default_value" => {
                         setting.default_value = value.as_str().map(|s| s.to_string());
                     }
                     "title" => {
-                        setting.title = value.as_str().unwrap().to_string();
+                        setting.title = value.as_str().expect("Failed to parse title.").to_string();
                     }
                     "optional" => {
-                        setting.optional = value.as_bool().unwrap();
+                        setting.optional = value.as_bool().expect("Failed to parse optional.")
                     }
                     "help_text" => {
-                        setting.help_text = value.as_str().unwrap().to_string();
+                        setting.help_text = value
+                            .as_str()
+                            .expect("Failed to parse help_text.")
+                            .to_string();
                     }
                     "is_global" => {
-                        setting.is_global = value.as_bool().unwrap();
+                        setting.is_global = value.as_bool().expect("Failed to parse is_global.");
                     }
                     "name" => {
-                        setting.name = value.as_str().unwrap().to_string();
+                        setting.name = value.as_str().expect("Failed to parse name.").to_string();
                     }
                     _ => {}
                 }
