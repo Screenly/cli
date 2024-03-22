@@ -32,7 +32,7 @@ pub struct Setting {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_value: Option<String>,
     #[serde(default)]
-    pub title: String,
+    pub title: Option<String>,
     #[serde(skip)]
     pub name: String,
     pub optional: bool,
@@ -103,7 +103,7 @@ where
                         setting.default_value = value.as_str().map(|s| s.to_string());
                     }
                     "title" => {
-                        setting.title = value.as_str().expect("Failed to parse title.").to_string();
+                        setting.title = value.as_str().map(|s| s.to_string());
                     }
                     "optional" => {
                         setting.optional = value.as_bool().expect("Failed to parse optional.")

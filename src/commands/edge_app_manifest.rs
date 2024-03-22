@@ -226,7 +226,7 @@ mod tests {
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -274,7 +274,7 @@ settings:
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -320,7 +320,7 @@ settings:
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -360,7 +360,7 @@ settings:
             app_id: Some("test_app".to_string()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -397,7 +397,7 @@ settings:
             app_id: Some("test_app".to_string()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -422,7 +422,7 @@ settings:
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -448,7 +448,7 @@ settings:
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -474,7 +474,7 @@ settings:
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -681,7 +681,7 @@ settings:
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -727,7 +727,7 @@ settings:
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
                 name: "username".to_string(),
-                title: "username title".to_string(),
+                title: Some("username title".to_string()),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
