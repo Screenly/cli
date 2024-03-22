@@ -4,6 +4,7 @@ use std::ops::Not;
 use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter, EnumString};
 
@@ -32,6 +33,8 @@ pub struct Setting {
     pub default_value: Option<String>,
     #[serde(default)]
     pub title: String,
+    #[serde(skip)]
+    pub name: String,
     pub optional: bool,
     #[serde(
         serialize_with = "serialize_help_text",
@@ -50,7 +53,7 @@ where
 
     let mut map = serializer.serialize_map(Some(settings.len()))?;
     for setting in settings {
-        map.serialize_entry(&setting.title, &setting)?;
+        map.serialize_entry(&setting.name, &setting)?;
     }
     map.end()
 }
@@ -62,8 +65,8 @@ where
     let map: HashMap<String, Setting> = serde::Deserialize::deserialize(deserializer)?;
     let mut settings: Vec<Setting> = map
         .into_iter()
-        .map(|(title, mut setting)| {
-            setting.title = title;
+        .map(|(name, mut setting)| {
+            setting.name = name;
             setting
         })
         .collect();
@@ -72,12 +75,59 @@ where
         if setting.type_ == SettingType::Secret && setting.default_value.is_some() {
             return Err(serde::de::Error::custom(format!(
                 "Setting \"{}\" is of type \"secret\" and cannot have a default value",
-                setting.title
+                setting.name
             )));
         }
     }
 
-    settings.sort_by_key(|s| s.title.clone());
+    settings.sort_by_key(|s| s.name.clone());
+    Ok(settings)
+}
+
+pub fn deserialize_settings_from_array<'de, D>(deserializer: D) -> Result<Vec<Setting>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let map: Vec<HashMap<String, Value>> = serde::Deserialize::deserialize(deserializer)?;
+    let mut settings: Vec<Setting> = map
+        .into_iter()
+        .map(|setting_data| {
+            let mut setting = Setting::default();
+            for (key, value) in setting_data {
+                match key.as_str() {
+                    "type" => {
+                        setting.type_ =
+                            deserialize_setting_type(value).expect("Failed to parse setting type.");
+                    }
+                    "default_value" => {
+                        setting.default_value = value.as_str().map(|s| s.to_string());
+                    }
+                    "title" => {
+                        setting.title = value.as_str().expect("Failed to parse title.").to_string();
+                    }
+                    "optional" => {
+                        setting.optional = value.as_bool().expect("Failed to parse optional.")
+                    }
+                    "help_text" => {
+                        setting.help_text = value
+                            .as_str()
+                            .expect("Failed to parse help_text.")
+                            .to_string();
+                    }
+                    "is_global" => {
+                        setting.is_global = value.as_bool().expect("Failed to parse is_global.");
+                    }
+                    "name" => {
+                        setting.name = value.as_str().expect("Failed to parse name.").to_string();
+                    }
+                    _ => {}
+                }
+            }
+            setting
+        })
+        .collect();
+
+    settings.sort_by_key(|s| s.name.clone());
     Ok(settings)
 }
 

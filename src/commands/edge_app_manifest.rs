@@ -225,7 +225,8 @@ mod tests {
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -250,7 +251,7 @@ settings:
   username:
     type: string
     default_value: stranger
-    title: username
+    title: username title
     optional: true
     help_text: An example of a setting that is used in index.html
 "#;
@@ -272,7 +273,8 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -295,7 +297,7 @@ settings:
   username:
     type: string
     default_value: stranger
-    title: username
+    title: username title
     optional: true
     help_text: An example of a setting that is used in index.html
 "#;
@@ -317,7 +319,8 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -340,7 +343,7 @@ settings:
   username:
     type: string
     default_value: stranger
-    title: username
+    title: username title
     optional: true
     help_text: An example of a setting that is used in index.html
 "#;
@@ -356,7 +359,8 @@ settings:
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -376,7 +380,7 @@ settings:
   username:
     type: string
     default_value: stranger
-    title: username
+    title: username title
     optional: true
     help_text: An example of a setting that is used in index.html
 "#;
@@ -392,7 +396,8 @@ settings:
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -416,7 +421,8 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -441,7 +447,8 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -466,7 +473,8 @@ settings:
             homepage_url: None,
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -672,7 +680,8 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
@@ -697,7 +706,7 @@ settings:
   username:
     type: string
     default_value: stranger
-    title: username
+    title: username title
     optional: true
     help_text: An example of a setting that is used in index.html
     is_global: true
@@ -717,7 +726,8 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some("entrypoint.html".to_owned()),
             settings: vec![Setting {
-                title: "username".to_string(),
+                name: "username".to_string(),
+                title: "username title".to_string(),
                 type_: SettingType::String,
                 default_value: Some("stranger".to_string()),
                 optional: true,
