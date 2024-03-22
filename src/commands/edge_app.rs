@@ -100,7 +100,7 @@ impl EdgeAppCommand {
             settings: vec![
                 Setting {
                     name: "secret_word".to_string(),
-                    title: "secret title".to_string(),
+                    title: Some("secret title".to_string()),
                     type_: SettingType::Secret,
                     default_value: None,
                     optional: true,
@@ -110,7 +110,7 @@ impl EdgeAppCommand {
                 },
                 Setting {
                     name: "greeting".to_string(),
-                    title: "greeting title".to_string(),
+                    title: Some("greeting title".to_string()),
                     type_: SettingType::String,
                     default_value: Some("Unknown".to_string()),
                     optional: true,
@@ -728,7 +728,7 @@ impl EdgeAppCommand {
         const SLEEP_TIME: u64 = 2;
         const MAX_WAIT_TIME: u64 = 1000; // 1000 seconds - it could take a while for assets to process
 
-        let mut pb: Option<ProgressBar> = Option::None;
+        let mut pb: Option<ProgressBar> = None;
         let mut assets_to_process = 0;
         let start_time = Instant::now();
 
@@ -1153,7 +1153,7 @@ mod tests {
             vec![
                 Setting {
                     name: "greeting".to_string(),
-                    title: "greeting title".to_string(),
+                    title: Some("greeting title".to_string()),
                     type_: SettingType::String,
                     default_value: Some("Unknown".to_string()),
                     optional: true,
@@ -1163,7 +1163,7 @@ mod tests {
                 },
                 Setting {
                     name: "secret_word".to_string(),
-                    title: "secret title".to_string(),
+                    title: Some("secret title".to_string()),
                     type_: SettingType::Secret,
                     default_value: None,
                     optional: true,
@@ -2095,7 +2095,7 @@ mod tests {
             Setting {
                 name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2104,7 +2104,7 @@ mod tests {
             Setting {
                 name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "ntitle".to_string(),
+                title: Some("ntitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2197,6 +2197,14 @@ mod tests {
                 "title": "ntitle".to_string(),
                 "optional": true,
                 "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                "is_global": false,
+            }, {
+                "name": "isetting".to_string(),
+                "type": SettingType::String,
+                "default_value": "5".to_string(),
+                "title": null,
+                "optional": true,
+                "help_text": "Some text".to_string(),
                 "is_global": false,
             }]));
         });
@@ -2400,7 +2408,7 @@ mod tests {
             Setting {
                 name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2409,7 +2417,7 @@ mod tests {
             Setting {
                 name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "ntitle".to_string(),
+                title: Some("ntitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2473,7 +2481,7 @@ mod tests {
             Setting {
                 name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2482,7 +2490,7 @@ mod tests {
             Setting {
                 name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "ntitle".to_string(),
+                title: Some("ntitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2546,7 +2554,7 @@ mod tests {
             Setting {
                 name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2555,7 +2563,7 @@ mod tests {
             Setting {
                 name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "ntitle".to_string(),
+                title: Some("ntitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2723,7 +2731,7 @@ mod tests {
             Setting {
                 name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("yes".to_string()),
                 is_global: false,
@@ -2732,7 +2740,7 @@ mod tests {
             Setting {
                 name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "ntitle".to_string(),
+                title: Some("ntitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2774,7 +2782,7 @@ settings:
             Setting {
                 name: "excluded_setting".to_string(),
                 type_: SettingType::Secret,
-                title: "excluded title".to_string(),
+                title: Some("excluded title".to_string()),
                 optional: false,
                 default_value: None,
                 is_global: false,
@@ -2783,7 +2791,7 @@ settings:
             Setting {
                 name: "included_setting".to_string(),
                 type_: SettingType::String,
-                title: "included title".to_string(),
+                title: Some("included title".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2810,7 +2818,7 @@ settings:
             Setting {
                 name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -2819,7 +2827,7 @@ settings:
             Setting {
                 name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -3236,7 +3244,7 @@ settings:
             Setting {
                 name: "asetting".to_string(),
                 type_: SettingType::String,
-                title: "atitle".to_string(),
+                title: Some("atitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -3245,7 +3253,7 @@ settings:
             Setting {
                 name: "nsetting".to_string(),
                 type_: SettingType::String,
-                title: "ntitle".to_string(),
+                title: Some("ntitle".to_string()),
                 optional: false,
                 default_value: Some("".to_string()),
                 is_global: false,
@@ -3290,7 +3298,7 @@ settings:
                 Setting {
                     name: "asetting".to_string(),
                     type_: SettingType::String,
-                    title: "atitle".to_string(),
+                    title: Some("atitle".to_string()),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
@@ -3299,7 +3307,7 @@ settings:
                 Setting {
                     name: "nsetting".to_string(),
                     type_: SettingType::String,
-                    title: "ntitle".to_string(),
+                    title: Some("ntitle".to_string()),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
@@ -3408,7 +3416,7 @@ settings:
                 Setting {
                     name: "asetting".to_string(),
                     type_: SettingType::String,
-                    title: "atitle".to_string(),
+                    title: Some("atitle".to_string()),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
@@ -3417,7 +3425,7 @@ settings:
                 Setting {
                     name: "nsetting".to_string(),
                     type_: SettingType::String,
-                    title: "ntitle".to_string(),
+                    title: Some("ntitle".to_string()),
                     optional: false,
                     default_value: Some("".to_string()),
                     is_global: false,
@@ -3546,7 +3554,7 @@ settings:
         let setting = Setting {
             name: "ssetting".to_string(),
             type_: SettingType::Secret,
-            title: "stitle".to_string(),
+            title: Some("stitle".to_string()),
             optional: false,
             default_value: Some("".to_string()),
             is_global: true,
