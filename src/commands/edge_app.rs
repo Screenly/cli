@@ -782,17 +782,30 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn get_or_create_installation(&self, app_id: &str) -> Result<String, CommandError> {
+    fn get_or_create_installation(&self, manifest: &mut EdgeAppManifest, app_id: &str, path: &Path) -> Result<String, CommandError> {
+        if manifest.installation_id.is_some() {
+            // Ideally installation_id should be stored in the manifest file
+            return Ok(manifest.installation_id.clone().unwrap());
+        }
+
+        // If it is not in manifest - it is either new app or old manifest
         let installation_id = match self.get_installation(app_id) {
             Ok(installation) => {
                 debug!("Found installation. No need to install.");
+                // It is old manifest with deprecated installation name
                 installation
             }
             Err(_) => {
                 debug!("No installation found. Installing...");
-                self.install_edge_app(app_id)?
+                // New app - just make installation same name as app
+                let name = self.get_app_name(app_id)?;
+                self.install_edge_app(app_id, &name)?
             }
         };
+
+        // Anyway save installation_id to manifest
+        manifest.installation_id = Some(installation_id.clone());
+        EdgeAppManifest::save_to_file(manifest, path)?;
 
         Ok(installation_id)
     }
@@ -1004,10 +1017,10 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn install_edge_app(&self, app_id: &str) -> Result<String, CommandError> {
+    fn install_edge_app(&self, app_id: &str, name: &str) -> Result<String, CommandError> {
         let payload = json!({
             "app_id": app_id,
-            "name": "Edge app cli installation",
+            "name": name,
         });
 
         let response = commands::post(

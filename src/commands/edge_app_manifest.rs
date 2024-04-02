@@ -25,6 +25,11 @@ pub struct EdgeAppManifest {
     )]
     pub app_id: Option<String>,
     #[serde(
+        skip_serializing_if = "string_field_is_none_or_empty",
+        default
+    )]
+    pub installation_id: Option<String>,
+    #[serde(
         deserialize_with = "deserialize_user_version",
         skip_serializing_if = "string_field_is_none_or_empty",
         default
