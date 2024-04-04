@@ -90,12 +90,16 @@ impl EdgeAppCommand {
 
         let json_response = serde_json::from_value::<Vec<EdgeAppCreationResponse>>(response)?;
         let app_id = json_response[0].id.clone();
+
         if app_id.is_empty() {
             return Err(CommandError::MissingField);
         }
 
+        let installation_id = self.install_edge_app(&app_id, &name)?;
+
         let manifest = EdgeAppManifest {
             app_id: Some(app_id),
+            installation_id: Some(installation_id),
             entrypoint: Some("index.html".to_string()),
             settings: vec![
                 Setting {
@@ -163,7 +167,11 @@ impl EdgeAppCommand {
             return Err(CommandError::MissingField);
         }
 
+        let installation_id = self.install_edge_app(&app_id, &name)?;
+
         manifest.app_id = Some(app_id);
+        manifest.installation_id = Some(installation_id);
+
         EdgeAppManifest::save_to_file(&manifest, path)?;
 
         Ok(())
@@ -186,8 +194,8 @@ impl EdgeAppCommand {
         )?))
     }
 
-    pub fn list_settings(&self, app_id: &str) -> Result<EdgeAppSettings, CommandError> {
-        let installation_id = self.get_or_create_installation(app_id)?;
+    pub fn list_settings(&self, app_id: &str, installation_id: &str) -> Result<EdgeAppSettings, CommandError> {
+
         let response = commands::get(
             &self.authentication,
             &format!(
@@ -247,6 +255,7 @@ impl EdgeAppCommand {
     pub fn set_setting(
         &self,
         app_id: &str,
+        installation_id: &str,
         setting_key: &str,
         setting_value: &str,
     ) -> Result<(), CommandError> {
@@ -278,7 +287,6 @@ impl EdgeAppCommand {
                 app_id, setting_key,
             );
         } else {
-            let installation_id = self.get_or_create_installation(app_id)?;
             setting_url = format!(
                 "v4.1/edge-apps/settings/values?select=name&installation_id=eq.{}&name=eq.{}",
                 installation_id, setting_key,
@@ -323,6 +331,7 @@ impl EdgeAppCommand {
     pub fn set_secret(
         &self,
         app_id: &str,
+        installation_id: &str,
         secret_key: &str,
         secret_value: &str,
     ) -> Result<(), CommandError> {
@@ -337,7 +346,6 @@ impl EdgeAppCommand {
                 }
             )
         } else {
-            let installation_id = self.get_or_create_installation(app_id)?;
             json!(
                 {
                     "installation_id": installation_id,
@@ -461,18 +469,17 @@ impl EdgeAppCommand {
         self.publish(actual_app_id, revision)?;
         debug!("Edge app published.");
 
-        self.get_or_create_installation(actual_app_id)?;
-
         Ok(revision)
     }
 
     pub fn promote_version(
         &self,
         app_id: &str,
+        installation_id: &str,
         revision: u32,
         channel: &String,
     ) -> Result<(), CommandError> {
-        let secrets = self.get_undefined_settings(app_id)?;
+        let secrets = self.get_undefined_settings(app_id, installation_id)?;
         if !secrets.is_empty() {
             return Err(CommandError::UndefinedSettings(serde_json::to_string(
                 &secrets,
@@ -614,9 +621,7 @@ impl EdgeAppCommand {
         println!("Mock data for Edge App emulator was generated.");
         Ok(())
     }
-    fn get_undefined_settings(&self, app_id: &str) -> Result<Vec<String>, CommandError> {
-        let installation_id = self.get_or_create_installation(app_id)?;
-
+    fn get_undefined_settings(&self, app_id: &str, installation_id: &str) -> Result<Vec<String>, CommandError> {
         let undefined_settings_response = commands::get(
             &self.authentication,
             &format!(
@@ -782,7 +787,12 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn get_or_create_installation(&self, manifest: &mut EdgeAppManifest, app_id: &str, path: &Path) -> Result<String, CommandError> {
+    pub fn get_or_create_installation(&self, app_id: &str, path: Option<String>) -> Result<String, CommandError> {
+        let manifest_path = transform_edge_app_path_to_manifest(path);
+        EdgeAppManifest::ensure_manifest_is_valid(manifest_path.as_path())?;
+
+        let mut manifest = EdgeAppManifest::new(manifest_path.as_path()).unwrap();
+
         if manifest.installation_id.is_some() {
             // Ideally installation_id should be stored in the manifest file
             return Ok(manifest.installation_id.clone().unwrap());
@@ -805,7 +815,7 @@ impl EdgeAppCommand {
 
         // Anyway save installation_id to manifest
         manifest.installation_id = Some(installation_id.clone());
-        EdgeAppManifest::save_to_file(manifest, path)?;
+        EdgeAppManifest::save_to_file(&manifest, manifest_path)?;
 
         Ok(installation_id)
     }
@@ -1101,6 +1111,59 @@ impl EdgeAppCommand {
             None => Ok(false),
         }
     }
+
+    fn get_actual_app_id(
+        &self,
+        app_id: &Option<String>,
+        path: &Option<String>,
+    ) -> Result<String, CommandError> {
+        match app_id {
+            Some(id) if id.is_empty() => Err(CommandError::EmptyAppId),
+            Some(id) => Ok(id.clone()),
+            None => {
+                let manifest_path = transform_edge_app_path_to_manifest(path);
+                EdgeAppManifest::ensure_manifest_is_valid(manifest_path.as_path())?;
+
+                let manifest = EdgeAppManifest::new(manifest_path.as_path()).unwrap();
+                match manifest.app_id {
+                    Some(id) if !id.is_empty() => Ok(id),
+                    _ => {
+                        Err(CommandError::MissingAppId)
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn ensure_app_and_installation_id(&self, app_id: Option<String>, installation_id: Option<String>, path: Option<String>) -> Result<(String, String), CommandError> {
+
+        if installation_id.is_none() && app_id.is_some() {
+            return Err(CommandError::EmptyInstallationId);
+        }
+
+        let actual_app_id = match self.get_actual_app_id(&app_id, &path) {
+            Ok(id) => id,
+            Err(e) => {
+                return Err(CommandError::EmptyAppId);
+            }
+        };
+
+        let actual_installation_id = match installation_id {
+            Some(_installation_id) => {
+                _installation_id
+            },
+            None => {
+                match manifest.installation_id {
+                    Some(_installation_id) => {installation_id},
+                    None => {
+                        self.get_or_create_installation(&actual_app_id, path)?
+                    }
+                }
+            }
+        };
+
+        return Ok((actual_app_id, actual_installation_id));
+    }
 }
 
 #[cfg(test)]
@@ -1118,6 +1181,7 @@ mod tests {
     fn create_edge_app_manifest_for_test(settings: Vec<Setting>) -> EdgeAppManifest {
         EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEB").to_string()),
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),
