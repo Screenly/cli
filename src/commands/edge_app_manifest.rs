@@ -24,10 +24,7 @@ pub struct EdgeAppManifest {
         default
     )]
     pub app_id: Option<String>,
-    #[serde(
-        skip_serializing_if = "string_field_is_none_or_empty",
-        default
-    )]
+    #[serde(skip_serializing_if = "string_field_is_none_or_empty", default)]
     pub installation_id: Option<String>,
     #[serde(
         deserialize_with = "deserialize_user_version",
@@ -223,6 +220,7 @@ mod tests {
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: Some("test_installation_id".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -246,6 +244,7 @@ mod tests {
 
         let expected_contents = r#"---
 app_id: test_app
+installation_id: test_installation_id
 user_version: test_version
 description: test_description
 icon: test_icon
@@ -271,6 +270,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: None,
             user_version: Some("test_version".to_string()),
             description: None,
             icon: Some("test_icon".to_string()),
@@ -317,6 +317,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: Some("test_installation_id".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("".to_string()),
             icon: Some("test_icon".to_string()),
@@ -340,6 +341,7 @@ settings:
 
         let expected_contents = r#"---
 app_id: test_app
+installation_id: test_installation_id
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
@@ -419,6 +421,7 @@ settings:
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: Some("test_installation_id".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -445,6 +448,7 @@ settings:
     fn test_serialize_deserialize_cycle_with_is_global_setting_should_pass() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: Some("test_installation_id".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -471,6 +475,7 @@ settings:
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct_missing_optional_fields() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: None,
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: None,
@@ -678,6 +683,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: Some("test_installation_id".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -701,6 +707,7 @@ settings:
 
         let expected_contents = r#"---
 app_id: test_app
+installation_id: test_installation_id
 user_version: test_version
 description: test_description
 icon: test_icon
@@ -724,6 +731,7 @@ settings:
     fn test_prepare_manifest_payload_includes_some_fields() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
+            installation_id: Some("test_installation_id".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
