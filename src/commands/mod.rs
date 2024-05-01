@@ -116,8 +116,6 @@ pub enum CommandError {
     MissingAppId,
     #[error("App id cannot be empty. Provide it either in manifest or with --app-id.")]
     EmptyAppId,
-    #[error("Installation id cannot be empty, when app_id is provided. Provide it with --installation-id or fill both in the manifest.")]
-    EmptyInstallationId,
     #[error("Edge App Revision {0} not found")]
     RevisionNotFound(String),
     #[error("Manifest file validation failed with error: {0}")]

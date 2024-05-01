@@ -386,10 +386,6 @@ pub enum EdgeAppVersionCommands {
         #[arg(short, long, default_value = "stable")]
         channel: String,
 
-        /// Edge app id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
-
         /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
         #[arg(short, long)]
         installation_id: Option<String>,
@@ -410,10 +406,6 @@ pub enum EdgeAppSettingsCommands {
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge app id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
-
         /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
         #[arg(short, long)]
         installation_id: Option<String>,
@@ -427,10 +419,6 @@ pub enum EdgeAppSettingsCommands {
         /// Key value pair of the setting to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         setting_pair: (String, String),
-
-        /// Edge app id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
 
         /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
         #[arg(short, long)]
@@ -449,9 +437,9 @@ pub enum EdgeAppSecretsCommands {
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge app id. If not specified CLI will use the id from the manifest.
+        /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
         #[arg(short, long)]
-        app_id: Option<String>,
+        installation_id: Option<String>,
 
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
@@ -461,10 +449,6 @@ pub enum EdgeAppSecretsCommands {
         /// Key value pair of the secret to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         secret_pair: (String, String),
-
-        /// Edge app id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
 
         /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
         #[arg(short, long)]
@@ -941,26 +925,31 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             EdgeAppVersionCommands::Promote {
                 path,
                 revision,
-                app_id,
                 installation_id,
                 channel,
                 latest,
             } => {
-                let (actual_app_id, actual_installation_id) = match edge_app_command
-                    .ensure_app_and_installation_id(
-                        app_id.clone(),
-                        installation_id.clone(),
-                        path.clone(),
-                    ) {
-                    Ok((_app_id, _installation_id)) => (_app_id, _installation_id),
+                let actual_installation_id = match edge_app_command
+                    .ensure_installation_id(installation_id.clone(), path.clone())
+                {
+                    Ok(_installation_id) => _installation_id,
                     Err(e) => {
-                        error!("Failed to promote edge app version: {}", e);
+                        error!("Error calling promote: {}", e);
                         std::process::exit(1);
                     }
                 };
 
+                let app_id =
+                    match edge_app_command.get_app_id_by_installation(&actual_installation_id) {
+                        Ok(id) => id,
+                        Err(e) => {
+                            error!("Error calling promote: {}", e);
+                            std::process::exit(1);
+                        }
+                    };
+
                 let revision = if *latest {
-                    match edge_app_command.get_latest_revision(&actual_app_id) {
+                    match edge_app_command.get_latest_revision(&app_id) {
                         Ok(rev) => match rev {
                             Some(rev) => rev.revision,
                             None => {
@@ -986,7 +975,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 };
 
                 match edge_app_command.promote_version(
-                    &actual_app_id,
+                    &app_id,
                     &actual_installation_id,
                     revision,
                     channel,
@@ -1005,39 +994,31 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             EdgeAppSettingsCommands::List {
                 path,
                 json,
-                app_id,
                 installation_id,
             } => {
-                let (actual_app_id, actual_installation_id) = match edge_app_command
-                    .ensure_app_and_installation_id(
-                        app_id.clone(),
-                        installation_id.clone(),
-                        path.clone(),
-                    ) {
-                    Ok((_app_id, _installation_id)) => (_app_id, _installation_id),
+                let actual_installation_id = match edge_app_command
+                    .ensure_installation_id(installation_id.clone(), path.clone())
+                {
+                    Ok(_installation_id) => _installation_id,
                     Err(e) => {
                         error!("Error calling list settings: {}", e);
                         std::process::exit(1);
                     }
                 };
                 handle_command_execution_result(
-                    edge_app_command.list_settings(&actual_app_id, &actual_installation_id),
+                    edge_app_command.list_settings(&actual_installation_id),
                     json,
                 );
             }
             EdgeAppSettingsCommands::Set {
                 setting_pair,
-                app_id,
                 installation_id,
                 path,
             } => {
-                let (actual_app_id, actual_installation_id) = match edge_app_command
-                    .ensure_app_and_installation_id(
-                        app_id.clone(),
-                        installation_id.clone(),
-                        path.clone(),
-                    ) {
-                    Ok((_app_id, _installation_id)) => (_app_id, _installation_id),
+                let actual_installation_id = match edge_app_command
+                    .ensure_installation_id(installation_id.clone(), path.clone())
+                {
+                    Ok(_installation_id) => _installation_id,
                     Err(e) => {
                         error!("Error calling set setting: {}", e);
                         std::process::exit(1);
@@ -1045,7 +1026,6 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 };
 
                 match edge_app_command.set_setting(
-                    &actual_app_id,
                     &actual_installation_id,
                     &setting_pair.0,
                     &setting_pair.1,
@@ -1061,32 +1041,34 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         },
         EdgeAppCommands::Secret(command) => match command {
-            EdgeAppSecretsCommands::List { path, json, app_id } => {
-                let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
-                    Ok(id) => id,
+            EdgeAppSecretsCommands::List {
+                path,
+                json,
+                installation_id,
+            } => {
+                let actual_installation_id = match edge_app_command
+                    .ensure_installation_id(installation_id.clone(), path.clone())
+                {
+                    Ok(_installation_id) => _installation_id,
                     Err(e) => {
                         error!("Error calling list secrets: {}", e);
                         std::process::exit(1);
                     }
                 };
                 handle_command_execution_result(
-                    edge_app_command.list_secrets(&actual_app_id),
+                    edge_app_command.list_secrets(&actual_installation_id),
                     json,
                 );
             }
             EdgeAppSecretsCommands::Set {
                 secret_pair,
-                app_id,
                 installation_id,
                 path,
             } => {
-                let (actual_app_id, actual_installation_id) = match edge_app_command
-                    .ensure_app_and_installation_id(
-                        app_id.clone(),
-                        installation_id.clone(),
-                        path.clone(),
-                    ) {
-                    Ok((_app_id, _installation_id)) => (_app_id, _installation_id),
+                let actual_installation_id = match edge_app_command
+                    .ensure_installation_id(installation_id.clone(), path.clone())
+                {
+                    Ok(_installation_id) => _installation_id,
                     Err(e) => {
                         error!("Error calling set secrets: {}", e);
                         std::process::exit(1);
@@ -1094,7 +1076,6 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 };
 
                 match edge_app_command.set_secret(
-                    &actual_app_id,
                     &actual_installation_id,
                     &secret_pair.0,
                     &secret_pair.1,
