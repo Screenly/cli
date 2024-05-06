@@ -343,6 +343,9 @@ pub enum EdgeAppCommands {
         /// Edge App id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
         app_id: Option<String>,
+
+        #[arg(short, long)]
+        delete_missing_settings: Option<bool>,
     },
     /// Deletes an Edge App. This cannot be undone.
     Delete {
@@ -923,10 +926,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         EdgeAppCommands::List { json } => {
             handle_command_execution_result(edge_app_command.list(), json);
         }
-        EdgeAppCommands::Upload { path, app_id } => {
+        EdgeAppCommands::Upload {
+            path,
+            app_id,
+            delete_missing_settings,
+        } => {
             match edge_app_command.upload(
                 transform_edge_app_path_to_manifest(path).as_path(),
                 app_id.clone(),
+                *delete_missing_settings,
             ) {
                 Ok(revision) => {
                     println!(
