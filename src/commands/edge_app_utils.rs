@@ -5,6 +5,8 @@ use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
 use std::collections::{HashMap, HashSet};
+use std::env;
+use std::path::PathBuf;
 
 use crate::commands::ignorer::Ignorer;
 
@@ -65,6 +67,16 @@ fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
     }
 
     return !ignore.is_ignored(entry.path());
+}
+
+pub fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
+    let mut result = match path {
+        Some(path) => PathBuf::from(path),
+        None => env::current_dir().unwrap(),
+    };
+
+    result.push("screenly.yml");
+    result
 }
 
 pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, CommandError> {
@@ -192,6 +204,7 @@ mod tests {
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZBW".to_string()),
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),
@@ -388,6 +401,7 @@ mod tests {
         // Arrange
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZBW".to_string()),
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),

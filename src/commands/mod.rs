@@ -19,7 +19,7 @@ pub mod edge_app;
 pub mod edge_app_manifest;
 pub(crate) mod edge_app_server;
 pub(crate) mod edge_app_settings;
-mod edge_app_utils;
+pub mod edge_app_utils;
 mod ignorer;
 pub(crate) mod playlist;
 pub mod screen;
