@@ -934,7 +934,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 {
                     Ok(_installation_id) => _installation_id,
                     Err(e) => {
-                        error!("Error calling promote: {}", e);
+                        error!("Promote failed: {}", e);
                         std::process::exit(1);
                     }
                 };
@@ -943,7 +943,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     match edge_app_command.get_app_id_by_installation(&actual_installation_id) {
                         Ok(id) => id,
                         Err(e) => {
-                            error!("Error calling promote: {}", e);
+                            error!("Promote failed: {}", e);
                             std::process::exit(1);
                         }
                     };
