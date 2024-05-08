@@ -6,7 +6,7 @@ use crate::commands::{CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVers
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
-use std::{str, thread};
+use std::{io, str, thread};
 
 use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
@@ -388,7 +388,12 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn upload(self, path: &Path, app_id: Option<String>) -> Result<u32, CommandError> {
+    pub fn upload(
+        self,
+        path: &Path,
+        app_id: Option<String>,
+        delete_missing_settings: Option<bool>,
+    ) -> Result<u32, CommandError> {
         EdgeAppManifest::ensure_manifest_is_valid(path)?;
         let mut manifest = EdgeAppManifest::new(path)?;
 
@@ -431,6 +436,25 @@ impl EdgeAppCommand {
 
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
         self.upload_changed_settings(actual_app_id.clone(), &changed_settings)?;
+
+        match { delete_missing_settings } {
+            Some(delete) => {
+                if delete {
+                    self.delete_deleted_settings(
+                        actual_app_id.clone(),
+                        &changed_settings.deleted,
+                        false,
+                    )?;
+                }
+            }
+            None => {
+                self.delete_deleted_settings(
+                    actual_app_id.clone(),
+                    &changed_settings.deleted,
+                    true,
+                )?;
+            }
+        }
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
@@ -833,6 +857,18 @@ impl EdgeAppCommand {
         Ok(())
     }
 
+    fn delete_deleted_settings(
+        &self,
+        app_id: String,
+        deleted: &Vec<Setting>,
+        prompt_user: bool,
+    ) -> Result<(), CommandError> {
+        for setting in deleted {
+            self.try_delete_setting(app_id.clone(), setting, prompt_user)?;
+        }
+        Ok(())
+    }
+
     fn upload_changed_files(
         &self,
         edge_app_dir: &Path,
@@ -914,6 +950,56 @@ impl EdgeAppCommand {
         }
 
         Ok(())
+    }
+
+    fn delete_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
+        let response = commands::delete(
+            &self.authentication,
+            &format!(
+                "v4.1/edge-apps/settings?app_id=eq.{id}&name=eq.{name}",
+                id = app_id,
+                name = setting.name
+            ),
+        );
+
+        if let Err(error) = response {
+            debug!("Failed to delete setting: {}", setting.name);
+            return Err(error);
+        }
+
+        Ok(())
+    }
+
+    fn try_delete_setting(
+        &self,
+        app_id: String,
+        setting: &Setting,
+        prompt_user: bool,
+    ) -> Result<(), CommandError> {
+        debug!("Deleting setting: {:?}", &setting.name);
+
+        let mut input_name = String::new();
+
+        if !prompt_user {
+            return self.delete_setting(app_id, setting);
+        }
+
+        let prompt = format!("It seems like the setting \"{}\" is absent in the YAML file, but it exists on the server. If you wish to skip deletion, you can leave the input blank. Warning, deleting the setting will drop all the associated values. To proceed with deletion, please confirm the setting name by writing it down: ", setting.name);
+        println!("{}", prompt);
+        io::stdin()
+            .read_line(&mut input_name)
+            .expect("Failed to read input");
+
+        if input_name.trim() == "" {
+            return Ok(());
+        }
+
+        if input_name.trim() != setting.name {
+            // Should we ask for confirmation again if user input is wrong?
+            return Err(CommandError::WrongSettingName(setting.name.to_string()));
+        }
+
+        self.delete_setting(app_id, setting)
     }
 
     fn copy_edge_app_assets(
@@ -2289,6 +2375,19 @@ mod tests {
             }]));
         });
 
+        let settings_mock_delete = mock_server.mock(|when, then| {
+            when.method(DELETE)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.isetting");
+            then.status(204).json_body(json!({}));
+        });
+
         let copy_assets_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/edge-apps/copy-assets")
@@ -2383,7 +2482,11 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let result = command.upload(temp_dir.path().join("screenly.yml").as_path(), None);
+        let result = command.upload(
+            temp_dir.path().join("screenly.yml").as_path(),
+            None,
+            Some(true),
+        );
 
         last_versions_mock.assert_hits(2);
         assets_mock.assert();
@@ -2392,6 +2495,7 @@ mod tests {
         create_version_mock.assert();
         settings_mock_create.assert();
         settings_mock_patch.assert();
+        settings_mock_delete.assert();
         upload_assets_mock.assert();
         finished_processing_mock.assert();
         publish_mock.assert();
@@ -3275,7 +3379,11 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let result = command.upload(temp_dir.path().join("screenly.yml").as_path(), None);
+        let result = command.upload(
+            temp_dir.path().join("screenly.yml").as_path(),
+            None,
+            Some(true),
+        );
 
         assert!(result.is_err());
         assert_eq!(

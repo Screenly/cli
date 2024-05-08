@@ -124,6 +124,8 @@ pub enum CommandError {
     MisingManifest(String),
     #[error("Setting does not exist: {0}.")]
     SettingDoesNotExist(String),
+    #[error("Wrong setting name: {0}.")]
+    WrongSettingName(String),
 }
 
 pub fn get(

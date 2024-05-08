@@ -21,6 +21,7 @@ pub struct EdgeAppFile {
 pub struct SettingChanges {
     pub creates: Vec<Setting>,
     pub updates: Vec<Setting>,
+    pub deleted: Vec<Setting>,
 }
 
 #[derive(Debug)]
@@ -124,6 +125,7 @@ pub fn detect_changed_settings(
     manifest: &EdgeAppManifest,
     remote_settings: &[Setting],
 ) -> Result<SettingChanges, CommandError> {
+    // Remote and local settings MUST be sorted.
     // This function compares remote and local settings
     // And returns if there are any new local settings missing from the remote
     // And changed settings to update
@@ -131,6 +133,7 @@ pub fn detect_changed_settings(
 
     let mut creates = Vec::new();
     let mut updates = Vec::new();
+    let mut deleted: Vec<Setting> = Vec::new();
 
     let mut remote_iter = remote_settings.iter().peekable();
     let mut new_iter = new_settings.iter().peekable();
@@ -145,6 +148,7 @@ pub fn detect_changed_settings(
                 new_iter.next();
             }
             std::cmp::Ordering::Less => {
+                deleted.push(remote_setting.clone());
                 remote_iter.next();
             }
             std::cmp::Ordering::Greater => {
@@ -155,8 +159,13 @@ pub fn detect_changed_settings(
     }
 
     creates.extend(new_iter.cloned());
+    deleted.extend(remote_iter.cloned());
 
-    Ok(SettingChanges { creates, updates })
+    Ok(SettingChanges {
+        creates,
+        updates,
+        deleted,
+    })
 }
 
 pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<String, String> {
@@ -248,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_changes_settings_when_setting_removed_should_not_detect_changes() {
+    fn test_detect_changes_settings_when_setting_removed_should_detect_deleted_changes() {
         // Arrange
         let manifest = create_manifest();
 
@@ -288,7 +297,8 @@ mod tests {
         // Assert
         assert!(result.is_ok());
         let changes = result.unwrap();
-        assert_eq!(changes.creates.len(), 0);
+        assert_eq!(changes.deleted.len(), 1);
+        assert_eq!(changes.deleted[0].name, "new_setting");
     }
 
     #[test]
