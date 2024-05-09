@@ -57,8 +57,10 @@ pub enum Commands {
     /// Asset related commands.
     #[command(subcommand)]
     Asset(AssetCommands),
+    /// Playlist related commands.
     #[command(subcommand)]
     Playlist(PlaylistCommands),
+    /// Edge App related commands.
     #[command(subcommand)]
     EdgeApp(EdgeAppCommands),
 }
@@ -368,6 +370,7 @@ pub enum EdgeAppCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppVersionCommands {
+    /// Lists Edge App versions.
     List {
         /// Edge app id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
@@ -381,6 +384,7 @@ pub enum EdgeAppVersionCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
+    /// Promotes Edge App revision to channel.
     Promote {
         /// Edge app revision to promote.
         #[arg(short, long)]
@@ -389,10 +393,11 @@ pub enum EdgeAppVersionCommands {
         #[arg(short, long, default_value = "stable")]
         channel: String,
 
-        /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
+        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
         #[arg(short, long)]
         installation_id: Option<String>,
 
+        /// Use the latest revision of the Edge App.
         #[arg(long,  action = clap::ArgAction::SetTrue, conflicts_with = "revision", default_value="false")]
         latest: bool,
 
@@ -404,12 +409,13 @@ pub enum EdgeAppVersionCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppSettingsCommands {
+    /// Lists Edge App settings.
     List {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
+        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
         #[arg(short, long)]
         installation_id: Option<String>,
 
@@ -417,13 +423,13 @@ pub enum EdgeAppSettingsCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
-
+    /// Sets Edge App setting.
     Set {
         /// Key value pair of the setting to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         setting_pair: (String, String),
 
-        /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
+        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
         #[arg(short, long)]
         installation_id: Option<String>,
 
@@ -435,12 +441,13 @@ pub enum EdgeAppSettingsCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppSecretsCommands {
+    /// Lists Edge App secrets.
     List {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
+        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
         #[arg(short, long)]
         installation_id: Option<String>,
 
@@ -448,12 +455,13 @@ pub enum EdgeAppSecretsCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
+    /// Sets Edge App secret.
     Set {
         /// Key value pair of the secret to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         secret_pair: (String, String),
 
-        /// Edge App Installation id. If app_id is specified, installation_id must be also specified. If both are not specified, CLI will use the installation_id from the manifest
+        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
         #[arg(short, long)]
         installation_id: Option<String>,
 
