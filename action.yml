@@ -15,7 +15,7 @@ inputs:
     required: true
   cli_version:
     description: "Screenly CLI version."
-    default: "v0.2.5"
+    default: "v0.2.6"
 outputs:
   cli_commands_response:
     description: "The response from the Screenly CLI command(s)."
