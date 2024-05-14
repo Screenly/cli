@@ -399,6 +399,39 @@ impl EdgeAppCommand {
         Ok(())
     }
 
+    fn maybe_delete_missing_settings(
+        &self,
+        delete_missing_settings: Option<bool>,
+        actual_app_id: String,
+        changed_settings: SettingChanges,
+    ) -> Result<(), CommandError> {
+        match { delete_missing_settings } {
+            Some(delete) => {
+                if delete {
+                    self.delete_deleted_settings(
+                        actual_app_id.clone(),
+                        &changed_settings.deleted,
+                        false,
+                    )?;
+                }
+            }
+            None => {
+                if let Ok(ci) = std::env::var("CI") {
+                    if ci == "true" {
+                        return Ok(());
+                    }
+                }
+                self.delete_deleted_settings(
+                    actual_app_id.clone(),
+                    &changed_settings.deleted,
+                    true,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn upload(
         self,
         path: &Path,
@@ -450,24 +483,11 @@ impl EdgeAppCommand {
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
         self.upload_changed_settings(actual_app_id.clone(), &changed_settings)?;
 
-        match { delete_missing_settings } {
-            Some(delete) => {
-                if delete {
-                    self.delete_deleted_settings(
-                        actual_app_id.clone(),
-                        &changed_settings.deleted,
-                        false,
-                    )?;
-                }
-            }
-            None => {
-                self.delete_deleted_settings(
-                    actual_app_id.clone(),
-                    &changed_settings.deleted,
-                    true,
-                )?;
-            }
-        }
+        self.maybe_delete_missing_settings(
+            delete_missing_settings,
+            actual_app_id.clone(),
+            changed_settings,
+        )?;
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
@@ -1334,6 +1354,7 @@ impl EdgeAppCommand {
 mod tests {
     use super::*;
     use crate::authentication::Config;
+    use std::env;
 
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
@@ -4109,6 +4130,44 @@ settings:
             command.update_entrypoint_if_needed("01H2QZ6Z8WXWNDC0KQ198XCZEW", manifest_path);
 
         get_installation_mock.assert();
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_maybe_delete_missing_settings_when_ci_is_1_and_no_arg_provided_should_ignore_deleting_settings(
+    ) {
+        env::set_var("CI", "true");
+
+        let mock_server = MockServer::start();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let changed_settings: SettingChanges = SettingChanges {
+            creates: vec![],
+            updates: vec![],
+            deleted: vec![Setting {
+                name: "asetting".to_string(),
+                type_: SettingType::String,
+                title: Some("atitle".to_string()),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            }],
+        };
+
+        let result = command.maybe_delete_missing_settings(
+            None,
+            "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+            changed_settings,
+        );
 
         assert!(result.is_ok());
     }
