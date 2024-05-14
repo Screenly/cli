@@ -417,7 +417,7 @@ impl EdgeAppCommand {
             }
             None => {
                 if let Ok(ci) = std::env::var("CI") {
-                    if ci == "1" {
+                    if ci == "true" {
                         return Ok(());
                     }
                 }
@@ -4137,7 +4137,7 @@ settings:
     #[test]
     fn test_maybe_delete_missing_settings_when_ci_is_1_and_no_arg_provided_should_ignore_deleting_settings(
     ) {
-        env::set_var("CI", "1");
+        env::set_var("CI", "true");
 
         let mock_server = MockServer::start();
         let config = Config::new(mock_server.base_url());
