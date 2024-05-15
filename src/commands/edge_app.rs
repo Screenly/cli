@@ -416,10 +416,8 @@ impl EdgeAppCommand {
                 }
             }
             None => {
-                if let Ok(ci) = std::env::var("CI") {
-                    if ci == "true" {
-                        return Ok(());
-                    }
+                if let Ok(_ci) = std::env::var("CI") {
+                    return Ok(());
                 }
                 self.delete_deleted_settings(
                     actual_app_id.clone(),
