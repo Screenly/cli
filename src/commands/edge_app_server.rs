@@ -80,7 +80,7 @@ pub async fn run_server(
 }
 
 #[derive(Debug)]
-struct WarpError(anyhow::Error);
+struct WarpError(#[allow(dead_code)] anyhow::Error);
 
 impl Reject for WarpError {}
 

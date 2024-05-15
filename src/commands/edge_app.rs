@@ -405,7 +405,7 @@ impl EdgeAppCommand {
         actual_app_id: String,
         changed_settings: SettingChanges,
     ) -> Result<(), CommandError> {
-        match { delete_missing_settings } {
+        match delete_missing_settings  {
             Some(delete) => {
                 if delete {
                     self.delete_deleted_settings(
@@ -416,10 +416,8 @@ impl EdgeAppCommand {
                 }
             }
             None => {
-                if let Ok(ci) = std::env::var("CI") {
-                    if ci == "true" {
-                        return Ok(());
-                    }
+                if let Ok(_ci) = std::env::var("CI") {
+                    return Ok(());
                 }
                 self.delete_deleted_settings(
                     actual_app_id.clone(),
