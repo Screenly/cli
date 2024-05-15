@@ -405,7 +405,7 @@ impl EdgeAppCommand {
         actual_app_id: String,
         changed_settings: SettingChanges,
     ) -> Result<(), CommandError> {
-        match { delete_missing_settings } {
+        match delete_missing_settings  {
             Some(delete) => {
                 if delete {
                     self.delete_deleted_settings(
