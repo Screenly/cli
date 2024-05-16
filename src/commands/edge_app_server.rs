@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use warp::reject::Reject;
 use warp::{Filter, Rejection, Reply};
 
 pub const MOCK_DATA_FILENAME: &str = "mock-data.yml";
@@ -78,11 +77,6 @@ pub async fn run_server(
 
     Ok(format!("http://{}/edge/1", addr))
 }
-
-#[derive(Debug)]
-struct WarpError(#[allow(dead_code)] anyhow::Error);
-
-impl Reject for WarpError {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Metadata {
