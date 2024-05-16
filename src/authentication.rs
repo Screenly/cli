@@ -4,6 +4,7 @@ use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::{header, StatusCode};
 use thiserror::Error;
 
+// For compatability reasons - let's leave build env as well.
 include!(concat!(env!("OUT_DIR"), "/config.rs"));
 // for local development
 // also uncomment unsafe certificate lines "danger_accept_invalid_certs(true)".
@@ -40,7 +41,13 @@ pub struct Authentication {
 impl Config {
     pub fn default() -> Self {
         Self {
-            url: API_BASE_URL.to_string(),
+            url: {
+                if let Ok(url) = env::var("API_BASE_URL") {
+                    url
+                } else {
+                    API_BASE_URL.to_string()
+                }
+            },
         }
     }
 
@@ -230,5 +237,30 @@ mod tests {
 
         Authentication::remove_token().unwrap();
         assert!(!tmp_dir.path().join(".screenly").exists());
+    }
+
+    #[test]
+    fn test_verify_and_store_token_when_base_url_is_overdriven() {
+        env::set_var("API_BASE_URL", "https://login.screenly.local");
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+
+        let mock_server = MockServer::start();
+        let group_call_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/")
+                .header("Authorization", "Token correct_token");
+            then.status(404);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "");
+        assert!(verify_and_store_token("correct_token", &authentication.config.url).is_ok());
+        let path = tmp_dir.path().join(".screenly");
+        assert!(path.exists());
+        let contents = fs::read_to_string(path).unwrap();
+        group_call_mock.assert();
+        assert!(contents.eq("correct_token"));
     }
 }
