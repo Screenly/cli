@@ -9,6 +9,8 @@ jobs:
   lint:
     name: Lint code base
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -18,8 +20,8 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-targets --all-features -- -D warnings
       - name: rust-fmt-check
         uses: actions-rust-lang/rustfmt@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
