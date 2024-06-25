@@ -1,0 +1,34 @@
+---
+name: Generate SBOMs
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'Cargo.toml'
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: psastras/sbom-rs/actions/install-cargo-sbom@cargo-sbom-latest
+
+      - name: Run cargo-sbom
+        run: |
+          cargo-sbom --output-format=spdx_json_2_3 > sbom.spdx.json
+          cargo-sbom --output-format=cyclone_dx_json_1_4 > sbom.cyclonedx.json
+
+      - name: Upload SPDX SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-SPDX
+          path: sbom.spdx.json
+
+      - name: Upload CycloneDX SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: cli-CycloneDX
+          path: sbom.cyclonedx.json
