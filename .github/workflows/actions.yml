@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - id: list-screens
-        uses: screenly/cli@master
+        uses: screenly/cli@fix-cli-action-output-print
         with:
           screenly_api_token: ${{ secrets.SCREENLY_API_TOKEN }}
           cli_commands: screen list

@@ -42,5 +42,6 @@ runs:
         output=$(API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ')
         exit_code=$?
         echo "response=$output" >> "$GITHUB_OUTPUT"
+        echo "$output"
         exit $exit_code
       shell: bash
