@@ -391,6 +391,28 @@ impl EdgeAppCommand {
                 address_shared.lock().unwrap().as_ref().unwrap()
             );
 
+            #[cfg(target_os = "macos")]
+            {
+                let _ = std::process::Command::new("open")
+                    .arg(format!("{}/index.html", address_shared.lock().unwrap().as_ref().unwrap()))
+                    .output();
+            }
+
+            #[cfg(target_os = "linux")]
+            {
+                let _ = std::process::Command::new("xdg-open")
+                    .arg(format!("{}/index.html", address_shared.lock().unwrap().as_ref().unwrap()))
+                    .output();
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                let _ = std::process::Command::new("cmd")
+                    .arg("/C")
+                    .arg(format!("start {}/index.html", address_shared.lock().unwrap().as_ref().unwrap()))
+                    .output();
+            }
+
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
             }
