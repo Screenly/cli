@@ -391,9 +391,10 @@ impl EdgeAppCommand {
                 address_shared.lock().unwrap().as_ref().unwrap()
             );
 
-            if let Err(e) = self.open_browser(
-                &format!("{}/index.html", address_shared.lock().unwrap().as_ref().unwrap()),
-            ) {
+            if let Err(e) = self.open_browser(&format!(
+                "{}/index.html",
+                address_shared.lock().unwrap().as_ref().unwrap()
+            )) {
                 eprintln!("{}", e);
             }
 
@@ -412,7 +413,7 @@ impl EdgeAppCommand {
             "linux" => "xdg-open",
             _ => {
                 return Err(CommandError::OpenBrowserError(
-                    "Unsupported OS to open browser".to_string()
+                    "Unsupported OS to open browser".to_string(),
                 ))
             }
         };
@@ -423,9 +424,10 @@ impl EdgeAppCommand {
             .expect("Failed to open browser");
 
         if !output.status.success() {
-            return Err(CommandError::OpenBrowserError(
-                format!("Failed to open browser: {}", str::from_utf8(&output.stderr).unwrap())
-            ));
+            return Err(CommandError::OpenBrowserError(format!(
+                "Failed to open browser: {}",
+                str::from_utf8(&output.stderr).unwrap()
+            )));
         }
 
         Ok(())
