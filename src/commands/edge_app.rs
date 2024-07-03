@@ -391,10 +391,44 @@ impl EdgeAppCommand {
                 address_shared.lock().unwrap().as_ref().unwrap()
             );
 
+            if let Err(e) = self.open_browser(&format!(
+                "{}/index.html",
+                address_shared.lock().unwrap().as_ref().unwrap()
+            )) {
+                eprintln!("{}", e);
+            }
+
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
             }
         });
+
+        Ok(())
+    }
+
+    fn open_browser(&self, address: &str) -> Result<(), CommandError> {
+        let command = match std::env::consts::OS {
+            "macos" => "open",
+            "windows" => "start",
+            "linux" => "xdg-open",
+            _ => {
+                return Err(CommandError::OpenBrowserError(
+                    "Unsupported OS to open browser".to_string(),
+                ))
+            }
+        };
+
+        let output = std::process::Command::new(command)
+            .arg(address)
+            .output()
+            .expect("Failed to open browser");
+
+        if !output.status.success() {
+            return Err(CommandError::OpenBrowserError(format!(
+                "Failed to open browser: {}",
+                str::from_utf8(&output.stderr).unwrap()
+            )));
+        }
 
         Ok(())
     }
