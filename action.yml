@@ -13,6 +13,10 @@ inputs:
   cli_commands:
     description: "Your Screenly CLI command(s)."
     required: true
+  print_cli_commands_output:
+    description: "Print the Screenly CLI command(s) output."
+    default: "true"
+    required: false
   cli_version:
     description: "Screenly CLI version."
     default: "v0.2.7"
@@ -42,5 +46,11 @@ runs:
         output=$(API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ')
         exit_code=$?
         echo "response=$output" >> "$GITHUB_OUTPUT"
+
+        if [ "${{ inputs.print_cli_commands_output }}" = "true" ]; then
+          echo "Screenly CLI command(s) output:"
+          echo "$output"
+        fi
+
         exit $exit_code
       shell: bash
