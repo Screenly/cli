@@ -204,7 +204,9 @@ mod tests {
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZBW".to_string()),
+            auth: None,
+            syntax: "manifest_v1".to_string(),
+            ready_signal: None,
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),
@@ -401,7 +403,9 @@ mod tests {
         // Arrange
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZBW".to_string()),
+            auth: None,
+            syntax: "manifest_v1".to_string(),
+            ready_signal: None,
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),

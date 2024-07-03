@@ -15,6 +15,21 @@ use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Auth {
+    #[serde(deserialize_with = "deserialize_auth_type")]
+    pub auth_type: AuthType,
+    pub global: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthType {
+    Basic,
+    Bearer,
+    OAuth2ClientCredential,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EdgeAppManifest {
@@ -24,8 +39,6 @@ pub struct EdgeAppManifest {
         default
     )]
     pub app_id: Option<String>,
-    #[serde(skip_serializing_if = "string_field_is_none_or_empty", default)]
-    pub installation_id: Option<String>,
     #[serde(
         deserialize_with = "deserialize_user_version",
         skip_serializing_if = "string_field_is_none_or_empty",
@@ -63,11 +76,74 @@ pub struct EdgeAppManifest {
     )]
     pub entrypoint: Option<String>,
     #[serde(
+        deserialize_with = "deserialize_auth",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub auth: Option<Auth>,
+
+    #[serde(deserialize_with = "deserialize_syntax", default)]
+    pub syntax: String,
+
+    #[serde(
+        deserialize_with = "deserialize_ready_signal",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
+    pub ready_signal: Option<bool>,
+
+    #[serde(
         serialize_with = "serialize_settings",
         deserialize_with = "deserialize_settings",
         default
     )]
     pub settings: Vec<Setting>,
+}
+
+fn deserialize_auth<'de, D>(deserializer: D) -> Result<Option<Auth>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct AuthHelper {
+        #[serde(rename = "type")]
+        auth_type: AuthType,
+        global: bool,
+    }
+
+    let auth = Option::deserialize(deserializer)?;
+    Ok(auth.map(|AuthHelper { auth_type, global }| Auth { auth_type, global }))
+}
+
+fn deserialize_auth_type<'de, D>(deserializer: D) -> Result<AuthType, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    match s.as_str() {
+        "basic" => Ok(AuthType::Basic),
+        "bearer" => Ok(AuthType::Bearer),
+        "oauth2_client_credential" => Ok(AuthType::OAuth2ClientCredential),
+        _ => Err(serde::de::Error::custom(format!(
+            "Invalid auth type: {}",
+            s
+        ))),
+    }
+}
+
+fn deserialize_syntax<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let s = Option::<String>::deserialize(deserializer)?;
+    match s.as_deref() {
+        Some("manifest_v1") => Ok(s),
+        Some(invalid) => Err(serde::de::Error::custom(format!(
+            "Invalid syntax: {}. Only 'manifest_v1' is accepted.",
+            invalid
+        ))),
+        None => Ok(None),
+    }
 }
 
 fn deserialize_app_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -79,6 +155,13 @@ where
     maybe_app_id.map_err(|_e| {
         serde::de::Error::custom("Enter a valid ULID `app_id` parameter either in the maniphest file or as a command line parameter (e.g. `--app_id XXXXXXXXXXXXXXXX`). Field \"app_id\" cannot be empty in the maniphest file (screenly.yml)")
     })
+}
+
+fn deserialize_ready_signal<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    Option::<bool>::deserialize(deserializer)
 }
 
 fn deserialize_user_version<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -220,7 +303,9 @@ mod tests {
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: Some("test_installation_id".to_string()),
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -270,7 +355,9 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: None,
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: None,
             icon: Some("test_icon".to_string()),
@@ -317,7 +404,9 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: Some("test_installation_id".to_string()),
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("".to_string()),
             icon: Some("test_icon".to_string()),
@@ -421,7 +510,9 @@ settings:
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: Some("test_installation_id".to_string()),
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -448,7 +539,9 @@ settings:
     fn test_serialize_deserialize_cycle_with_is_global_setting_should_pass() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: Some("test_installation_id".to_string()),
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -475,7 +568,9 @@ settings:
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct_missing_optional_fields() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: None,
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: None,
@@ -683,7 +778,9 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: Some("test_installation_id".to_string()),
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
@@ -731,7 +828,9 @@ settings:
     fn test_prepare_manifest_payload_includes_some_fields() {
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            installation_id: Some("test_installation_id".to_string()),
+            ready_signal: Some(true),
+            auth: None,
+            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
