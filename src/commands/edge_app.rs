@@ -177,38 +177,6 @@ impl EdgeAppCommand {
         )?))
     }
 
-    pub fn run(&self, path: &Path, secrets: Vec<(String, String)>) -> Result<(), anyhow::Error> {
-        let address_shared = Arc::new(Mutex::new(None));
-        let address_clone = address_shared.clone();
-
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let path = path.to_path_buf();
-        runtime.block_on(async {
-            tokio::spawn(async move {
-                let address = run_server(path.as_path(), secrets).await.unwrap();
-                let mut locked_address = address_clone.lock().unwrap();
-                *locked_address = Some(address);
-            })
-            .await
-            .unwrap();
-
-            while address_shared.lock().unwrap().is_none() {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            }
-
-            println!(
-                "Edge App emulator is running at {}/index.html",
-                address_shared.lock().unwrap().as_ref().unwrap()
-            );
-
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
-            }
-        });
-
-        Ok(())
-    }
-
     pub fn deploy(
         self,
         path: &Path,
@@ -721,59 +689,7 @@ impl EdgeAppCommand {
 
         Ok(())
     }
-
-    fn maybe_delete_missing_settings(
-        &self,
-        delete_missing_settings: Option<bool>,
-        actual_app_id: String,
-        changed_settings: SettingChanges,
-    ) -> Result<(), CommandError> {
-        match delete_missing_settings {
-            Some(delete) => {
-                if delete {
-                    self.delete_deleted_settings(
-                        actual_app_id.clone(),
-                        &changed_settings.deleted,
-                        false,
-                    )?;
-                }
-            }
-            None => {
-                if let Ok(_ci) = std::env::var("CI") {
-                    return Ok(());
-                }
-                self.delete_deleted_settings(
-                    actual_app_id.clone(),
-                    &changed_settings.deleted,
-                    true,
-                )?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn upload(
-        self,
-        path: &Path,
-        app_id: Option<String>,
-        delete_missing_settings: Option<bool>,
-    ) -> Result<u32, CommandError> {
-        EdgeAppManifest::ensure_manifest_is_valid(path)?;
-        let mut manifest = EdgeAppManifest::new(path)?;
-
-        // override app_id if user passed it
-        if let Some(id) = app_id {
-            if id.is_empty() {
-                return Err(CommandError::EmptyAppId);
-            }
-            manifest.app_id = Some(id);
-        }
-        let actual_app_id = match manifest.app_id {
-            Some(ref id) => id,
-            None => return Err(CommandError::MissingAppId),
-        };
-
+}
 // Edge app instance commands
 impl EdgeAppCommand {
     pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
