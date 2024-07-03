@@ -111,8 +111,6 @@ pub enum CommandError {
     InitializationError(String),
     #[error("Asset processing error: {0}")]
     AssetProcessingError(String),
-    #[error("Warning: these settings are required to be defined: {0}.")]
-    UndefinedSettings(String),
     #[error("App id is required. Either in manifest or with --app-id.")]
     MissingAppId,
     #[error("App id cannot be empty. Provide it either in manifest or with --app-id.")]
@@ -127,6 +125,8 @@ pub enum CommandError {
     SettingDoesNotExist(String),
     #[error("Wrong setting name: {0}.")]
     WrongSettingName(String),
+    #[error("Failed to open browser")]
+    OpenBrowserError(String),
 }
 
 pub fn get(
@@ -299,56 +299,6 @@ impl Formatter for EdgeApps {
 }
 
 #[derive(Debug)]
-pub struct EdgeAppVersions {
-    pub value: serde_json::Value,
-}
-
-impl EdgeAppVersions {
-    pub fn new(value: serde_json::Value) -> Self {
-        Self { value }
-    }
-}
-
-impl FormatterValue for EdgeAppVersions {
-    fn value(&self) -> &serde_json::Value {
-        &self.value
-    }
-}
-impl Formatter for EdgeAppVersions {
-    fn format(&self, output_type: OutputType) -> String {
-        format_value(
-            output_type,
-            vec!["Revision", "Description", "Published", "Channels"],
-            vec!["revision", "description", "published", "edge_app_channels"],
-            self,
-            Some(|field_name: &str, field_value: &serde_json::Value| {
-                if field_name.eq("revision") {
-                    let version = field_value.as_u64().unwrap_or(0);
-                    let str_version = version.to_string();
-                    Cell::new(if version > 0 { &str_version } else { "N/A" })
-                } else if field_name.eq("published") {
-                    let published = field_value.as_bool().unwrap_or(false);
-                    Cell::new(if published { "✅" } else { "❌" })
-                } else if field_name.eq("edge_app_channels") {
-                    // list of maps to string with comma separator
-                    // [{"channel":"stable"},{"channel":"beta"}] -> "stable, beta"
-                    let channels = field_value
-                        .as_array()
-                        .unwrap_or(&vec![])
-                        .iter()
-                        .map(|channel| channel["channel"].as_str().unwrap_or(""))
-                        .collect::<Vec<&str>>()
-                        .join(", ");
-                    Cell::new(channels.as_str())
-                } else {
-                    Cell::new(field_value.as_str().unwrap_or("N/A"))
-                }
-            }),
-        )
-    }
-}
-
-#[derive(Debug)]
 pub struct EdgeAppSettings {
     pub value: serde_json::Value,
 }
@@ -431,6 +381,39 @@ impl Formatter for EdgeAppSecrets {
                         let value = field_value.as_bool().unwrap_or(false);
                         return Cell::new(if value { "Yes" } else { "No" });
                     }
+                    Cell::new(field_value.as_str().unwrap_or_default())
+                },
+            ),
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct EdgeAppInstances {
+    pub value: serde_json::Value,
+}
+
+impl EdgeAppInstances {
+    pub fn new(value: serde_json::Value) -> Self {
+        Self { value }
+    }
+}
+
+impl FormatterValue for EdgeAppInstances {
+    fn value(&self) -> &serde_json::Value {
+        &self.value
+    }
+}
+
+impl Formatter for EdgeAppInstances {
+    fn format(&self, output_type: OutputType) -> String {
+        format_value(
+            output_type,
+            vec!["Id", "Name"],
+            vec!["id", "name"],
+            self,
+            Some(
+                |_field_name: &str, field_value: &serde_json::Value| -> Cell {
                     Cell::new(field_value.as_str().unwrap_or_default())
                 },
             ),
@@ -594,46 +577,46 @@ impl Formatter for PlaylistItems {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn test_edge_app_versions_formatter_format_output_properly() {
-        let data = r#"[{
-            "edge_app_channels": [
-                {
-                    "channel": "stable"
-                },
-                {
-                    "channel": "candidate"
-                }
-            ],
-            "revision": 1,
-            "user_version": "1.0.0",
-            "description": "Initial release",
-            "published": true
-        },
-        {
-            "edge_app_channels": [],
-            "revision": 2,
-            "user_version": "1.0.1",
-            "description": "Bug fixes",
-            "published": true
-        }]"#;
-        let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
-
-        let output = edge_app_versions.format(OutputType::HumanReadable);
-        assert_eq!(
-            output,
-            r#"+----------+-----------------+-----------+-------------------+
-| Revision | Description     | Published | Channels          |
-+----------+-----------------+-----------+-------------------+
-| 1        | Initial release | ✅        | stable, candidate |
-+----------+-----------------+-----------+-------------------+
-| 2        | Bug fixes       | ✅        |                   |
-+----------+-----------------+-----------+-------------------+
-"#
-        );
-    }
-}
+//     #[test]
+//     fn test_edge_app_versions_formatter_format_output_properly() {
+//         let data = r#"[{
+//             "edge_app_channels": [
+//                 {
+//                     "channel": "stable"
+//                 },
+//                 {
+//                     "channel": "candidate"
+//                 }
+//             ],
+//             "revision": 1,
+//             "user_version": "1.0.0",
+//             "description": "Initial release",
+//             "published": true
+//         },
+//         {
+//             "edge_app_channels": [],
+//             "revision": 2,
+//             "user_version": "1.0.1",
+//             "description": "Bug fixes",
+//             "published": true
+//         }]"#;
+//         let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
+//
+//         let output = edge_app_versions.format(OutputType::HumanReadable);
+//         assert_eq!(
+//             output,
+//             r#"+----------+-----------------+-----------+-------------------+
+// | Revision | Description     | Published | Channels          |
+// +----------+-----------------+-----------+-------------------+
+// | 1        | Initial release | ✅        | stable, candidate |
+// +----------+-----------------+-----------+-------------------+
+// | 2        | Bug fixes       | ✅        |                   |
+// +----------+-----------------+-----------+-------------------+
+// "#
+//         );
+//     }
+// }
