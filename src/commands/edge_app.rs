@@ -2,7 +2,7 @@ use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_settings::{deserialize_settings_from_array, Setting, SettingType};
-use crate::commands::{CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps, EdgeAppInstances};
+use crate::commands::{CommandError, EdgeAppInstances, EdgeAppSecrets, EdgeAppSettings, EdgeApps};
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
@@ -341,7 +341,7 @@ impl EdgeAppCommand {
         if channels.is_empty() {
             return Err(CommandError::MissingField);
         }
-        if &channels[0].channel != channel || channels[0].app_revision != revision {
+        if channels[0].channel != channel || channels[0].app_revision != revision {
             return Err(CommandError::MissingField);
         }
 
@@ -481,12 +481,10 @@ impl EdgeAppCommand {
     fn requires_upload(&self, changed_files: &FileChanges) -> bool {
         changed_files.has_changes()
     }
-
 }
 
 // Edge app settings commands
 impl EdgeAppCommand {
-
     pub fn list_settings(&self, installation_id: &str) -> Result<EdgeAppSettings, CommandError> {
         let app_id = self.get_app_id_by_installation(installation_id)?;
         let response = commands::get(
@@ -657,12 +655,10 @@ impl EdgeAppCommand {
 
         Ok(())
     }
-
 }
 
 // Edge app instance commands
 impl EdgeAppCommand {
-        
     pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
         let response = commands::get(
             &self.authentication,
@@ -677,11 +673,7 @@ impl EdgeAppCommand {
         Ok(instances)
     }
 
-    pub fn create_instance(
-        &self,
-        app_id: &str,
-        name: &str,
-    ) -> Result<String, CommandError> {
+    pub fn create_instance(&self, app_id: &str, name: &str) -> Result<String, CommandError> {
         let installation_id = self.install_edge_app(app_id, name, None)?;
         // let installation_id =
         // self.install_edge_app(&app_id, name, Some("index.html".to_string()))?;
@@ -703,7 +695,7 @@ impl EdgeAppCommand {
         installation_id: &str,
         name: &Option<String>,
     ) -> Result<(), CommandError> {
-        let mut payload = json!({
+        let payload = json!({
             "name": name,
         });
 
@@ -719,7 +711,6 @@ impl EdgeAppCommand {
 
         Ok(())
     }
-
 }
 
 impl EdgeAppCommand {
@@ -1441,10 +1432,7 @@ mod tests {
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
         assert_eq!(manifest.app_id, Some("test-id".to_owned()));
-        assert_eq!(
-            manifest.installation_id,
-            None
-        );
+        assert_eq!(manifest.installation_id, None);
         assert_eq!(
             manifest.settings,
             vec![
@@ -1554,10 +1542,7 @@ mod tests {
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
         assert_eq!(manifest.app_id, Some("test-id".to_owned()));
-        assert_eq!(
-            manifest.installation_id,
-            None
-        );
+        assert_eq!(manifest.installation_id, None);
 
         assert!(result.is_ok());
     }
@@ -4002,7 +3987,7 @@ settings:
     }
 
     #[test]
-    fn test_instance_list_should_list_instances(){
+    fn test_instance_list_should_list_instances() {
         let mock_server = MockServer::start();
 
         let config = Config::new(mock_server.base_url());
@@ -4061,7 +4046,7 @@ settings:
     }
 
     #[test]
-    fn test_create_instance_should_create_instance(){
+    fn test_create_instance_should_create_instance() {
         let mock_server = MockServer::start();
 
         let config = Config::new(mock_server.base_url());
@@ -4085,16 +4070,17 @@ settings:
                     "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                     "name": "Edge app cli installation",
                 }));
-            then.status(201).json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
+            then.status(201)
+                .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
         });
-        
-        let result = command.create_instance(&manifest.app_id.unwrap(), "Edge app cli installation");
+
+        let result =
+            command.create_instance(&manifest.app_id.unwrap(), "Edge app cli installation");
 
         create_instance_mock.assert();
         assert!(result.is_ok());
 
         assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
-
     }
 
     #[test]
@@ -4122,10 +4108,14 @@ settings:
                 .json_body(json!({
                     "name": "Edge app cli installation 2",
                 }));
-            then.status(200).json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
+            then.status(200)
+                .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
         });
 
-        let result = command.update_instance("01H2QZ6Z8WXWNDC0KQ198XCZEB", &Some("Edge app cli installation 2".to_string()));
+        let result = command.update_instance(
+            "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+            &Some("Edge app cli installation 2".to_string()),
+        );
 
         update_instance_mock.assert();
         assert!(result.is_ok());

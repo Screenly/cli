@@ -432,7 +432,6 @@ pub enum EdgeAppSecretsCommands {
     },
 }
 
-
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppInstanceCommands {
     /// Lists Edge App instances.
@@ -454,7 +453,7 @@ pub enum EdgeAppInstanceCommands {
         /// Edge app id. If not specified CLI will use the id from the manifest.
         #[arg(short, long)]
         app_id: Option<String>,
-        
+
         /// Name of the Edge App instance.
         #[arg(short, long)]
         name: Option<String>,
@@ -488,7 +487,6 @@ pub enum EdgeAppInstanceCommands {
         path: Option<String>,
     },
 }
-
 
 pub fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
@@ -1156,11 +1154,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         }
         EdgeAppCommands::Instance(command) => match command {
-            EdgeAppInstanceCommands::List {
-                app_id,
-                path,
-                json,
-            } => {
+            EdgeAppInstanceCommands::List { app_id, path, json } => {
                 let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
                     Ok(id) => id,
                     Err(e) => {
@@ -1181,8 +1175,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         std::process::exit(1);
                     }
                 };
-                match edge_app_command.create_instance(&actual_app_id, "temp") {
-                    Ok((_some_id)) => {
+                let new_name = match name {
+                    Some(name) => name,
+                    None => "Edge App instance created by Screenly CLI",
+                };
+                match edge_app_command.create_instance(&actual_app_id, new_name) {
+                    Ok(_some_id) => {
                         println!("Edge app instance successfully created.");
                     }
                     Err(e) => {
@@ -1236,7 +1234,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                 }
             }
-        }
+        },
     }
 }
 
