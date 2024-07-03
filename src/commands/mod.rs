@@ -124,6 +124,8 @@ pub enum CommandError {
     SettingDoesNotExist(String),
     #[error("Wrong setting name: {0}.")]
     WrongSettingName(String),
+    #[error("Failed to open browser")]
+    OpenBrowserError(String),
 }
 
 pub fn get(

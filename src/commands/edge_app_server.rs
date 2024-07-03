@@ -80,6 +80,7 @@ pub async fn run_server(
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct WarpError(#[allow(dead_code)] anyhow::Error);
 
 impl Reject for WarpError {}
@@ -146,13 +147,13 @@ fn format_js(data: MockData, secrets: &[(String, Value)]) -> String {
         .map(|(k, v)| (k, Value::Str(v)))
         .collect();
 
+    settings.extend(secrets.iter().map(|(k, v)| (k.clone(), v.clone())));
     settings.sort_by_key(|a| a.0.clone());
 
     format!(
-        "var screenly = {{\n{metadata},\n{settings},\n{secrets},\n{cors_proxy}\n}};",
+        "var screenly = {{\n{metadata},\n{settings},\n{cors_proxy}\n}};",
         metadata = format_section("metadata", &hashmap_from_metadata(&data.metadata)),
         settings = format_section("settings", &settings),
-        secrets = format_section("secrets", secrets),
         cors_proxy = "    cors_proxy_url: \"http://127.0.0.1:8080\""
     )
 }
@@ -270,11 +271,9 @@ settings:
     },
     settings: {
         "enable_analytics": "true",
+        "key": "value",
         "override_timezone": "",
         "tag_manager_id": ""
-    },
-    secrets: {
-        "key": "value"
     },
     cors_proxy_url: "http://127.0.0.1:8080"
 };"#;
