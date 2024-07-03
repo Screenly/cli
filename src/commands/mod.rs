@@ -438,6 +438,45 @@ impl Formatter for EdgeAppSecrets {
 }
 
 #[derive(Debug)]
+pub struct EdgeAppInstances {
+    pub value: serde_json::Value,
+}
+
+impl EdgeAppInstances {
+    pub fn new(value: serde_json::Value) -> Self {
+        Self { value }
+    }
+}
+
+impl FormatterValue for EdgeAppInstances {
+    fn value(&self) -> &serde_json::Value {
+        &self.value
+    }
+}
+
+impl Formatter for EdgeAppInstances {
+    fn format(&self, output_type: OutputType) -> String {
+        format_value(
+            output_type,
+            vec![
+                "Id",
+                "Name",
+            ],
+            vec![
+                "id",
+                "name",
+            ],
+            self,
+            Some(
+                |field_name: &str, field_value: &serde_json::Value| -> Cell {
+                    Cell::new(field_value.as_str().unwrap_or_default())
+                },
+            ),
+        )
+    }
+}
+
+#[derive(Debug)]
 pub struct Assets {
     pub value: serde_json::Value,
 }

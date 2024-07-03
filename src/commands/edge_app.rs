@@ -2,7 +2,7 @@ use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_settings::{deserialize_settings_from_array, Setting, SettingType};
-use crate::commands::{CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps};
+use crate::commands::{CommandError, EdgeAppSecrets, EdgeAppSettings, EdgeAppVersions, EdgeApps, EdgeAppInstances};
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
@@ -65,11 +65,8 @@ pub struct EdgeAppVersion {
     pub revision: u32,
 }
 
+// Edge apps commands
 impl EdgeAppCommand {
-    pub fn new(authentication: Authentication) -> Self {
-        Self { authentication }
-    }
-
     pub fn create(&self, name: &str, path: &Path) -> Result<(), CommandError> {
         let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
             "Can not obtain edge app root directory.".to_owned(),
@@ -96,12 +93,9 @@ impl EdgeAppCommand {
             return Err(CommandError::MissingField);
         }
 
-        let installation_id =
-            self.install_edge_app(&app_id, name, Some("index.html".to_string()))?;
-
         let manifest = EdgeAppManifest {
             app_id: Some(app_id),
-            installation_id: Some(installation_id),
+            installation_id: None,
             entrypoint: Some("index.html".to_string()),
             settings: vec![
                 Setting {
@@ -169,10 +163,7 @@ impl EdgeAppCommand {
             return Err(CommandError::MissingField);
         }
 
-        let installation_id = self.install_edge_app(&app_id, name, manifest.entrypoint.clone())?;
-
         manifest.app_id = Some(app_id);
-        manifest.installation_id = Some(installation_id);
 
         EdgeAppManifest::save_to_file(&manifest, path)?;
 
@@ -186,15 +177,315 @@ impl EdgeAppCommand {
         )?))
     }
 
-    pub fn list_versions(&self, app_id: &str) -> Result<EdgeAppVersions, CommandError> {
-        Ok(EdgeAppVersions::new(commands::get(
+    pub fn run(&self, path: &Path, secrets: Vec<(String, String)>) -> Result<(), anyhow::Error> {
+        let address_shared = Arc::new(Mutex::new(None));
+        let address_clone = address_shared.clone();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let path = path.to_path_buf();
+        runtime.block_on(async {
+            tokio::spawn(async move {
+                let address = run_server(path.as_path(), secrets).await.unwrap();
+                let mut locked_address = address_clone.lock().unwrap();
+                *locked_address = Some(address);
+            })
+            .await
+            .unwrap();
+
+            while address_shared.lock().unwrap().is_none() {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+
+            println!(
+                "Edge App emulator is running at {}/index.html",
+                address_shared.lock().unwrap().as_ref().unwrap()
+            );
+
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            }
+        });
+
+        Ok(())
+    }
+
+    pub fn deploy(
+        self,
+        path: &Path,
+        app_id: Option<String>,
+        delete_missing_settings: Option<bool>,
+    ) -> Result<u32, CommandError> {
+        EdgeAppManifest::ensure_manifest_is_valid(path)?;
+        let mut manifest = EdgeAppManifest::new(path)?;
+
+        // override app_id if user passed it
+        if let Some(id) = app_id {
+            if id.is_empty() {
+                return Err(CommandError::EmptyAppId);
+            }
+            manifest.app_id = Some(id);
+        }
+        let actual_app_id = match manifest.app_id {
+            Some(ref id) => id,
+            None => return Err(CommandError::MissingAppId),
+        };
+
+        self.update_entrypoint_if_needed(actual_app_id, path.to_path_buf())?;
+
+        let version_metadata_changed =
+            self.detect_version_metadata_changes(actual_app_id, &manifest)?;
+
+        let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
+
+        let local_files = collect_paths_for_upload(edge_app_dir)?;
+        ensure_edge_app_has_all_necessary_files(&local_files)?;
+
+        let revision = match self.get_latest_revision(actual_app_id)? {
+            Some(revision) => revision.revision,
+            None => 0,
+        };
+
+        let remote_files = self.get_version_asset_signatures(actual_app_id, revision)?;
+        let changed_files = detect_changed_files(&local_files, &remote_files)?;
+        debug!("Changed files: {:?}", &changed_files);
+
+        let remote_settings = deserialize_settings_from_array(commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=edge_app_channels(channel),revision,user_version,description,published&app_id=eq.{}",
-                app_id
+                "v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{}&order=name.asc",
+                actual_app_id,
             ),
-        )?))
+        )?)?;
+
+        let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
+        self.upload_changed_settings(actual_app_id.clone(), &changed_settings)?;
+
+        self.maybe_delete_missing_settings(
+            delete_missing_settings,
+            actual_app_id.clone(),
+            changed_settings,
+        )?;
+
+        let file_tree = generate_file_tree(&local_files, edge_app_dir);
+
+        let old_file_tree = self.get_file_tree(actual_app_id, revision);
+
+        let file_tree_changed = match old_file_tree {
+            Ok(tree) => file_tree != tree,
+            Err(_) => true,
+        };
+
+        debug!("File tree changed: {}", file_tree_changed);
+        if !self.requires_upload(&changed_files) && !file_tree_changed && !version_metadata_changed
+        {
+            return Err(CommandError::NoChangesToUpload(
+                "No changes detected".to_owned(),
+            ));
+        }
+
+        // now that we know we have changes, we can create a new version
+        let revision =
+            self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
+
+        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &changed_files)?;
+        debug!("Files uploaded");
+
+        self.ensure_assets_processing_finished(actual_app_id, revision)?;
+        // now we freeze it by publishing it
+        self.publish(actual_app_id, revision)?;
+        debug!("Edge app published.");
+
+        self.promote_version(actual_app_id, revision, "stable")?;
+
+        Ok(revision)
     }
+
+    fn promote_version(
+        &self,
+        app_id: &str,
+        revision: u32,
+        channel: &str,
+    ) -> Result<(), CommandError> {
+        let get_response = commands::get(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/versions?select=revision&app_id=eq.{}&revision=eq.{}",
+                app_id, revision
+            ),
+        )?;
+        let version =
+            serde_json::from_value::<Vec<HashMap<String, serde_json::Value>>>(get_response)?;
+        if version.is_empty() {
+            return Err(CommandError::RevisionNotFound(revision.to_string()));
+        }
+
+        let response = commands::patch(
+            &self.authentication,
+            &format!(
+                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
+                channel, app_id
+            ),
+            &json!(
+            {
+                "app_revision": revision,
+            }),
+        )?;
+
+        #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+        struct Channel {
+            app_revision: u32,
+            channel: String,
+        }
+
+        let channels = serde_json::from_value::<Vec<Channel>>(response)?;
+        if channels.is_empty() {
+            return Err(CommandError::MissingField);
+        }
+        if &channels[0].channel != channel || channels[0].app_revision != revision {
+            return Err(CommandError::MissingField);
+        }
+
+        Ok(())
+    }
+
+    pub fn delete_app(&self, app_id: &str) -> Result<(), CommandError> {
+        commands::delete(
+            &self.authentication,
+            &format!("v4/edge-apps?id=eq.{}", app_id),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn update_name(&self, app_id: &str, name: &str) -> Result<(), CommandError> {
+        commands::patch(
+            &self.authentication,
+            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
+            &json!(
+            {
+                "name": name,
+            }),
+        )?;
+
+        Ok(())
+    }
+
+    fn maybe_delete_missing_settings(
+        &self,
+        delete_missing_settings: Option<bool>,
+        actual_app_id: String,
+        changed_settings: SettingChanges,
+    ) -> Result<(), CommandError> {
+        match delete_missing_settings {
+            Some(delete) => {
+                if delete {
+                    self.delete_deleted_settings(
+                        actual_app_id.clone(),
+                        &changed_settings.deleted,
+                        false,
+                    )?;
+                }
+            }
+            None => {
+                if let Ok(_ci) = std::env::var("CI") {
+                    return Ok(());
+                }
+                self.delete_deleted_settings(
+                    actual_app_id.clone(),
+                    &changed_settings.deleted,
+                    true,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get_version_asset_signatures(
+        &self,
+        app_id: &str,
+        revision: u32,
+    ) -> Result<Vec<AssetSignature>, CommandError> {
+        Ok(serde_json::from_value(commands::get(
+            &self.authentication,
+            &format!(
+                "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
+                app_id, revision
+            ),
+        )?)?)
+    }
+
+    fn ensure_assets_processing_finished(
+        &self,
+        app_id: &str,
+        revision: u32,
+    ) -> Result<(), CommandError> {
+        const SLEEP_TIME: u64 = 2;
+        const MAX_WAIT_TIME: u64 = 1000; // 1000 seconds - it could take a while for assets to process
+
+        let mut pb: Option<ProgressBar> = None;
+        let mut assets_to_process = 0;
+        let start_time = Instant::now();
+
+        loop {
+            // TODO: we are not handling possible errors in asset processing here.
+            // Which are unlikely to happen, because we upload assets as they are, but still
+            if start_time.elapsed().as_secs() > MAX_WAIT_TIME {
+                return Err(CommandError::AssetProcessingTimeout);
+            }
+
+            let value = commands::get(
+                &self.authentication,
+                &format!(
+                    "v4/assets?select=status,processing_error,title&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
+                    app_id, revision
+                ),
+            )?;
+            debug!("ensure_assets_processing_finished: {:?}", &value);
+
+            if let Some(array) = value.as_array() {
+                for item in array {
+                    if let Some(status) = item["status"].as_str() {
+                        if status == "error" {
+                            return Err(CommandError::AssetProcessingError(format!(
+                                "Asset {}. Error: {}",
+                                item["title"], item["processing_error"]
+                            )));
+                        }
+                    }
+                }
+
+                if array.is_empty() {
+                    if let Some(progress_bar) = pb.as_ref() {
+                        progress_bar.finish_with_message("Assets processed");
+                    }
+                    break;
+                }
+                match &mut pb {
+                    Some(ref mut progress_bar) => {
+                        progress_bar.set_position(assets_to_process - (array.len() as u64));
+                        progress_bar.set_message("Processing Items:");
+                    }
+                    None => {
+                        pb = Some(ProgressBar::new(array.len() as u64));
+                        assets_to_process = array.len() as u64;
+                    }
+                }
+            }
+            thread::sleep(Duration::from_secs(SLEEP_TIME));
+        }
+        Ok(())
+    }
+
+    // TODO: remove
+    fn requires_upload(&self, changed_files: &FileChanges) -> bool {
+        changed_files.has_changes()
+    }
+
+}
+
+// Edge app settings commands
+impl EdgeAppCommand {
 
     pub fn list_settings(&self, installation_id: &str) -> Result<EdgeAppSettings, CommandError> {
         let app_id = self.get_app_id_by_installation(installation_id)?;
@@ -367,215 +658,73 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn run(&self, path: &Path, secrets: Vec<(String, String)>) -> Result<(), anyhow::Error> {
-        let address_shared = Arc::new(Mutex::new(None));
-        let address_clone = address_shared.clone();
+}
 
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let path = path.to_path_buf();
-        runtime.block_on(async {
-            tokio::spawn(async move {
-                let address = run_server(path.as_path(), secrets).await.unwrap();
-                let mut locked_address = address_clone.lock().unwrap();
-                *locked_address = Some(address);
-            })
-            .await
-            .unwrap();
-
-            while address_shared.lock().unwrap().is_none() {
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            }
-
-            println!(
-                "Edge App emulator is running at {}/index.html",
-                address_shared.lock().unwrap().as_ref().unwrap()
-            );
-
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
-            }
-        });
-
-        Ok(())
-    }
-
-    fn maybe_delete_missing_settings(
-        &self,
-        delete_missing_settings: Option<bool>,
-        actual_app_id: String,
-        changed_settings: SettingChanges,
-    ) -> Result<(), CommandError> {
-        match delete_missing_settings {
-            Some(delete) => {
-                if delete {
-                    self.delete_deleted_settings(
-                        actual_app_id.clone(),
-                        &changed_settings.deleted,
-                        false,
-                    )?;
-                }
-            }
-            None => {
-                if let Ok(_ci) = std::env::var("CI") {
-                    return Ok(());
-                }
-                self.delete_deleted_settings(
-                    actual_app_id.clone(),
-                    &changed_settings.deleted,
-                    true,
-                )?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn upload(
-        self,
-        path: &Path,
-        app_id: Option<String>,
-        delete_missing_settings: Option<bool>,
-    ) -> Result<u32, CommandError> {
-        EdgeAppManifest::ensure_manifest_is_valid(path)?;
-        let mut manifest = EdgeAppManifest::new(path)?;
-
-        // override app_id if user passed it
-        if let Some(id) = app_id {
-            if id.is_empty() {
-                return Err(CommandError::EmptyAppId);
-            }
-            manifest.app_id = Some(id);
-        }
-        let actual_app_id = match manifest.app_id {
-            Some(ref id) => id,
-            None => return Err(CommandError::MissingAppId),
-        };
-
-        self.update_entrypoint_if_needed(actual_app_id, path.to_path_buf())?;
-
-        let version_metadata_changed =
-            self.detect_version_metadata_changes(actual_app_id, &manifest)?;
-
-        let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
-
-        let local_files = collect_paths_for_upload(edge_app_dir)?;
-        ensure_edge_app_has_all_necessary_files(&local_files)?;
-
-        let revision = match self.get_latest_revision(actual_app_id)? {
-            Some(revision) => revision.revision,
-            None => 0,
-        };
-
-        let remote_files = self.get_version_asset_signatures(actual_app_id, revision)?;
-        let changed_files = detect_changed_files(&local_files, &remote_files)?;
-        debug!("Changed files: {:?}", &changed_files);
-
-        let remote_settings = deserialize_settings_from_array(commands::get(
+// Edge app instance commands
+impl EdgeAppCommand {
+        
+    pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
+        let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{}&order=name.asc",
-                actual_app_id,
+                "v4/edge-apps/installations?select=id,name&app_id=eq.{}",
+                app_id
             ),
-        )?)?;
-
-        let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
-        self.upload_changed_settings(actual_app_id.clone(), &changed_settings)?;
-
-        self.maybe_delete_missing_settings(
-            delete_missing_settings,
-            actual_app_id.clone(),
-            changed_settings,
         )?;
 
-        let file_tree = generate_file_tree(&local_files, edge_app_dir);
+        let instances = EdgeAppInstances::new(response);
 
-        let old_file_tree = self.get_file_tree(actual_app_id, revision);
-
-        let file_tree_changed = match old_file_tree {
-            Ok(tree) => file_tree != tree,
-            Err(_) => true,
-        };
-
-        debug!("File tree changed: {}", file_tree_changed);
-        if !self.requires_upload(&changed_files) && !file_tree_changed && !version_metadata_changed
-        {
-            return Err(CommandError::NoChangesToUpload(
-                "No changes detected".to_owned(),
-            ));
-        }
-
-        // now that we know we have changes, we can create a new version
-        let revision =
-            self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
-
-        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &changed_files)?;
-        debug!("Files uploaded");
-
-        self.ensure_assets_processing_finished(actual_app_id, revision)?;
-        // now we freeze it by publishing it
-        self.publish(actual_app_id, revision)?;
-        debug!("Edge app published.");
-
-        Ok(revision)
+        Ok(instances)
     }
 
-    pub fn promote_version(
+    pub fn create_instance(
         &self,
         app_id: &str,
+        name: &str,
+    ) -> Result<String, CommandError> {
+        let installation_id = self.install_edge_app(app_id, name, None)?;
+        // let installation_id =
+        // self.install_edge_app(&app_id, name, Some("index.html".to_string()))?;
+        // TODO: EdgeAppManifest::save_to_file(&manifest, path)?;
+        Ok(installation_id)
+    }
+
+    pub fn delete_instance(&self, installation_id: &str) -> Result<(), CommandError> {
+        commands::delete(
+            &self.authentication,
+            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
+        )?;
+        // TODO: delete from instance.yml
+        Ok(())
+    }
+
+    pub fn update_instance(
+        &self,
         installation_id: &str,
-        revision: u32,
-        channel: &String,
+        name: &Option<String>,
     ) -> Result<(), CommandError> {
-        // TODO accept app_id to, but ignore getting settings when app_id is specified.
-        let secrets = self.get_undefined_settings(installation_id)?;
-        if !secrets.is_empty() {
-            return Err(CommandError::UndefinedSettings(serde_json::to_string(
-                &secrets,
-            )?));
-        }
+        let mut payload = json!({
+            "name": name,
+        });
 
-        debug!("All settings are defined.");
+        // if let Some(_entrypoint) = entrypoint {
+        //     payload["entrypoint"] = json!(_entrypoint);
+        // }
 
-        let get_response = commands::get(
+        commands::patch(
             &self.authentication,
-            &format!(
-                "v4/edge-apps/versions?select=revision&app_id=eq.{}&revision=eq.{}",
-                app_id, revision
-            ),
+            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
+            &payload,
         )?;
-        let version =
-            serde_json::from_value::<Vec<HashMap<String, serde_json::Value>>>(get_response)?;
-        if version.is_empty() {
-            return Err(CommandError::RevisionNotFound(revision.to_string()));
-        }
-
-        let response = commands::patch(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
-                channel, app_id
-            ),
-            &json!(
-            {
-                "app_revision": revision,
-            }),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
-        struct Channel {
-            app_revision: u32,
-            channel: String,
-        }
-
-        let channels = serde_json::from_value::<Vec<Channel>>(response)?;
-        if channels.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-        if &channels[0].channel != channel || channels[0].app_revision != revision {
-            return Err(CommandError::MissingField);
-        }
 
         Ok(())
+    }
+
+}
+
+impl EdgeAppCommand {
+    pub fn new(authentication: Authentication) -> Self {
+        Self { authentication }
     }
 
     pub fn get_app_name(&self, app_id: &str) -> Result<String, CommandError> {
@@ -597,34 +746,12 @@ impl EdgeAppCommand {
         Ok(apps[0].name.clone())
     }
 
-    pub fn delete_app(&self, app_id: &str) -> Result<(), CommandError> {
-        commands::delete(
-            &self.authentication,
-            &format!("v4/edge-apps?id=eq.{}", app_id),
-        )?;
-
-        Ok(())
-    }
-
     pub fn clear_app_id(&self, path: &Path) -> Result<(), CommandError> {
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
         manifest.app_id = None;
         EdgeAppManifest::save_to_file(&manifest, PathBuf::from(path).as_path())?;
-
-        Ok(())
-    }
-
-    pub fn update_name(&self, app_id: &str, name: &str) -> Result<(), CommandError> {
-        commands::patch(
-            &self.authentication,
-            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
-            &json!(
-            {
-                "name": name,
-            }),
-        )?;
 
         Ok(())
     }
@@ -668,20 +795,6 @@ impl EdgeAppCommand {
 
         println!("Mock data for Edge App emulator was generated.");
         Ok(())
-    }
-
-    fn get_undefined_settings(&self, installation_id: &str) -> Result<Vec<String>, CommandError> {
-        let undefined_settings_response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/settings/undefined?installation_id={}",
-                installation_id
-            ),
-        )?;
-
-        let titles = serde_json::from_value::<Vec<String>>(undefined_settings_response)?;
-
-        Ok(titles)
     }
 
     fn create_version(
@@ -754,86 +867,6 @@ impl EdgeAppCommand {
         }
 
         Ok(file_tree[0].file_tree.clone())
-    }
-
-    fn requires_upload(&self, changed_files: &FileChanges) -> bool {
-        changed_files.has_changes()
-    }
-
-    fn get_version_asset_signatures(
-        &self,
-        app_id: &str,
-        revision: u32,
-    ) -> Result<Vec<AssetSignature>, CommandError> {
-        Ok(serde_json::from_value(commands::get(
-            &self.authentication,
-            &format!(
-                "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
-                app_id, revision
-            ),
-        )?)?)
-    }
-
-    fn ensure_assets_processing_finished(
-        &self,
-        app_id: &str,
-        revision: u32,
-    ) -> Result<(), CommandError> {
-        const SLEEP_TIME: u64 = 2;
-        const MAX_WAIT_TIME: u64 = 1000; // 1000 seconds - it could take a while for assets to process
-
-        let mut pb: Option<ProgressBar> = None;
-        let mut assets_to_process = 0;
-        let start_time = Instant::now();
-
-        loop {
-            // TODO: we are not handling possible errors in asset processing here.
-            // Which are unlikely to happen, because we upload assets as they are, but still
-            if start_time.elapsed().as_secs() > MAX_WAIT_TIME {
-                return Err(CommandError::AssetProcessingTimeout);
-            }
-
-            let value = commands::get(
-                &self.authentication,
-                &format!(
-                    "v4/assets?select=status,processing_error,title&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
-                    app_id, revision
-                ),
-            )?;
-            debug!("ensure_assets_processing_finished: {:?}", &value);
-
-            if let Some(array) = value.as_array() {
-                for item in array {
-                    if let Some(status) = item["status"].as_str() {
-                        if status == "error" {
-                            return Err(CommandError::AssetProcessingError(format!(
-                                "Asset {}. Error: {}",
-                                item["title"], item["processing_error"]
-                            )));
-                        }
-                    }
-                }
-
-                if array.is_empty() {
-                    if let Some(progress_bar) = pb.as_ref() {
-                        progress_bar.finish_with_message("Assets processed");
-                    }
-                    break;
-                }
-                match &mut pb {
-                    Some(ref mut progress_bar) => {
-                        progress_bar.set_position(assets_to_process - (array.len() as u64));
-                        progress_bar.set_message("Processing Items:");
-                    }
-                    None => {
-                        pb = Some(ProgressBar::new(array.len() as u64));
-                        assets_to_process = array.len() as u64;
-                    }
-                }
-            }
-            thread::sleep(Duration::from_secs(SLEEP_TIME));
-        }
-        Ok(())
     }
 
     pub fn get_or_create_installation(
@@ -1390,19 +1423,6 @@ mod tests {
             then.status(201)
                 .json_body(json!([{"id": "test-id", "name": "Best app ever"}]));
         });
-        let installation_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("select", "id")
-                .header("Authorization", "Token token")
-                .json_body(json!({
-                    "name": "Best app ever",
-                    "app_id": "test-id",
-                    "entrypoint": "index.html",
-                }));
-            then.status(201)
-                .json_body(json!([{"id": "test-installation-id"}]));
-        });
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
@@ -1414,7 +1434,6 @@ mod tests {
         );
 
         post_mock.assert();
-        installation_mock.assert();
 
         assert!(tmp_dir.path().join("screenly.yml").exists());
         assert!(tmp_dir.path().join("index.html").exists());
@@ -1424,7 +1443,7 @@ mod tests {
         assert_eq!(manifest.app_id, Some("test-id".to_owned()));
         assert_eq!(
             manifest.installation_id,
-            Some("test-installation-id".to_owned())
+            None
         );
         assert_eq!(
             manifest.settings,
@@ -1509,18 +1528,6 @@ mod tests {
             then.status(201)
                 .json_body(json!([{"id": "test-id", "name": "Best app ever"}]));
         });
-        let installation_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("select", "id")
-                .header("Authorization", "Token token")
-                .json_body(json!({
-                    "name": "Best app ever",
-                    "app_id": "test-id"
-                }));
-            then.status(201)
-                .json_body(json!([{"id": "test-installation-id"}]));
-        });
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
@@ -1543,14 +1550,13 @@ mod tests {
         );
 
         post_mock.assert();
-        installation_mock.assert();
 
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
         assert_eq!(manifest.app_id, Some("test-id".to_owned()));
         assert_eq!(
             manifest.installation_id,
-            Some("test-installation-id".to_owned())
+            None
         );
 
         assert!(result.is_ok());
@@ -1642,57 +1648,6 @@ mod tests {
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
         let result = command.list();
-        edge_apps_mock.assert();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_list_versions_should_send_correct_request() {
-        let mock_server = MockServer::start();
-
-        let edge_apps_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/versions")
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param(
-                    "select",
-                    "edge_app_channels(channel),revision,user_version,description,published",
-                )
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(200).json_body(json!([
-                {
-                    "edge_app_channels": [
-                        {
-                            "channel": "stable"
-                        },
-                        {
-                            "channel": "candidate"
-                        }
-                    ],
-                    "revision": 1,
-                    "user_version": "1.0.0",
-                    "description": "Initial release",
-                    "published": true
-                },
-                {
-                    "edge_app_channels": [],
-                    "revision": 2,
-                    "user_version": "1.0.1",
-                    "description": "Bug fixes",
-                    "published": true
-                }
-            ]));
-        });
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let result = command.list_versions("01H2QZ6Z8WXWNDC0KQ198XCZEW");
         edge_apps_mock.assert();
         assert!(result.is_ok());
     }
@@ -2410,7 +2365,7 @@ mod tests {
     }
 
     #[test]
-    fn test_upload_should_send_correct_requests() {
+    fn test_deploy_should_send_correct_requests() {
         let mut manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),
@@ -2679,6 +2634,47 @@ mod tests {
             then.status(200);
         });
 
+        let get_version_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "revision")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.8");
+
+            then.status(200).json_body(json!([
+                {
+                    "revision": 8,
+                }
+            ]));
+        });
+
+        let promote_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/edge-apps/channels")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("channel", "eq.stable")
+                .query_param("select", "channel,app_revision")
+                .json_body(json!({
+                    "app_revision": 8,
+                }));
+            then.status(200).json_body(json!([
+                {
+                    "channel": "stable",
+                    "app_revision": 8
+                }
+            ]));
+        });
+
         let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
@@ -2690,7 +2686,7 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let result = command.upload(
+        let result = command.deploy(
             temp_dir.path().join("screenly.yml").as_path(),
             None,
             Some(true),
@@ -2709,6 +2705,8 @@ mod tests {
         finished_processing_mock.assert();
         publish_mock.assert();
         copy_assets_mock.assert();
+        get_version_mock.assert();
+        promote_mock.assert();
 
         assert!(result.is_ok());
     }
@@ -2920,83 +2918,6 @@ mod tests {
         assert!(result.is_ok());
         assert!(!result.unwrap());
         last_versions_mock.assert();
-    }
-
-    #[test]
-    fn test_promote_should_send_correct_request() {
-        let mock_server = MockServer::start();
-
-        let get_version_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/versions")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "revision")
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("revision", "eq.7");
-
-            then.status(200).json_body(json!([
-                {
-                    "revision": 7,
-                }
-            ]));
-        });
-
-        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
-        let undefined_settings_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/settings/undefined")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("installation_id", "01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([]));
-        });
-
-        let promote_mock = mock_server.mock(|when, then| {
-            when.method(PATCH)
-                .path("/v4/edge-apps/channels")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("channel", "eq.public")
-                .query_param("select", "channel,app_revision")
-                .json_body(json!({
-                    "app_revision": 7,
-                }));
-            then.status(200).json_body(json!([
-                {
-                    "channel": "public",
-                    "app_revision": 7
-                }
-            ]));
-        });
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let result = command.promote_version(
-            &manifest.app_id.unwrap(),
-            &manifest.installation_id.unwrap(),
-            7,
-            &"public".to_string(),
-        );
-
-        get_version_mock.assert();
-        undefined_settings_mock.assert();
-        promote_mock.assert();
-
-        assert!(&result.is_ok());
     }
 
     #[test]
@@ -3243,96 +3164,6 @@ settings:
     }
 
     #[test]
-    fn test_promote_when_there_are_undefined_settings_should_fail() {
-        let mock_server = MockServer::start();
-
-        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
-        let undefined_settings_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/settings/undefined")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("installation_id", "01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200)
-                .json_body(json!(["undefined_secret", "another_undefined_secret"]));
-        });
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let result = command.promote_version(
-            &manifest.app_id.unwrap(),
-            &manifest.installation_id.unwrap(),
-            7,
-            &"public".to_string(),
-        );
-
-        undefined_settings_mock.assert();
-
-        assert!(!&result.is_ok());
-        assert!(result.unwrap_err().to_string().contains("Warning: these settings are required to be defined: [\"undefined_secret\",\"another_undefined_secret\"]."));
-    }
-
-    #[test]
-    fn test_promote_when_version_doesnt_exist_should_fail() {
-        let mock_server = MockServer::start();
-
-        let get_version_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/versions")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "revision")
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("revision", "eq.7");
-
-            then.status(200).json_body(json!([]));
-        });
-
-        //  v4/edge-apps/settings?select=type,default_value,optional,title,help_text&app_id=eq.{}&order=title.asc
-        let undefined_settings_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/settings/undefined")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("installation_id", "01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([]));
-        });
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let result = command.promote_version(
-            &manifest.app_id.unwrap(),
-            &manifest.installation_id.unwrap(),
-            7,
-            &"public".to_string(),
-        );
-
-        get_version_mock.assert();
-        undefined_settings_mock.assert();
-
-        assert!(!&result.is_ok());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Edge App Revision 7 not found"));
-    }
-
-    #[test]
     fn test_update_name_should_send_correct_request() {
         let mock_server = MockServer::start();
 
@@ -3505,7 +3336,7 @@ settings:
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let result = command.upload(
+        let result = command.deploy(
             temp_dir.path().join("screenly.yml").as_path(),
             None,
             Some(true),
@@ -4167,6 +3998,167 @@ settings:
             changed_settings,
         );
 
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_instance_list_should_list_instances(){
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let installations_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/installations")
+                .query_param("select", "id,name")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200).json_body(json!([
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                    "name": "Edge app cli installation",
+                },
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
+                    "name": "Edge app cli installation 2",
+                }
+            ]));
+        });
+
+        let result = command.list_instances(&manifest.app_id.unwrap());
+
+        installations_mock.assert();
+
+        assert!(result.is_ok());
+        let installations = result.unwrap();
+        let installations_json: Value = serde_json::from_value(installations.value).unwrap();
+        assert_eq!(
+            installations_json,
+            json!(
+                [
+                    {
+                        "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                        "name": "Edge app cli installation",
+                    },
+                    {
+                        "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
+                        "name": "Edge app cli installation 2",
+                    }
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_create_instance_should_create_instance(){
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let create_instance_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4.1/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "name": "Edge app cli installation",
+                }));
+            then.status(201).json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
+        });
+        
+        let result = command.create_instance(&manifest.app_id.unwrap(), "Edge app cli installation");
+
+        create_instance_mock.assert();
+        assert!(result.is_ok());
+
+        assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
+
+    }
+
+    #[test]
+    fn test_update_instance_should_update_instance() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let update_instance_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4.1/edge-apps/installations")
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "name": "Edge app cli installation 2",
+                }));
+            then.status(200).json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
+        });
+
+        let result = command.update_instance("01H2QZ6Z8WXWNDC0KQ198XCZEB", &Some("Edge app cli installation 2".to_string()));
+
+        update_instance_mock.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_delete_instance_should_delete_instance() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let delete_instance_mock = mock_server.mock(|when, then| {
+            when.method(DELETE)
+                .path("/v4.1/edge-apps/installations")
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(204).body("");
+        });
+
+        let result = command.delete_instance("01H2QZ6Z8WXWNDC0KQ198XCZEB");
+
+        delete_instance_mock.assert();
         assert!(result.is_ok());
     }
 }

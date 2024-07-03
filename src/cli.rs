@@ -325,10 +325,6 @@ pub enum EdgeAppCommands {
         generate_mock_data: Option<bool>,
     },
 
-    /// Version commands.
-    #[command(subcommand)]
-    Version(EdgeAppVersionCommands),
-
     /// Settings commands.
     #[command(subcommand)]
     Setting(EdgeAppSettingsCommands),
@@ -337,8 +333,12 @@ pub enum EdgeAppCommands {
     #[command(subcommand)]
     Secret(EdgeAppSecretsCommands),
 
-    /// Uploads assets and settings of the Edge App.
-    Upload {
+    /// Instance commands.
+    #[command(subcommand)]
+    Instance(EdgeAppInstanceCommands),
+
+    /// Deploys assets and settings of the Edge App and release it.
+    Deploy {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
@@ -362,45 +362,6 @@ pub enum EdgeAppCommands {
     },
     /// Validates Edge App manifest file
     Validate {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        #[arg(short, long)]
-        path: Option<String>,
-    },
-}
-
-#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum EdgeAppVersionCommands {
-    /// Lists Edge App versions.
-    List {
-        /// Edge app id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
-
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        #[arg(short, long)]
-        path: Option<String>,
-
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-    },
-    /// Promotes Edge App revision to channel.
-    Promote {
-        /// Edge app revision to promote.
-        #[arg(short, long)]
-        revision: Option<u32>,
-        /// Channel to promote to. If not specified CLI will use stable channel.
-        #[arg(short, long, default_value = "stable")]
-        channel: String,
-
-        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
-        #[arg(short, long)]
-        installation_id: Option<String>,
-
-        /// Use the latest revision of the Edge App.
-        #[arg(long,  action = clap::ArgAction::SetTrue, conflicts_with = "revision", default_value="false")]
-        latest: bool,
-
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
@@ -470,6 +431,64 @@ pub enum EdgeAppSecretsCommands {
         path: Option<String>,
     },
 }
+
+
+#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EdgeAppInstanceCommands {
+    /// Lists Edge App instances.
+    List {
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
+    /// Creates Edge App instance.
+    Create {
+        /// Edge app id. If not specified CLI will use the id from the manifest.
+        #[arg(short, long)]
+        app_id: Option<String>,
+        
+        /// Name of the Edge App instance.
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+    /// Deletes Edge App instance.
+    Delete {
+        /// Edge App instance id.
+        #[arg(short, long)]
+        instance_id: Option<String>,
+
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+    /// Update Edge App instance.
+    Update {
+        /// Edge App instance id.
+        #[arg(short, long)]
+        instance_id: Option<String>,
+
+        /// Name of the Edge App instance.
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+}
+
 
 pub fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
@@ -902,19 +921,19 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         EdgeAppCommands::List { json } => {
             handle_command_execution_result(edge_app_command.list(), json);
         }
-        EdgeAppCommands::Upload {
+        EdgeAppCommands::Deploy {
             path,
             app_id,
             delete_missing_settings,
         } => {
-            match edge_app_command.upload(
+            match edge_app_command.deploy(
                 transform_edge_app_path_to_manifest(path).as_path(),
                 app_id.clone(),
                 *delete_missing_settings,
             ) {
                 Ok(revision) => {
                     println!(
-                        "Edge app successfully uploaded. Revision: {revision}.",
+                        "Edge app successfully deployed. Revision: {revision}.",
                         revision = revision
                     );
                 }
@@ -924,88 +943,6 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         }
-        EdgeAppCommands::Version(command) => match command {
-            EdgeAppVersionCommands::List { app_id, path, json } => {
-                let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
-                    Ok(id) => id,
-                    Err(e) => {
-                        error!("Error calling list versions: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-                handle_command_execution_result(
-                    edge_app_command.list_versions(&actual_app_id),
-                    json,
-                );
-            }
-            EdgeAppVersionCommands::Promote {
-                path,
-                revision,
-                installation_id,
-                channel,
-                latest,
-            } => {
-                let actual_installation_id = match edge_app_command
-                    .ensure_installation_id(installation_id.clone(), path.clone())
-                {
-                    Ok(_installation_id) => _installation_id,
-                    Err(e) => {
-                        error!("Promote failed: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-
-                let app_id =
-                    match edge_app_command.get_app_id_by_installation(&actual_installation_id) {
-                        Ok(id) => id,
-                        Err(e) => {
-                            error!("Promote failed: {}", e);
-                            std::process::exit(1);
-                        }
-                    };
-
-                let revision = if *latest {
-                    match edge_app_command.get_latest_revision(&app_id) {
-                        Ok(rev) => match rev {
-                            Some(rev) => rev.revision,
-                            None => {
-                                println!("Failed to get latest Edge App revision.");
-                                std::process::exit(1);
-                            }
-                        },
-                        Err(e) => {
-                            println!("Failed to get latest Edge App revision: {}", e);
-                            std::process::exit(1);
-                        }
-                    }
-                } else {
-                    match revision {
-                        Some(rev) => *rev,
-                        None => {
-                            println!(
-                                "You must either specify a revision or use the --latest flag."
-                            );
-                            std::process::exit(1);
-                        }
-                    }
-                };
-
-                match edge_app_command.promote_version(
-                    &app_id,
-                    &actual_installation_id,
-                    revision,
-                    channel,
-                ) {
-                    Ok(()) => {
-                        println!("Edge app version successfully promoted.");
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to promote edge app version: {e}.");
-                        std::process::exit(1);
-                    }
-                }
-            }
-        },
         EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List {
                 path,
@@ -1215,6 +1152,88 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 Err(e) => {
                     eprintln!("{e}");
                     std::process::exit(1);
+                }
+            }
+        }
+        EdgeAppCommands::Instance(command) => match command {
+            EdgeAppInstanceCommands::List {
+                app_id,
+                path,
+                json,
+            } => {
+                let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Error calling list instances: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                handle_command_execution_result(
+                    edge_app_command.list_instances(&actual_app_id),
+                    json,
+                );
+            }
+            EdgeAppInstanceCommands::Create { app_id, path, name } => {
+                let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Error calling create instance: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                match edge_app_command.create_instance(&actual_app_id, "temp") {
+                    Ok((_some_id)) => {
+                        println!("Edge app instance successfully created.");
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to create edge app instance: {e}.");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            EdgeAppInstanceCommands::Delete { instance_id, path } => {
+                let actual_installation_id = match edge_app_command
+                    .ensure_installation_id(instance_id.clone(), path.clone())
+                {
+                    Ok(_installation_id) => _installation_id,
+                    Err(e) => {
+                        error!("Error calling delete setting: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+
+                match edge_app_command.delete_instance(&actual_installation_id) {
+                    Ok(()) => {
+                        println!("Edge app instance successfully deleted.");
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to delete edge app instance: {e}.");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            EdgeAppInstanceCommands::Update {
+                instance_id,
+                path,
+                name,
+            } => {
+                let actual_installation_id = match edge_app_command
+                    .ensure_installation_id(instance_id.clone(), path.clone())
+                {
+                    Ok(_installation_id) => _installation_id,
+                    Err(e) => {
+                        error!("Error calling update setting: {}", e);
+                        std::process::exit(1);
+                    }
+                };
+                match edge_app_command.update_instance(&actual_installation_id, name) {
+                    Ok(()) => {
+                        println!("Edge app instance successfully updated.");
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to update edge app instance: {e}.");
+                        std::process::exit(1);
+                    }
                 }
             }
         }
