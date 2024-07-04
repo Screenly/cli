@@ -15,6 +15,8 @@ use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };
 
+pub const MANIFEST_VERSION: &str = "manifest_v1";
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Auth {
     #[serde(deserialize_with = "deserialize_auth_type")]
@@ -48,6 +50,9 @@ pub struct Entrypoint {
 #[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EdgeAppManifest {
+    #[serde(deserialize_with = "deserialize_syntax")]
+    pub syntax: String,
+
     #[serde(
         deserialize_with = "deserialize_app_id",
         skip_serializing_if = "string_field_is_none_or_empty",
@@ -99,9 +104,6 @@ pub struct EdgeAppManifest {
     )]
     pub auth: Option<Auth>,
 
-    #[serde(deserialize_with = "deserialize_syntax", default)]
-    pub syntax: Option<String>,
-
     #[serde(
         deserialize_with = "deserialize_ready_signal",
         skip_serializing_if = "Option::is_none",
@@ -148,21 +150,19 @@ where
     }
 }
 
-fn deserialize_syntax<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+fn deserialize_syntax<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    let s = Option::<String>::deserialize(deserializer)?;
-    match s.as_deref() {
-        Some("manifest_v1") => Ok(s),
-        Some(invalid) => Err(serde::de::Error::custom(format!(
+    let s = String::deserialize(deserializer)?;
+    match s.as_str() {
+        MANIFEST_VERSION => Ok(s),
+        invalid => Err(serde::de::Error::custom(format!(
             "Invalid syntax: {}. Only 'manifest_v1' is accepted.",
             invalid
         ))),
-        None => Ok(None),
     }
 }
-
 fn deserialize_app_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
@@ -356,16 +356,19 @@ mod tests {
         let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
+            syntax: MANIFEST_VERSION.to_owned(),
             app_id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -382,14 +385,17 @@ mod tests {
         let contents = fs::read_to_string(file_path).unwrap();
 
         let expected_contents = r#"---
+syntax: manifest_v1
 app_id: test_app
-installation_id: test_installation_id
 user_version: test_version
 description: test_description
 icon: test_icon
 author: test_author
 homepage_url: test_url
-entrypoint: entrypoint.html
+entrypoint:
+  type: file
+  uri: entrypoint.html
+ready_signal: true
 settings:
   username:
     type: string
@@ -409,15 +415,18 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            ready_signal: Some(true),
+            ready_signal: None,
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
+            syntax: MANIFEST_VERSION.to_owned(),
             user_version: Some("test_version".to_string()),
             description: None,
             icon: Some("test_icon".to_string()),
             author: None,
             homepage_url: Some("test_url".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -434,11 +443,14 @@ settings:
         let contents = fs::read_to_string(file_path).unwrap();
 
         let expected_contents = r#"---
+syntax: manifest_v1
 app_id: test_app
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
-entrypoint: entrypoint.html
+entrypoint:
+  type: file
+  uri: entrypoint.html
 settings:
   username:
     type: string
@@ -458,15 +470,18 @@ settings:
 
         let manifest = EdgeAppManifest {
             app_id: Some("test_app".to_string()),
-            ready_signal: Some(true),
+            ready_signal: None,
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
+            syntax: MANIFEST_VERSION.to_owned(),
             user_version: Some("test_version".to_string()),
             description: Some("".to_string()),
             icon: Some("test_icon".to_string()),
             author: Some("".to_string()),
             homepage_url: Some("test_url".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -483,12 +498,14 @@ settings:
         let contents = fs::read_to_string(file_path).unwrap();
 
         let expected_contents = r#"---
+syntax: manifest_v1
 app_id: test_app
-installation_id: test_installation_id
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
-entrypoint: entrypoint.html
+entrypoint:
+  type: file
+  uri: entrypoint.html
 settings:
   username:
     type: string
@@ -507,6 +524,7 @@ settings:
         let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
+            syntax: MANIFEST_VERSION.to_owned(),
             app_id: Some("test_app".to_string()),
             settings: vec![Setting {
                 name: "username".to_string(),
@@ -525,6 +543,7 @@ settings:
         let contents = fs::read_to_string(file_path).unwrap();
 
         let expected_contents = r#"---
+syntax: manifest_v1
 app_id: test_app
 settings:
   username:
@@ -566,13 +585,16 @@ settings:
             app_id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
+            syntax: MANIFEST_VERSION.to_owned(),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -595,13 +617,16 @@ settings:
             app_id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
+            syntax: MANIFEST_VERSION.to_owned(),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -624,13 +649,16 @@ settings:
             app_id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
+            syntax: MANIFEST_VERSION.to_owned(),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: None,
             author: Some("test_author".to_string()),
             homepage_url: None,
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -660,6 +688,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
+syntax: manifest_v1
 app_id: test_app
 settings:
   username:
@@ -680,6 +709,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
+syntax: manifest_v1
 app_id: test_app
 settings:
   username:
@@ -700,6 +730,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
+syntax: manifest_v1
 app_id: test_app
 settings:
   username:
@@ -742,16 +773,17 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
+syntax: manifest_v1
 app_id: test_app
 asdqweuser_version: test version
-settings:
-  username:
-    type: bool
-    default_value: stranger
-    title: username
-    optional: true
-    is_global: false,
-    help_text: An example of a setting that is used in index.html
+  settings:
+    username:
+      type: bool
+      default_value: stranger
+      title: username
+      optional: true
+      is_global: false,
+      help_text: An example of a setting that is used in index.html
 "#;
 
         write_to_tempfile(&dir, file_name, content);
@@ -764,6 +796,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
+syntax: manifest_v1
 app_id: ''
 settings:
   username:
@@ -785,6 +818,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
+syntax: manifest_v1
 app_id: test_app
 settings:
   username:
@@ -810,6 +844,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
+syntax: manifest_v1
 app_id: test_app
 settings:
   username:
@@ -831,16 +866,19 @@ settings:
         let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
+            syntax: MANIFEST_VERSION.to_owned(),
             app_id: Some("test_app".to_string()),
-            ready_signal: Some(true),
+            ready_signal: None,
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -857,14 +895,16 @@ settings:
         let contents = fs::read_to_string(file_path).unwrap();
 
         let expected_contents = r#"---
+syntax: manifest_v1
 app_id: test_app
-installation_id: test_installation_id
 user_version: test_version
 description: test_description
 icon: test_icon
 author: test_author
 homepage_url: test_url
-entrypoint: entrypoint.html
+entrypoint:
+  type: file
+  uri: entrypoint.html
 settings:
   username:
     type: string
@@ -884,13 +924,16 @@ settings:
             app_id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
-            syntax: Some("manifest_v1".to_string()),
+            syntax: MANIFEST_VERSION.to_owned(),
             user_version: Some("test_version".to_string()),
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
