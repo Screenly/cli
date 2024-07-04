@@ -31,7 +31,7 @@ jobs:
         run: |
           echo "Running diff command to compare documentation..."
 
-          diff_output=$(diff /tmp/CommandLineHelp.md docs/CommandLineHelp.md  2>&1)
+          diff_output=$(diff /tmp/CommandLineHelp.md docs/CommandLineHelp.md 2>&1)
           diff_exit_status=$?
 
           echo "Status code: $diff_exit_status"
@@ -45,3 +45,4 @@ jobs:
           fi
 
           exit $diff_exit_status
+        shell: bash
