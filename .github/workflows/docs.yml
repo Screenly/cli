@@ -29,9 +29,16 @@ jobs:
 
       - name: Compare documentation
         run: |
-          output=$(diff /tmp/CommandLineHelp.md docs/CommandLineHelp.md 2>&1)
-          if [ -n "$output" ]; then
-            echo "::error::$output"
+          echo "Running diff command to compare documentation..."
+
+          diff_output=$(diff /tmp/CommandLineHelp.md docs/CommandLineHelp.md)
+          diff_exit_status=$?
+
+          if [ $diff_exit_status -ne 0 ]; then
+            echo "::error::$diff_output"
             echo "::error::Documentation is out of date. Please run 'cargo run -- print-help-markdown > docs/CommandLineHelp.md' and commit the changes."
-            exit 1
+          else
+            echo "Documentation is up to date."
           fi
+
+          exit $diff_exit_status
