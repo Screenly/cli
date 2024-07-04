@@ -31,7 +31,7 @@ jobs:
         run: |
           output=$(diff /tmp/CommandLineHelp.md docs/CommandLineHelp.md)
           if [ -n "$output" ]; then
-            echo "::error::$output"
+            # echo "::error::$output"
             echo "::error::Documentation is out of date. Please run 'cargo run -- print-help-markdown > docs/CommandLineHelp.md' and commit the changes."
             exit 1
           fi
