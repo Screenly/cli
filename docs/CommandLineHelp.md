@@ -654,6 +654,18 @@ Deletes an Edge App. This cannot be undone
 
 
 
+## `cli edge-app validate`
+
+Validates Edge App manifest file
+
+**Usage:** `cli edge-app validate [OPTIONS]`
+
+###### **Options:**
+
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+
+
+
 <hr/>
 
 <small><i>
