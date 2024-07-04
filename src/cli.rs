@@ -41,9 +41,6 @@ pub struct Cli {
     #[arg(short, long, action = clap::ArgAction::SetTrue)]
     json: Option<bool>,
 
-    #[arg(long, hide = true)]
-    pub markdown_help: bool,
-
     #[command(subcommand)]
     pub(crate) command: Commands,
 }
