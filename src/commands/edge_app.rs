@@ -111,7 +111,7 @@ impl EdgeAppCommand {
                     default_value: None,
                     optional: true,
                     is_global: false,
-                    help_text: "An example of a secret setting that is used in index.html"
+                    help_text: "An example of a secret setting used in index.html. Once you initialize your app with `screenly edge-app upload`, you can set the secret value with `screenly edge-app secret set secret_word="<your value here>"`"
                         .to_string(),
                 },
                 Setting {
