@@ -1,58 +1,58 @@
-# Command-Line Help for `cli`
+# Command-Line Help for `screenly`
 
-This document contains the help content for the `cli` command-line program.
+This document contains the help content for the `screenly` command-line program.
 
 **Command Overview:**
 
-* [`cli`↴](#cli)
-* [`cli login`↴](#cli-login)
-* [`cli logout`↴](#cli-logout)
-* [`cli screen`↴](#cli-screen)
-* [`cli screen list`↴](#cli-screen-list)
-* [`cli screen get`↴](#cli-screen-get)
-* [`cli screen add`↴](#cli-screen-add)
-* [`cli screen delete`↴](#cli-screen-delete)
-* [`cli asset`↴](#cli-asset)
-* [`cli asset list`↴](#cli-asset-list)
-* [`cli asset get`↴](#cli-asset-get)
-* [`cli asset add`↴](#cli-asset-add)
-* [`cli asset delete`↴](#cli-asset-delete)
-* [`cli asset inject-js`↴](#cli-asset-inject-js)
-* [`cli asset set-headers`↴](#cli-asset-set-headers)
-* [`cli asset update-headers`↴](#cli-asset-update-headers)
-* [`cli asset basic-auth`↴](#cli-asset-basic-auth)
-* [`cli asset bearer-auth`↴](#cli-asset-bearer-auth)
-* [`cli playlist`↴](#cli-playlist)
-* [`cli playlist create`↴](#cli-playlist-create)
-* [`cli playlist list`↴](#cli-playlist-list)
-* [`cli playlist get`↴](#cli-playlist-get)
-* [`cli playlist delete`↴](#cli-playlist-delete)
-* [`cli playlist append`↴](#cli-playlist-append)
-* [`cli playlist prepend`↴](#cli-playlist-prepend)
-* [`cli playlist update`↴](#cli-playlist-update)
-* [`cli edge-app`↴](#cli-edge-app)
-* [`cli edge-app create`↴](#cli-edge-app-create)
-* [`cli edge-app list`↴](#cli-edge-app-list)
-* [`cli edge-app rename`↴](#cli-edge-app-rename)
-* [`cli edge-app run`↴](#cli-edge-app-run)
-* [`cli edge-app version`↴](#cli-edge-app-version)
-* [`cli edge-app version list`↴](#cli-edge-app-version-list)
-* [`cli edge-app version promote`↴](#cli-edge-app-version-promote)
-* [`cli edge-app setting`↴](#cli-edge-app-setting)
-* [`cli edge-app setting list`↴](#cli-edge-app-setting-list)
-* [`cli edge-app setting set`↴](#cli-edge-app-setting-set)
-* [`cli edge-app secret`↴](#cli-edge-app-secret)
-* [`cli edge-app secret list`↴](#cli-edge-app-secret-list)
-* [`cli edge-app secret set`↴](#cli-edge-app-secret-set)
-* [`cli edge-app upload`↴](#cli-edge-app-upload)
-* [`cli edge-app delete`↴](#cli-edge-app-delete)
-* [`cli edge-app validate`↴](#cli-edge-app-validate)
+* [`screenly`↴](#screenly)
+* [`screenly login`↴](#screenly-login)
+* [`screenly logout`↴](#screenly-logout)
+* [`screenly screen`↴](#screenly-screen)
+* [`screenly screen list`↴](#screenly-screen-list)
+* [`screenly screen get`↴](#screenly-screen-get)
+* [`screenly screen add`↴](#screenly-screen-add)
+* [`screenly screen delete`↴](#screenly-screen-delete)
+* [`screenly asset`↴](#screenly-asset)
+* [`screenly asset list`↴](#screenly-asset-list)
+* [`screenly asset get`↴](#screenly-asset-get)
+* [`screenly asset add`↴](#screenly-asset-add)
+* [`screenly asset delete`↴](#screenly-asset-delete)
+* [`screenly asset inject-js`↴](#screenly-asset-inject-js)
+* [`screenly asset set-headers`↴](#screenly-asset-set-headers)
+* [`screenly asset update-headers`↴](#screenly-asset-update-headers)
+* [`screenly asset basic-auth`↴](#screenly-asset-basic-auth)
+* [`screenly asset bearer-auth`↴](#screenly-asset-bearer-auth)
+* [`screenly playlist`↴](#screenly-playlist)
+* [`screenly playlist create`↴](#screenly-playlist-create)
+* [`screenly playlist list`↴](#screenly-playlist-list)
+* [`screenly playlist get`↴](#screenly-playlist-get)
+* [`screenly playlist delete`↴](#screenly-playlist-delete)
+* [`screenly playlist append`↴](#screenly-playlist-append)
+* [`screenly playlist prepend`↴](#screenly-playlist-prepend)
+* [`screenly playlist update`↴](#screenly-playlist-update)
+* [`screenly edge-app`↴](#screenly-edge-app)
+* [`screenly edge-app create`↴](#screenly-edge-app-create)
+* [`screenly edge-app list`↴](#screenly-edge-app-list)
+* [`screenly edge-app rename`↴](#screenly-edge-app-rename)
+* [`screenly edge-app run`↴](#screenly-edge-app-run)
+* [`screenly edge-app version`↴](#screenly-edge-app-version)
+* [`screenly edge-app version list`↴](#screenly-edge-app-version-list)
+* [`screenly edge-app version promote`↴](#screenly-edge-app-version-promote)
+* [`screenly edge-app setting`↴](#screenly-edge-app-setting)
+* [`screenly edge-app setting list`↴](#screenly-edge-app-setting-list)
+* [`screenly edge-app setting set`↴](#screenly-edge-app-setting-set)
+* [`screenly edge-app secret`↴](#screenly-edge-app-secret)
+* [`screenly edge-app secret list`↴](#screenly-edge-app-secret-list)
+* [`screenly edge-app secret set`↴](#screenly-edge-app-secret-set)
+* [`screenly edge-app upload`↴](#screenly-edge-app-upload)
+* [`screenly edge-app delete`↴](#screenly-edge-app-delete)
+* [`screenly edge-app validate`↴](#screenly-edge-app-validate)
 
-## `cli`
+## `screenly`
 
 Command line interface is intended for quick interaction with Screenly through terminal. Moreover, this CLI is built such that it can be used for automating tasks.
 
-**Usage:** `cli [OPTIONS] <COMMAND>`
+**Usage:** `screenly [OPTIONS] <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -69,27 +69,27 @@ Command line interface is intended for quick interaction with Screenly through t
 
 
 
-## `cli login`
+## `screenly login`
 
 Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token
 
-**Usage:** `cli login`
+**Usage:** `screenly login`
 
 
 
-## `cli logout`
+## `screenly logout`
 
 Logouts and removes stored token
 
-**Usage:** `cli logout`
+**Usage:** `screenly logout`
 
 
 
-## `cli screen`
+## `screenly screen`
 
 Screen related commands
 
-**Usage:** `cli screen <COMMAND>`
+**Usage:** `screenly screen <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -100,11 +100,11 @@ Screen related commands
 
 
 
-## `cli screen list`
+## `screenly screen list`
 
 Lists your screens
 
-**Usage:** `cli screen list [OPTIONS]`
+**Usage:** `screenly screen list [OPTIONS]`
 
 ###### **Options:**
 
@@ -112,11 +112,11 @@ Lists your screens
 
 
 
-## `cli screen get`
+## `screenly screen get`
 
 Gets a single screen by id
 
-**Usage:** `cli screen get [OPTIONS] <UUID>`
+**Usage:** `screenly screen get [OPTIONS] <UUID>`
 
 ###### **Arguments:**
 
@@ -128,11 +128,11 @@ Gets a single screen by id
 
 
 
-## `cli screen add`
+## `screenly screen add`
 
 Adds a new screen
 
-**Usage:** `cli screen add [OPTIONS] <PIN> [NAME]`
+**Usage:** `screenly screen add [OPTIONS] <PIN> [NAME]`
 
 ###### **Arguments:**
 
@@ -145,11 +145,11 @@ Adds a new screen
 
 
 
-## `cli screen delete`
+## `screenly screen delete`
 
 Deletes a screen. This cannot be undone
 
-**Usage:** `cli screen delete <UUID>`
+**Usage:** `screenly screen delete <UUID>`
 
 ###### **Arguments:**
 
@@ -157,11 +157,11 @@ Deletes a screen. This cannot be undone
 
 
 
-## `cli asset`
+## `screenly asset`
 
 Asset related commands
 
-**Usage:** `cli asset <COMMAND>`
+**Usage:** `screenly asset <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -177,11 +177,11 @@ Asset related commands
 
 
 
-## `cli asset list`
+## `screenly asset list`
 
 Lists your assets
 
-**Usage:** `cli asset list [OPTIONS]`
+**Usage:** `screenly asset list [OPTIONS]`
 
 ###### **Options:**
 
@@ -189,11 +189,11 @@ Lists your assets
 
 
 
-## `cli asset get`
+## `screenly asset get`
 
 Gets a single asset by id
 
-**Usage:** `cli asset get [OPTIONS] <UUID>`
+**Usage:** `screenly asset get [OPTIONS] <UUID>`
 
 ###### **Arguments:**
 
@@ -205,11 +205,11 @@ Gets a single asset by id
 
 
 
-## `cli asset add`
+## `screenly asset add`
 
 Adds a new asset
 
-**Usage:** `cli asset add [OPTIONS] <PATH> <TITLE>`
+**Usage:** `screenly asset add [OPTIONS] <PATH> <TITLE>`
 
 ###### **Arguments:**
 
@@ -222,11 +222,11 @@ Adds a new asset
 
 
 
-## `cli asset delete`
+## `screenly asset delete`
 
 Deletes an asset. This cannot be undone
 
-**Usage:** `cli asset delete <UUID>`
+**Usage:** `screenly asset delete <UUID>`
 
 ###### **Arguments:**
 
@@ -234,11 +234,11 @@ Deletes an asset. This cannot be undone
 
 
 
-## `cli asset inject-js`
+## `screenly asset inject-js`
 
 Injects JavaScript code inside of the web asset. It will be executed once the asset loads during playback
 
-**Usage:** `cli asset inject-js <UUID> <PATH>`
+**Usage:** `screenly asset inject-js <UUID> <PATH>`
 
 ###### **Arguments:**
 
@@ -247,11 +247,11 @@ Injects JavaScript code inside of the web asset. It will be executed once the as
 
 
 
-## `cli asset set-headers`
+## `screenly asset set-headers`
 
 Sets HTTP headers for web asset
 
-**Usage:** `cli asset set-headers <UUID> <HEADERS>`
+**Usage:** `screenly asset set-headers <UUID> <HEADERS>`
 
 ###### **Arguments:**
 
@@ -260,11 +260,11 @@ Sets HTTP headers for web asset
 
 
 
-## `cli asset update-headers`
+## `screenly asset update-headers`
 
 Updates HTTP headers for web asset
 
-**Usage:** `cli asset update-headers <UUID> <HEADERS>`
+**Usage:** `screenly asset update-headers <UUID> <HEADERS>`
 
 ###### **Arguments:**
 
@@ -273,11 +273,11 @@ Updates HTTP headers for web asset
 
 
 
-## `cli asset basic-auth`
+## `screenly asset basic-auth`
 
 Shortcut for setting up basic authentication headers
 
-**Usage:** `cli asset basic-auth <UUID> <CREDENTIALS>`
+**Usage:** `screenly asset basic-auth <UUID> <CREDENTIALS>`
 
 ###### **Arguments:**
 
@@ -286,11 +286,11 @@ Shortcut for setting up basic authentication headers
 
 
 
-## `cli asset bearer-auth`
+## `screenly asset bearer-auth`
 
 Shortcut for setting up bearer authentication headers
 
-**Usage:** `cli asset bearer-auth <UUID> <TOKEN>`
+**Usage:** `screenly asset bearer-auth <UUID> <TOKEN>`
 
 ###### **Arguments:**
 
@@ -299,11 +299,11 @@ Shortcut for setting up bearer authentication headers
 
 
 
-## `cli playlist`
+## `screenly playlist`
 
 Playlist related commands
 
-**Usage:** `cli playlist <COMMAND>`
+**Usage:** `screenly playlist <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -317,11 +317,11 @@ Playlist related commands
 
 
 
-## `cli playlist create`
+## `screenly playlist create`
 
 Creates a new playlist
 
-**Usage:** `cli playlist create [OPTIONS] <TITLE> [PREDICATE]`
+**Usage:** `screenly playlist create [OPTIONS] <TITLE> [PREDICATE]`
 
 ###### **Arguments:**
 
@@ -334,11 +334,11 @@ Creates a new playlist
 
 
 
-## `cli playlist list`
+## `screenly playlist list`
 
 Lists your playlists
 
-**Usage:** `cli playlist list [OPTIONS]`
+**Usage:** `screenly playlist list [OPTIONS]`
 
 ###### **Options:**
 
@@ -346,11 +346,11 @@ Lists your playlists
 
 
 
-## `cli playlist get`
+## `screenly playlist get`
 
 Gets a single playlist by id
 
-**Usage:** `cli playlist get <UUID>`
+**Usage:** `screenly playlist get <UUID>`
 
 ###### **Arguments:**
 
@@ -358,11 +358,11 @@ Gets a single playlist by id
 
 
 
-## `cli playlist delete`
+## `screenly playlist delete`
 
 Deletes a playlist. This cannot be undone
 
-**Usage:** `cli playlist delete <UUID>`
+**Usage:** `screenly playlist delete <UUID>`
 
 ###### **Arguments:**
 
@@ -370,11 +370,11 @@ Deletes a playlist. This cannot be undone
 
 
 
-## `cli playlist append`
+## `screenly playlist append`
 
 Adds an asset to the end of the playlist
 
-**Usage:** `cli playlist append [OPTIONS] <UUID> <ASSET_UUID> [DURATION]`
+**Usage:** `screenly playlist append [OPTIONS] <UUID> <ASSET_UUID> [DURATION]`
 
 ###### **Arguments:**
 
@@ -388,11 +388,11 @@ Adds an asset to the end of the playlist
 
 
 
-## `cli playlist prepend`
+## `screenly playlist prepend`
 
 Adds an asset to the beginning of the playlist
 
-**Usage:** `cli playlist prepend [OPTIONS] <UUID> <ASSET_UUID> [DURATION]`
+**Usage:** `screenly playlist prepend [OPTIONS] <UUID> <ASSET_UUID> [DURATION]`
 
 ###### **Arguments:**
 
@@ -406,19 +406,19 @@ Adds an asset to the beginning of the playlist
 
 
 
-## `cli playlist update`
+## `screenly playlist update`
 
 Patches a given playlist
 
-**Usage:** `cli playlist update`
+**Usage:** `screenly playlist update`
 
 
 
-## `cli edge-app`
+## `screenly edge-app`
 
 Edge App related commands
 
-**Usage:** `cli edge-app <COMMAND>`
+**Usage:** `screenly edge-app <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -435,11 +435,11 @@ Edge App related commands
 
 
 
-## `cli edge-app create`
+## `screenly edge-app create`
 
 Creates Edge App in the store
 
-**Usage:** `cli edge-app create [OPTIONS] --name <NAME>`
+**Usage:** `screenly edge-app create [OPTIONS] --name <NAME>`
 
 ###### **Options:**
 
@@ -449,11 +449,11 @@ Creates Edge App in the store
 
 
 
-## `cli edge-app list`
+## `screenly edge-app list`
 
 Lists your Edge Apps
 
-**Usage:** `cli edge-app list [OPTIONS]`
+**Usage:** `screenly edge-app list [OPTIONS]`
 
 ###### **Options:**
 
@@ -461,11 +461,11 @@ Lists your Edge Apps
 
 
 
-## `cli edge-app rename`
+## `screenly edge-app rename`
 
 Renames Edge App
 
-**Usage:** `cli edge-app rename [OPTIONS] --name <NAME>`
+**Usage:** `screenly edge-app rename [OPTIONS] --name <NAME>`
 
 ###### **Options:**
 
@@ -475,11 +475,11 @@ Renames Edge App
 
 
 
-## `cli edge-app run`
+## `screenly edge-app run`
 
 Runs Edge App emulator
 
-**Usage:** `cli edge-app run [OPTIONS]`
+**Usage:** `screenly edge-app run [OPTIONS]`
 
 ###### **Options:**
 
@@ -489,11 +489,11 @@ Runs Edge App emulator
 
 
 
-## `cli edge-app version`
+## `screenly edge-app version`
 
 Version commands
 
-**Usage:** `cli edge-app version <COMMAND>`
+**Usage:** `screenly edge-app version <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -502,11 +502,11 @@ Version commands
 
 
 
-## `cli edge-app version list`
+## `screenly edge-app version list`
 
 Lists Edge App versions
 
-**Usage:** `cli edge-app version list [OPTIONS]`
+**Usage:** `screenly edge-app version list [OPTIONS]`
 
 ###### **Options:**
 
@@ -516,11 +516,11 @@ Lists Edge App versions
 
 
 
-## `cli edge-app version promote`
+## `screenly edge-app version promote`
 
 Promotes Edge App revision to channel
 
-**Usage:** `cli edge-app version promote [OPTIONS]`
+**Usage:** `screenly edge-app version promote [OPTIONS]`
 
 ###### **Options:**
 
@@ -536,11 +536,11 @@ Promotes Edge App revision to channel
 
 
 
-## `cli edge-app setting`
+## `screenly edge-app setting`
 
 Settings commands
 
-**Usage:** `cli edge-app setting <COMMAND>`
+**Usage:** `screenly edge-app setting <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -549,11 +549,11 @@ Settings commands
 
 
 
-## `cli edge-app setting list`
+## `screenly edge-app setting list`
 
 Lists Edge App settings
 
-**Usage:** `cli edge-app setting list [OPTIONS]`
+**Usage:** `screenly edge-app setting list [OPTIONS]`
 
 ###### **Options:**
 
@@ -563,11 +563,11 @@ Lists Edge App settings
 
 
 
-## `cli edge-app setting set`
+## `screenly edge-app setting set`
 
 Sets Edge App setting
 
-**Usage:** `cli edge-app setting set [OPTIONS] <SETTING_PAIR>`
+**Usage:** `screenly edge-app setting set [OPTIONS] <SETTING_PAIR>`
 
 ###### **Arguments:**
 
@@ -580,11 +580,11 @@ Sets Edge App setting
 
 
 
-## `cli edge-app secret`
+## `screenly edge-app secret`
 
 Secrets commands
 
-**Usage:** `cli edge-app secret <COMMAND>`
+**Usage:** `screenly edge-app secret <COMMAND>`
 
 ###### **Subcommands:**
 
@@ -593,11 +593,11 @@ Secrets commands
 
 
 
-## `cli edge-app secret list`
+## `screenly edge-app secret list`
 
 Lists Edge App secrets
 
-**Usage:** `cli edge-app secret list [OPTIONS]`
+**Usage:** `screenly edge-app secret list [OPTIONS]`
 
 ###### **Options:**
 
@@ -607,11 +607,11 @@ Lists Edge App secrets
 
 
 
-## `cli edge-app secret set`
+## `screenly edge-app secret set`
 
 Sets Edge App secret
 
-**Usage:** `cli edge-app secret set [OPTIONS] <SECRET_PAIR>`
+**Usage:** `screenly edge-app secret set [OPTIONS] <SECRET_PAIR>`
 
 ###### **Arguments:**
 
@@ -624,11 +624,11 @@ Sets Edge App secret
 
 
 
-## `cli edge-app upload`
+## `screenly edge-app upload`
 
 Uploads assets and settings of the Edge App
 
-**Usage:** `cli edge-app upload [OPTIONS]`
+**Usage:** `screenly edge-app upload [OPTIONS]`
 
 ###### **Options:**
 
@@ -641,11 +641,11 @@ Uploads assets and settings of the Edge App
 
 
 
-## `cli edge-app delete`
+## `screenly edge-app delete`
 
 Deletes an Edge App. This cannot be undone
 
-**Usage:** `cli edge-app delete [OPTIONS]`
+**Usage:** `screenly edge-app delete [OPTIONS]`
 
 ###### **Options:**
 
@@ -654,11 +654,11 @@ Deletes an Edge App. This cannot be undone
 
 
 
-## `cli edge-app validate`
+## `screenly edge-app validate`
 
 Validates Edge App manifest file
 
-**Usage:** `cli edge-app validate [OPTIONS]`
+**Usage:** `screenly edge-app validate [OPTIONS]`
 
 ###### **Options:**
 
