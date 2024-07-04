@@ -30,7 +30,22 @@ pub enum AuthType {
     OAuth2ClientCredential,
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EntrypointType {
+    File,
+    RemoteGlobal,
+    RemoteLocal,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Entrypoint {
+    #[serde(rename = "type")]
+    pub entrypoint_type: EntrypointType,
+    pub uri: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct EdgeAppManifest {
     #[serde(
@@ -69,12 +84,14 @@ pub struct EdgeAppManifest {
         default
     )]
     pub homepage_url: Option<String>,
+
     #[serde(
         deserialize_with = "deserialize_entrypoint",
-        skip_serializing_if = "string_field_is_none_or_empty",
+        skip_serializing_if = "Option::is_none",
         default
     )]
-    pub entrypoint: Option<String>,
+    pub entrypoint: Option<Entrypoint>,
+
     #[serde(
         deserialize_with = "deserialize_auth",
         skip_serializing_if = "Option::is_none",
@@ -83,7 +100,7 @@ pub struct EdgeAppManifest {
     pub auth: Option<Auth>,
 
     #[serde(deserialize_with = "deserialize_syntax", default)]
-    pub syntax: String,
+    pub syntax: Option<String>,
 
     #[serde(
         deserialize_with = "deserialize_ready_signal",
@@ -199,11 +216,43 @@ where
     deserialize_option_string_field("homepage_url", false, deserializer)
 }
 
-fn deserialize_entrypoint<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+fn deserialize_entrypoint<'de, D>(deserializer: D) -> Result<Option<Entrypoint>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_option_string_field("entrypoint", true, deserializer)
+    #[derive(Deserialize)]
+    struct EntrypointHelper {
+        #[serde(rename = "type")]
+        entrypoint_type: EntrypointType,
+        uri: Option<String>,
+    }
+
+    let entrypoint = Option::deserialize(deserializer)?;
+    entrypoint
+        .map(
+            |EntrypointHelper {
+                 entrypoint_type,
+                 uri,
+             }| {
+                match (entrypoint_type, uri) {
+                    (EntrypointType::RemoteLocal, Some(_)) => Err(serde::de::Error::custom(
+                        "URI should not be provided for remote-local type",
+                    )),
+                    (EntrypointType::RemoteLocal, None) => Ok(Entrypoint {
+                        entrypoint_type,
+                        uri: None,
+                    }),
+                    (_, None) => Err(serde::de::Error::custom(
+                        "URI is required for file and remote-global types",
+                    )),
+                    (_, Some(uri)) => Ok(Entrypoint {
+                        entrypoint_type,
+                        uri: Some(uri),
+                    }),
+                }
+            },
+        )
+        .transpose()
 }
 
 impl EdgeAppManifest {
@@ -232,6 +281,11 @@ impl EdgeAppManifest {
     }
 
     pub fn prepare_payload(manifest: &EdgeAppManifest) -> HashMap<&str, serde_json::Value> {
+        let entrypoint_uri = match &manifest.entrypoint {
+            Some(entrypoint) => entrypoint.uri.clone(),
+            None => None,
+        };
+
         [
             ("app_id", &manifest.app_id),
             ("user_version", &manifest.user_version),
@@ -239,7 +293,7 @@ impl EdgeAppManifest {
             ("icon", &manifest.icon),
             ("author", &manifest.author),
             ("homepage_url", &manifest.homepage_url),
-            ("entrypoint", &manifest.entrypoint),
+            ("entrypoint", &entrypoint_uri),
         ]
         .iter()
         .filter_map(|(key, value)| value.as_ref().map(|v| (*key, json!(v))))
