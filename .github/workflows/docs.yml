@@ -32,7 +32,7 @@ jobs:
           diff_output=$(diff /tmp/CommandLineHelp.md docs/CommandLineHelp.md || true)
 
           if [ -n "$diff_output" ]; then
-            echo "::error::$diff_output"
+            echo "$diff_output"
             echo "::error::Documentation is out of date. Please run 'cargo run -- print-help-markdown > docs/CommandLineHelp.md' and commit the changes."
             exit 1
           else
