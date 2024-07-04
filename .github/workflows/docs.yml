@@ -34,7 +34,10 @@ jobs:
           diff_output=$(diff /tmp/CommandLineHelp.md docs/CommandLineHelp.md)
           diff_exit_status=$?
 
+          echo "Status code: $diff_exit_status"
+
           if [ $diff_exit_status -ne 0 ]; then
+            echo "Debug: failed"
             echo "::error::$diff_output"
             echo "::error::Documentation is out of date. Please run 'cargo run -- print-help-markdown > docs/CommandLineHelp.md' and commit the changes."
           else
