@@ -63,7 +63,7 @@ pub enum Commands {
     /// Edge App related commands.
     #[command(subcommand)]
     EdgeApp(EdgeAppCommands),
-    // For generating `docs/CommandLineHelp.md`.
+    /// For generating `docs/CommandLineHelp.md`.
     #[clap(hide = true)]
     PrintHelpMarkdown {},
 }
