@@ -2,7 +2,7 @@ use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::edge_app_manifest::{EdgeAppManifest, Entrypoint};
 use crate::commands::edge_app_settings::{deserialize_settings_from_array, Setting, SettingType};
-use crate::commands::{CommandError, EdgeAppInstances, EdgeAppSecrets, EdgeAppSettings, EdgeApps};
+use crate::commands::{CommandError, EdgeAppInstances, EdgeAppSettings, EdgeApps};
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
@@ -459,61 +459,13 @@ impl EdgeAppCommand {
 impl EdgeAppCommand {
     pub fn list_settings(&self, installation_id: &str) -> Result<EdgeAppSettings, CommandError> {
         let app_id = self.get_app_id_by_installation(installation_id)?;
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/settings/values?select=name,value&installation_id=eq.{}",
-                installation_id
-            ),
-        )?;
 
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct SettingValue {
-            name: String,
-            value: String,
-        }
-        let settings: HashMap<String, String> =
-            serde_json::from_value::<Vec<SettingValue>>(response)?
-                .into_iter()
-                .map(|setting| (setting.name, setting.value))
-                .collect();
-
-        let mut app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
-                                                                                                             &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{}&order=name.asc&type=eq.string",
+        let app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
+                                                                                                             &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text,edge_app_setting_values(value)&app_id=eq.{}&order=name.asc",
                                                                                                                       app_id,
                                                                                                              ))?)?;
 
-        // Combine settings and values into one object
-        for setting in app_settings.iter_mut() {
-            let name = setting
-                .get("name")
-                .and_then(|t| t.as_str())
-                .ok_or_else(|| {
-                    eprintln!("Name field not found in the setting.");
-                    CommandError::MissingField
-                })?;
-
-            let value = match settings.get(name) {
-                Some(v) => v,
-                None => continue,
-            };
-
-            setting.insert("value".to_string(), Value::String(value.to_string()));
-        }
-
         Ok(EdgeAppSettings::new(serde_json::to_value(app_settings)?))
-    }
-
-    pub fn list_secrets(&self, installation_id: &str) -> Result<EdgeAppSecrets, CommandError> {
-        let app_id = self.get_app_id_by_installation(installation_id)?;
-        let app_secrets: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(
-            commands::get(
-                &self.authentication,
-                &format!("v4.1/edge-apps/settings?select=optional,name,title,help_text&app_id=eq.{}&order=name.asc&type=eq.secret", app_id,)
-            )?
-        )?;
-
-        Ok(EdgeAppSecrets::new(serde_json::to_value(app_secrets)?))
     }
 
     pub fn set_setting(
@@ -528,6 +480,9 @@ impl EdgeAppCommand {
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
         struct SettingValue {
             name: String,
+            #[serde(rename = "type")]
+            type_field: String,
+            edge_app_setting_values: Vec<HashMap<String, String>>,
         }
 
         let setting_url: String;
@@ -536,8 +491,8 @@ impl EdgeAppCommand {
 
         if _is_setting_global {
             setting_url = format!(
-                "v4.1/edge-apps/settings/values?select=name&app_id=eq.{}&name=eq.{}",
-                app_id, setting_key,
+                "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&app_id=eq.{}&edge_app_setting_values.app_id=eq.{}&name=eq.{}",
+                app_id, app_id, setting_key,
             );
             settings_values_payload = json!(
                 {
@@ -552,8 +507,8 @@ impl EdgeAppCommand {
             );
         } else {
             setting_url = format!(
-                "v4.1/edge-apps/settings/values?select=name&installation_id=eq.{}&name=eq.{}",
-                installation_id, setting_key,
+                "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&edge_app_setting_values.installation_id=eq.{}&name=eq.{}&app_id=eq.{}",
+                installation_id, setting_key, app_id
             );
             settings_values_payload = json!(
                 {
@@ -569,60 +524,46 @@ impl EdgeAppCommand {
         }
 
         let response = commands::get(&self.authentication, &setting_url)?;
-
         let setting_values = serde_json::from_value::<Vec<SettingValue>>(response)?;
+
         if setting_values.is_empty() {
             commands::post(
                 &self.authentication,
                 "v4.1/edge-apps/settings/values",
                 &settings_values_payload,
             )?;
-        } else {
-            commands::patch(
+            return Ok(());
+        }
+        // we do know it is not empty - so it is safe to unwrap
+        let setting = setting_values.first().unwrap();
+
+        if setting.type_field == "secret" {
+            commands::post(
                 &self.authentication,
-                &settings_values_patch_url,
-                &json!(
-                    {
-                        "value": setting_value,
-                    }
-                ),
+                "v4.1/edge-apps/secrets/values",
+                &settings_values_payload,
             )?;
+            return Ok(());
         }
 
-        Ok(())
-    }
+        if setting.edge_app_setting_values.is_empty() {
+            commands::post(
+                &self.authentication,
+                "v4.1/edge-apps/settings/values",
+                &settings_values_payload,
+            )?;
 
-    pub fn set_secret(
-        &self,
-        installation_id: &str,
-        secret_key: &str,
-        secret_value: &str,
-    ) -> Result<(), CommandError> {
-        let app_id = self.get_app_id_by_installation(installation_id)?;
-        let _is_setting_global = self.is_setting_global(&app_id, secret_key)?;
+            return Ok(());
+        }
 
-        let payload = if _is_setting_global {
-            json!(
-                {
-                    "app_id": app_id,
-                    "name": secret_key,
-                    "value": secret_value,
-                }
-            )
-        } else {
-            json!(
-                {
-                    "installation_id": installation_id,
-                    "name": secret_key,
-                    "value": secret_value,
-                }
-            )
-        };
-
-        commands::post(
+        commands::patch(
             &self.authentication,
-            "v4.1/edge-apps/secrets/values",
-            &payload,
+            &settings_values_patch_url,
+            &json!(
+                {
+                    "value": setting_value,
+                }
+            ),
         )?;
 
         Ok(())
@@ -1697,6 +1638,7 @@ impl EdgeAppCommand {
 //             ]));
 //         });
 //
+//         // &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text,edge_app_setting_values(value)&app_id=eq.{}&order=name.asc",
 //         let settings_mock = mock_server.mock(|when, then| {
 //             when.method(GET)
 //                 .path("/v4.1/edge-apps/settings")
@@ -1705,7 +1647,7 @@ impl EdgeAppCommand {
 //                     "user-agent",
 //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
 //                 )
-//                 .query_param("select", "name,type,default_value,optional,title,help_text")
+//                 .query_param("select", "name,type,default_value,optional,title,help_text,edge_app_setting_values(value)")
 //                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
 //                 .query_param("order", "name.asc");
 //
@@ -1716,7 +1658,12 @@ impl EdgeAppCommand {
 //                     "default_value": "stranger",
 //                     "optional": true,
 //                     "title": "Example title1",
-//                     "help_text": "An example of a setting that is used in index.html"
+//                     "help_text": "An example of a setting that is used in index.html",
+//                     "edge_app_setting_values": [
+//                         {
+//                             "value": "stranger1"
+//                         }
+//                     ]
 //                 },
 //                 {
 //                     "name": "Example setting2",
@@ -1724,7 +1671,12 @@ impl EdgeAppCommand {
 //                     "default_value": "stranger",
 //                     "optional": true,
 //                     "title": "Example title2",
-//                     "help_text": "An example of a setting that is used in index.html"
+//                     "help_text": "An example of a setting that is used in index.html",
+//                     "edge_app_setting_values": [
+//                         {
+//                             "value": "stranger2"
+//                         }
+//                     ]
 //                 },
 //                 {
 //                     "name": "Example setting3",
@@ -1732,30 +1684,17 @@ impl EdgeAppCommand {
 //                     "default_value": "stranger",
 //                     "optional": true,
 //                     "title": "Example title3",
-//                     "help_text": "An example of a setting that is used in index.html"
-//                 }
-//             ]));
-//         });
-//
-//         let setting_values_mock = mock_server.mock(|when, then| {
-//             when.method(GET)
-//                 .path("/v4.1/edge-apps/settings/values")
-//                 .header("Authorization", "Token token")
-//                 .header(
-//                     "user-agent",
-//                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-//                 )
-//                 .query_param("select", "name,value")
-//                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-//
-//             then.status(200).json_body(json!([
-//                 {
-//                     "name": "Example setting1",
-//                     "value": "stranger"
+//                     "help_text": "An example of a setting that is used in index.html",
+//                     "edge_app_setting_values": []
 //                 },
 //                 {
-//                     "name": "Example setting2",
-//                     "value": "stranger"
+//                     "name": "Example secret",
+//                     "type": "secret",
+//                     "default_value": "stranger",
+//                     "optional": true,
+//                     "title": "Example title4",
+//                     "help_text": "An example of a secret that is used in index.html",
+//                     "edge_app_setting_values": []
 //                 }
 //             ]));
 //         });
@@ -1769,7 +1708,6 @@ impl EdgeAppCommand {
 //
 //         installations_get_mock.assert();
 //         settings_mock.assert();
-//         setting_values_mock.assert();
 //
 //         assert!(result.is_ok());
 //         let settings = result.unwrap();
@@ -1784,7 +1722,11 @@ impl EdgeAppCommand {
 //                     "optional": true,
 //                     "title": "Example title1",
 //                     "help_text": "An example of a setting that is used in index.html",
-//                     "value": "stranger",
+//                     "edge_app_setting_values": [
+//                         {
+//                             "value": "stranger1"
+//                         }
+//                     ]
 //                 },
 //                 {
 //                     "name": "Example setting2",
@@ -1793,7 +1735,11 @@ impl EdgeAppCommand {
 //                     "optional": true,
 //                     "title": "Example title2",
 //                     "help_text": "An example of a setting that is used in index.html",
-//                     "value": "stranger"
+//                     "edge_app_setting_values": [
+//                         {
+//                             "value": "stranger2"
+//                         }
+//                     ]
 //                 },
 //                 {
 //                     "name": "Example setting3",
@@ -1801,7 +1747,17 @@ impl EdgeAppCommand {
 //                     "default_value": "stranger",
 //                     "optional": true,
 //                     "title": "Example title3",
-//                     "help_text": "An example of a setting that is used in index.html"
+//                     "help_text": "An example of a setting that is used in index.html",
+//                     "edge_app_setting_values": []
+//                 },
+//                 {
+//                     "name": "Example secret",
+//                     "type": "secret",
+//                     "default_value": "stranger",
+//                     "optional": true,
+//                     "title": "Example title4",
+//                     "help_text": "An example of a secret that is used in index.html",
+//                     "edge_app_setting_values": []
 //                 }
 //             ])
 //         );
@@ -1828,7 +1784,7 @@ impl EdgeAppCommand {
 //             ]));
 //         });
 //
-//         let setting_get_mock = mock_server.mock(|when, then| {
+//         let setting_get_is_global_mock = mock_server.mock(|when, then| {
 //             when.method(GET)
 //                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
@@ -1848,17 +1804,21 @@ impl EdgeAppCommand {
 //         });
 //
 //         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
-//         let setting_values_mock_get = mock_server.mock(|when, then| {
+//         let setting_mock_get = mock_server.mock(|when, then| {
 //             when.method(GET)
-//                 .path("/v4.1/edge-apps/settings/values")
+//                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
 //                 .header(
 //                     "user-agent",
 //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
 //                 )
 //                 .query_param("name", "eq.best_setting")
-//                 .query_param("select", "name")
-//                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
+//                 .query_param("select", "name,type,edge_app_setting_values(value)")
+//                 .query_param(
+//                     "edge_app_setting_values.installation_id",
+//                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
+//                 )
+//                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
 //             then.status(200).json_body(json!([]));
 //         });
 //
@@ -1892,8 +1852,8 @@ impl EdgeAppCommand {
 //         );
 //
 //         installations_get_mock.assert();
-//         setting_get_mock.assert();
-//         setting_values_mock_get.assert();
+//         setting_get_is_global_mock.assert();
+//         setting_mock_get.assert();
 //         setting_values_mock_post.assert();
 //         assert!(result.is_ok());
 //     }
@@ -1918,7 +1878,7 @@ impl EdgeAppCommand {
 //                 }
 //             ]));
 //         });
-//         let setting_get_mock = mock_server.mock(|when, then| {
+//         let setting_get_is_global_mock = mock_server.mock(|when, then| {
 //             when.method(GET)
 //                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
@@ -1938,21 +1898,31 @@ impl EdgeAppCommand {
 //         });
 //
 //         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
-//         let setting_values_mock_get = mock_server.mock(|when, then| {
+//         let setting_mock_get = mock_server.mock(|when, then| {
 //             when.method(GET)
-//                 .path("/v4.1/edge-apps/settings/values")
+//                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
 //                 .header(
 //                     "user-agent",
 //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
 //                 )
 //                 .query_param("name", "eq.best_setting")
-//                 .query_param("select", "name")
-//                 .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
+//                 .query_param("select", "name,type,edge_app_setting_values(value)")
+//                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+//                 .query_param(
+//                     "edge_app_setting_values.installation_id",
+//                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
+//                 );
 //             then.status(200).json_body(json!([
 //                 {
 //                     "name": "best_setting",
-//                     "value": "best_value",
+//                     "type": "string",
+//                     "edge_app_setting_values": [
+//                         {
+//                             "value": "best_value"
+//                         }
+//                     ]
+//
 //                 }
 //             ]));
 //         });
@@ -1987,8 +1957,8 @@ impl EdgeAppCommand {
 //         );
 //
 //         installations_get_mock.assert();
-//         setting_get_mock.assert();
-//         setting_values_mock_get.assert();
+//         setting_get_is_global_mock.assert();
+//         setting_mock_get.assert();
 //         setting_values_mock_patch.assert();
 //         assert!(result.is_ok());
 //     }
@@ -2013,7 +1983,8 @@ impl EdgeAppCommand {
 //                 }
 //             ]));
 //         });
-//         let setting_get_mock = mock_server.mock(|when, then| {
+//
+//         let setting_is_global_get_mock = mock_server.mock(|when, then| {
 //             when.method(GET)
 //                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
@@ -2032,22 +2003,31 @@ impl EdgeAppCommand {
 //             ]));
 //         });
 //
-//         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
-//         let setting_values_mock_get = mock_server.mock(|when, then| {
+//         // "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&edge_app_setting_values.app_id=eq.{}&name=eq.{}",
+//         let setting_mock_get = mock_server.mock(|when, then| {
 //             when.method(GET)
-//                 .path("/v4.1/edge-apps/settings/values")
+//                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
 //                 .header(
 //                     "user-agent",
 //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
 //                 )
 //                 .query_param("name", "eq.best_setting")
-//                 .query_param("select", "name")
+//                 .query_param("select", "name,type,edge_app_setting_values(value)")
+//                 .query_param(
+//                     "edge_app_setting_values.app_id",
+//                     "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW",
+//                 )
 //                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
 //             then.status(200).json_body(json!([
 //                 {
 //                     "name": "best_setting",
-//                     "value": "best_value",
+//                     "type": "string",
+//                     "edge_app_setting_values": [
+//                         {
+//                             "value": "best_value"
+//                         }
+//                     ]
 //                 }
 //             ]));
 //         });
@@ -2082,8 +2062,8 @@ impl EdgeAppCommand {
 //         );
 //
 //         installations_get_mock.assert();
-//         setting_get_mock.assert();
-//         setting_values_mock_get.assert();
+//         setting_is_global_get_mock.assert();
+//         setting_mock_get.assert();
 //         setting_values_mock_patch.assert();
 //         assert!(result.is_ok());
 //     }
@@ -2108,7 +2088,7 @@ impl EdgeAppCommand {
 //                 }
 //             ]));
 //         });
-//         let setting_get_mock = mock_server.mock(|when, then| {
+//         let setting_is_global_get_mock = mock_server.mock(|when, then| {
 //             when.method(GET)
 //                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
@@ -2127,17 +2107,20 @@ impl EdgeAppCommand {
 //             ]));
 //         });
 //
-//         // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
-//         let setting_values_mock_get = mock_server.mock(|when, then| {
+//         let setting_mock_get = mock_server.mock(|when, then| {
 //             when.method(GET)
-//                 .path("/v4.1/edge-apps/settings/values")
+//                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
 //                 .header(
 //                     "user-agent",
 //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
 //                 )
 //                 .query_param("name", "eq.best_setting")
-//                 .query_param("select", "name")
+//                 .query_param("select", "name,type,edge_app_setting_values(value)")
+//                 .query_param(
+//                     "edge_app_setting_values.app_id",
+//                     "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW",
+//                 )
 //                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
 //             then.status(200).json_body(json!([]));
 //         });
@@ -2172,8 +2155,8 @@ impl EdgeAppCommand {
 //         );
 //
 //         installations_get_mock.assert();
-//         setting_get_mock.assert();
-//         setting_values_mock_get.assert();
+//         setting_is_global_get_mock.assert();
+//         setting_mock_get.assert();
 //         setting_values_mock_post.assert();
 //         assert!(result.is_ok());
 //     }
@@ -2235,7 +2218,7 @@ impl EdgeAppCommand {
 //     }
 //
 //     #[test]
-//     fn test_set_secrets_should_send_correct_request() {
+//     fn test_set_setting_with_secret_should_send_correct_request() {
 //         let mock_server = MockServer::start();
 //
 //         let installations_get_mock = mock_server.mock(|when, then| {
@@ -2254,7 +2237,7 @@ impl EdgeAppCommand {
 //                 }
 //             ]));
 //         });
-//         let setting_get_mock = mock_server.mock(|when, then| {
+//         let setting_is_global_get_mock = mock_server.mock(|when, then| {
 //             when.method(GET)
 //                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
@@ -2273,8 +2256,31 @@ impl EdgeAppCommand {
 //             ]));
 //         });
 //
-//         // "v4/edge-apps/secrets/values"
+//         let setting_mock_get = mock_server.mock(|when, then| {
+//             when.method(GET)
+//                 .path("/v4.1/edge-apps/settings")
+//                 .header("Authorization", "Token token")
+//                 .header(
+//                     "user-agent",
+//                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+//                 )
+//                 .query_param("name", "eq.best_secret_setting")
+//                 .query_param("select", "name,type,edge_app_setting_values(value)")
+//                 .query_param(
+//                     "edge_app_setting_values.installation_id",
+//                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
+//                 )
+//                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
+//             then.status(200).json_body(json!([
+//                 {
+//                     "name": "best_secret_setting",
+//                     "type": "secret",
+//                     "edge_app_setting_values": []
+//                 }
+//             ]));
+//         });
 //
+//         // "v4/edge-apps/secrets/values"
 //         let secrets_values_mock_post = mock_server.mock(|when, then| {
 //             when.method(POST)
 //                 .path("/v4.1/edge-apps/secrets/values")
@@ -2298,14 +2304,15 @@ impl EdgeAppCommand {
 //         let command = EdgeAppCommand::new(authentication);
 //         let manifest = create_edge_app_manifest_for_test(vec![]);
 //
-//         let result = command.set_secret(
+//         let result = command.set_setting(
 //             &manifest.installation_id.unwrap(),
 //             "best_secret_setting",
 //             "best_secret_value",
 //         );
 //
 //         installations_get_mock.assert();
-//         setting_get_mock.assert();
+//         setting_is_global_get_mock.assert();
+//         setting_mock_get.assert();
 //         secrets_values_mock_post.assert();
 //         debug!("result: {:?}", result);
 //         assert!(result.is_ok());
@@ -2331,7 +2338,7 @@ impl EdgeAppCommand {
 //                 }
 //             ]));
 //         });
-//         let setting_get_mock = mock_server.mock(|when, then| {
+//         let setting_is_global_get_mock = mock_server.mock(|when, then| {
 //             when.method(GET)
 //                 .path("/v4.1/edge-apps/settings")
 //                 .header("Authorization", "Token token")
@@ -2346,6 +2353,30 @@ impl EdgeAppCommand {
 //             then.status(200).json_body(json!([
 //                 {
 //                     "is_global": true,
+//                 }
+//             ]));
+//         });
+//
+//         let setting_mock_get = mock_server.mock(|when, then| {
+//             when.method(GET)
+//                 .path("/v4.1/edge-apps/settings")
+//                 .header("Authorization", "Token token")
+//                 .header(
+//                     "user-agent",
+//                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+//                 )
+//                 .query_param("name", "eq.best_secret_setting")
+//                 .query_param("select", "name,type,edge_app_setting_values(value)")
+//                 .query_param(
+//                     "edge_app_setting_values.app_id",
+//                     "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW",
+//                 )
+//                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
+//             then.status(200).json_body(json!([
+//                 {
+//                     "name": "best_secret_setting",
+//                     "type": "secret",
+//                     "edge_app_setting_values": []
 //                 }
 //             ]));
 //         });
@@ -2375,14 +2406,15 @@ impl EdgeAppCommand {
 //         let command = EdgeAppCommand::new(authentication);
 //         let manifest = create_edge_app_manifest_for_test(vec![]);
 //
-//         let result = command.set_secret(
+//         let result = command.set_setting(
 //             &manifest.installation_id.unwrap(),
 //             "best_secret_setting",
 //             "best_secret_value",
 //         );
 //
 //         installations_get_mock.assert();
-//         setting_get_mock.assert();
+//         setting_is_global_get_mock.assert();
+//         setting_mock_get.assert();
 //         secrets_values_mock_post.assert();
 //         debug!("result: {:?}", result);
 //         assert!(result.is_ok());
@@ -3101,93 +3133,6 @@ impl EdgeAppCommand {
 //     }
 //
 //     #[test]
-//     fn test_list_secrets_should_send_correct_request() {
-//         let mock_server = MockServer::start();
-//
-//         let installations_get_mock = mock_server.mock(|when, then| {
-//             when.method(GET)
-//                 .path("/v4.1/edge-apps/installations")
-//                 .header("Authorization", "Token token")
-//                 .header(
-//                     "user-agent",
-//                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-//                 )
-//                 .query_param("select", "app_id")
-//                 .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-//             then.status(200).json_body(json!([
-//                 {
-//                     "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-//                 }
-//             ]));
-//         });
-//         let secrets_mock = mock_server.mock(|when, then| {
-//             when.method(GET)
-//                 .path("/v4.1/edge-apps/settings")
-//                 .header("Authorization", "Token token")
-//                 .header(
-//                     "user-agent",
-//                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-//                 )
-//                 .query_param("select", "optional,name,title,help_text")
-//                 .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
-//                 .query_param("type", "eq.secret")
-//                 .query_param("order", "name.asc");
-//
-//             then.status(200).json_body(json!([
-//                 {
-//                     "optional": true,
-//                     "name": "Example secret1",
-//                     "help_text": "An example of a secret that is used in index.html"
-//                 },
-//                 {
-//                     "optional": true,
-//                     "name": "Example secret2",
-//                     "help_text": "An example of a secret that is used in index.html"
-//                 },
-//                 {
-//                     "optional": false,
-//                     "name": "Example secret3",
-//                     "help_text": "An example of a secret that is used in index.html"
-//                 }
-//             ]));
-//         });
-//
-//         let config = Config::new(mock_server.base_url());
-//         let authentication = Authentication::new_with_config(config, "token");
-//         let command = EdgeAppCommand::new(authentication);
-//         let manifest = create_edge_app_manifest_for_test(vec![]);
-//
-//         let result = command.list_secrets(&manifest.installation_id.unwrap());
-//
-//         installations_get_mock.assert();
-//         secrets_mock.assert();
-//
-//         assert!(result.is_ok());
-//         let secrets = result.unwrap();
-//         let secrets_json: Value = serde_json::from_value(secrets.value).unwrap();
-//         assert_eq!(
-//             secrets_json,
-//             json!([
-//                 {
-//                     "optional": true,
-//                     "name": "Example secret1",
-//                     "help_text": "An example of a secret that is used in index.html",
-//                 },
-//                 {
-//                     "optional": true,
-//                     "name": "Example secret2",
-//                     "help_text": "An example of a secret that is used in index.html",
-//                 },
-//                 {
-//                     "optional": false,
-//                     "name": "Example secret3",
-//                     "help_text": "An example of a secret that is used in index.html"
-//                 }
-//             ])
-//         );
-//     }
-//
-//     #[test]
 //     fn test_update_name_should_send_correct_request() {
 //         let mock_server = MockServer::start();
 //
@@ -3377,6 +3322,7 @@ impl EdgeAppCommand {
 //     fn test_changed_files_when_not_all_files_are_copied_should_upload_missed_ones() {
 //         let manifest = EdgeAppManifest {
 //             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+//             installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEB".to_string()),
 //             user_version: Some("1".to_string()),
 //             description: Some("asdf".to_string()),
 //             icon: Some("asdf".to_string()),

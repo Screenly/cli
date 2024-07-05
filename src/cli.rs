@@ -329,10 +329,6 @@ pub enum EdgeAppCommands {
     #[command(subcommand)]
     Setting(EdgeAppSettingsCommands),
 
-    /// Secrets commands.
-    #[command(subcommand)]
-    Secret(EdgeAppSecretsCommands),
-
     /// Instance commands.
     #[command(subcommand)]
     Instance(EdgeAppInstanceCommands),
@@ -389,38 +385,6 @@ pub enum EdgeAppSettingsCommands {
         /// Key value pair of the setting to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         setting_pair: (String, String),
-
-        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
-        #[arg(short, long)]
-        installation_id: Option<String>,
-
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        #[arg(short, long)]
-        path: Option<String>,
-    },
-}
-
-#[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum EdgeAppSecretsCommands {
-    /// Lists Edge App secrets.
-    List {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
-        #[arg(short, long)]
-        path: Option<String>,
-
-        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
-        #[arg(short, long)]
-        installation_id: Option<String>,
-
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-    },
-    /// Sets Edge App secret.
-    Set {
-        /// Key value pair of the secret to be set in the form of `key=value`.
-        #[arg(value_parser = parse_key_val)]
-        secret_pair: (String, String),
 
         /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
         #[arg(short, long)]
@@ -986,56 +950,6 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                     Err(e) => {
                         eprintln!("Failed to set edge app setting: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-        },
-        EdgeAppCommands::Secret(command) => match command {
-            EdgeAppSecretsCommands::List {
-                path,
-                json,
-                installation_id,
-            } => {
-                let actual_installation_id = match edge_app_command
-                    .ensure_installation_id(installation_id.clone(), path.clone())
-                {
-                    Ok(_installation_id) => _installation_id,
-                    Err(e) => {
-                        error!("Error calling list secrets: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-                handle_command_execution_result(
-                    edge_app_command.list_secrets(&actual_installation_id),
-                    json,
-                );
-            }
-            EdgeAppSecretsCommands::Set {
-                secret_pair,
-                installation_id,
-                path,
-            } => {
-                let actual_installation_id = match edge_app_command
-                    .ensure_installation_id(installation_id.clone(), path.clone())
-                {
-                    Ok(_installation_id) => _installation_id,
-                    Err(e) => {
-                        error!("Error calling set secrets: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-
-                match edge_app_command.set_secret(
-                    &actual_installation_id,
-                    &secret_pair.0,
-                    &secret_pair.1,
-                ) {
-                    Ok(()) => {
-                        println!("Edge app secret successfully set.");
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to set edge app secret: {}", e);
                         std::process::exit(1);
                     }
                 }
