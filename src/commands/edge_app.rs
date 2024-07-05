@@ -96,7 +96,7 @@ impl EdgeAppCommand {
         }
 
         let manifest = EdgeAppManifest {
-            app_id: Some(app_id),
+            id: Some(app_id),
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: Some("index.html".to_string()),
@@ -151,7 +151,7 @@ impl EdgeAppCommand {
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
-        if manifest.app_id.is_some() {
+        if manifest.id.is_some() {
             return Err(CommandError::InitializationError("The operation can only proceed when 'app_id' is not set in the 'screenly.yml' configuration file".to_string()));
         }
 
@@ -167,7 +167,7 @@ impl EdgeAppCommand {
             return Err(CommandError::MissingField);
         }
 
-        manifest.app_id = Some(app_id);
+        manifest.id = Some(app_id);
 
         EdgeAppManifest::save_to_file(&manifest, path)?;
 
@@ -195,9 +195,9 @@ impl EdgeAppCommand {
             if id.is_empty() {
                 return Err(CommandError::EmptyAppId);
             }
-            manifest.app_id = Some(id);
+            manifest.id = Some(id);
         }
-        let actual_app_id = match manifest.app_id {
+        let actual_app_id = match manifest.id {
             Some(ref id) => id,
             None => return Err(CommandError::MissingAppId),
         };
@@ -719,7 +719,7 @@ impl EdgeAppCommand {
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
-        manifest.app_id = None;
+        manifest.id = None;
         EdgeAppManifest::save_to_file(&manifest, PathBuf::from(path).as_path())?;
 
         Ok(())
@@ -1274,7 +1274,7 @@ impl EdgeAppCommand {
                 EdgeAppManifest::ensure_manifest_is_valid(manifest_path.as_path())?;
 
                 let manifest = EdgeAppManifest::new(manifest_path.as_path())?;
-                match manifest.app_id {
+                match manifest.id {
                     Some(id) if !id.is_empty() => Ok(id),
                     _ => Err(CommandError::MissingAppId),
                 }

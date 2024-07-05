@@ -58,7 +58,7 @@ pub struct EdgeAppManifest {
         skip_serializing_if = "string_field_is_none_or_empty",
         default
     )]
-    pub app_id: Option<String>,
+    pub id: Option<String>,
     #[serde(
         deserialize_with = "deserialize_user_version",
         skip_serializing_if = "string_field_is_none_or_empty",
@@ -77,12 +77,14 @@ pub struct EdgeAppManifest {
         default
     )]
     pub icon: Option<String>,
+
     #[serde(
         deserialize_with = "deserialize_author",
         skip_serializing_if = "string_field_is_none_or_empty",
         default
     )]
     pub author: Option<String>,
+
     #[serde(
         deserialize_with = "deserialize_homepage_url",
         skip_serializing_if = "string_field_is_none_or_empty",
@@ -163,14 +165,15 @@ where
         ))),
     }
 }
+
 fn deserialize_app_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    let maybe_app_id = deserialize_option_string_field("app_id", true, deserializer);
+    let maybe_app_id = deserialize_option_string_field("id", true, deserializer);
 
     maybe_app_id.map_err(|_e| {
-        serde::de::Error::custom("Enter a valid ULID `app_id` parameter either in the maniphest file or as a command line parameter (e.g. `--app_id XXXXXXXXXXXXXXXX`). Field \"app_id\" cannot be empty in the maniphest file (screenly.yml)")
+        serde::de::Error::custom("Enter a valid ULID `id` parameter either in the maniphest file or as a command line parameter (e.g. `--app_id XXXXXXXXXXXXXXXX`). Field \"id\" cannot be empty in the maniphest file (screenly.yml)")
     })
 }
 
@@ -287,7 +290,7 @@ impl EdgeAppManifest {
         };
 
         [
-            ("app_id", &manifest.app_id),
+            ("app_id", &manifest.id),
             ("user_version", &manifest.user_version),
             ("description", &manifest.description),
             ("icon", &manifest.icon),
@@ -310,7 +313,7 @@ impl EdgeAppManifest {
     }
 }
 
-fn beautify_error_message(error: &str) -> String {
+pub fn beautify_error_message(error: &str) -> String {
     let prefix = "parse error: ";
 
     let mut stripped = error;
@@ -357,7 +360,7 @@ mod tests {
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
             user_version: Some("test_version".to_string()),
@@ -386,7 +389,7 @@ mod tests {
 
         let expected_contents = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 user_version: test_version
 description: test_description
 icon: test_icon
@@ -414,7 +417,7 @@ settings:
         let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: None,
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
@@ -444,7 +447,7 @@ settings:
 
         let expected_contents = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
@@ -469,7 +472,7 @@ settings:
         let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: None,
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
@@ -499,7 +502,7 @@ settings:
 
         let expected_contents = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
@@ -525,7 +528,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -544,7 +547,7 @@ settings:
 
         let expected_contents = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 settings:
   username:
     type: string
@@ -563,7 +566,7 @@ settings:
         let file_path = dir.path().join("screenly.yml");
 
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             settings: vec![Setting {
                 name: "username".to_string(),
                 title: Some("username title".to_string()),
@@ -582,7 +585,7 @@ settings:
     #[test]
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct() {
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
@@ -614,7 +617,7 @@ settings:
     #[test]
     fn test_serialize_deserialize_cycle_with_is_global_setting_should_pass() {
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
@@ -646,7 +649,7 @@ settings:
     #[test]
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct_missing_optional_fields() {
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
@@ -689,7 +692,7 @@ settings:
         let file_name = "screenly.yml";
         let content = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 settings:
   username:
     type: string
@@ -710,7 +713,7 @@ settings:
         let file_name = "screenly.yml";
         let content = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 settings:
   username:
     type: string
@@ -731,7 +734,7 @@ settings:
         let file_name = "screenly.yml";
         let content = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 settings:
   username:
     type: string
@@ -752,7 +755,7 @@ settings:
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
-app_id: test_app
+id: test_app
 settings:
   username:
     type: bool
@@ -774,7 +777,7 @@ settings:
         let file_name = "screenly.yml";
         let content = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 asdqweuser_version: test version
   settings:
     username:
@@ -797,7 +800,7 @@ asdqweuser_version: test version
         let file_name = "screenly.yml";
         let content = r#"---
 syntax: manifest_v1
-app_id: ''
+id: ''
 settings:
   username:
     type: bool
@@ -819,7 +822,7 @@ settings:
         let file_name = "screenly.yml";
         let content = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 settings:
   username:
     type: secret
@@ -845,7 +848,7 @@ settings:
         let file_name = "screenly.yml";
         let content = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 settings:
   username:
     type: string
@@ -867,7 +870,7 @@ settings:
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: None,
             auth: None,
             user_version: Some("test_version".to_string()),
@@ -896,7 +899,7 @@ settings:
 
         let expected_contents = r#"---
 syntax: manifest_v1
-app_id: test_app
+id: test_app
 user_version: test_version
 description: test_description
 icon: test_icon
@@ -921,7 +924,7 @@ settings:
     #[test]
     fn test_prepare_manifest_payload_includes_some_fields() {
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             ready_signal: Some(true),
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
@@ -958,7 +961,7 @@ settings:
     #[test]
     fn test_prepare_manifest_payload_omits_none_fields() {
         let manifest = EdgeAppManifest {
-            app_id: Some("test_app".to_string()),
+            id: Some("test_app".to_string()),
             user_version: None,
             description: Some("test_description".to_string()),
             icon: Some("test_icon".to_string()),
