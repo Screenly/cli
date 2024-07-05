@@ -238,26 +238,28 @@ where
                  uri,
              }| {
                 match (entrypoint_type, uri) {
-                    (EntrypointType::RemoteLocal, Some(_)) => Err(serde::de::Error::custom(
-                        "URI should not be provided for remote-local type",
+                    (EntrypointType::RemoteLocal, None) => Err(serde::de::Error::custom(
+                        "URI is required for remote-local type",
                     )),
-                    (EntrypointType::RemoteLocal, None) => Ok(Entrypoint {
-                        entrypoint_type,
-                        uri: None,
-                    }),
-                    (_, None) => Err(serde::de::Error::custom(
-                        "URI is required for file and remote-global types",
-                    )),
-                    (_, Some(uri)) => Ok(Entrypoint {
+                    (EntrypointType::RemoteLocal, Some(uri)) => Ok(Entrypoint {
                         entrypoint_type,
                         uri: Some(uri),
+                    }),
+                    (EntrypointType::RemoteGlobal, Some(_)) => Err(serde::de::Error::custom(
+                        "URI should not be provided for remote-global type",
+                    )),
+                    (EntrypointType::File, Some(_)) => Err(serde::de::Error::custom(
+                        "URI should not be provided for file type",
+                    )),
+                    (_, None) => Ok(Entrypoint {
+                        entrypoint_type,
+                        uri: None,
                     }),
                 }
             },
         )
         .transpose()
 }
-
 impl EdgeAppManifest {
     pub fn new(path: &Path) -> Result<EdgeAppManifest, CommandError> {
         match fs::read_to_string(path) {
