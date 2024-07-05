@@ -21,6 +21,7 @@ pub(crate) mod edge_app_server;
 pub(crate) mod edge_app_settings;
 pub mod edge_app_utils;
 mod ignorer;
+pub mod instance_manifest;
 pub(crate) mod playlist;
 pub mod screen;
 pub(crate) mod serde_utils;
@@ -548,46 +549,33 @@ impl Formatter for PlaylistItems {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-//     #[test]
-//     fn test_edge_app_versions_formatter_format_output_properly() {
-//         let data = r#"[{
-//             "edge_app_channels": [
-//                 {
-//                     "channel": "stable"
-//                 },
-//                 {
-//                     "channel": "candidate"
-//                 }
-//             ],
-//             "revision": 1,
-//             "user_version": "1.0.0",
-//             "description": "Initial release",
-//             "published": true
-//         },
-//         {
-//             "edge_app_channels": [],
-//             "revision": 2,
-//             "user_version": "1.0.1",
-//             "description": "Bug fixes",
-//             "published": true
-//         }]"#;
-//         let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
-//
-//         let output = edge_app_versions.format(OutputType::HumanReadable);
-//         assert_eq!(
-//             output,
-//             r#"+----------+-----------------+-----------+-------------------+
-// | Revision | Description     | Published | Channels          |
-// +----------+-----------------+-----------+-------------------+
-// | 1        | Initial release | ✅        | stable, candidate |
-// +----------+-----------------+-----------+-------------------+
-// | 2        | Bug fixes       | ✅        |                   |
-// +----------+-----------------+-----------+-------------------+
-// "#
-//         );
-//     }
-// }
+    #[test]
+    fn test_edge_app_instance_formatter_format_output_properly() {
+        let data = r#"[{
+            "id": "01J1SNE1GMGG8R0ZXZ183ZGN6T",
+            "name": "Test App"
+        },
+        {
+            "id": "01J1SNE1GMGG8R0ZXZ183ZGN7T",
+            "name": "Test App 2"
+        }]"#;
+        let edge_app_instances = EdgeAppInstances::new(serde_json::from_str(data).unwrap());
+
+        let output = edge_app_instances.format(OutputType::HumanReadable);
+        assert_eq!(
+            output,
+            r#"+----------------------------+------------+
+| Id                         | Name       |
++----------------------------+------------+
+| 01J1SNE1GMGG8R0ZXZ183ZGN6T | Test App   |
++----------------------------+------------+
+| 01J1SNE1GMGG8R0ZXZ183ZGN7T | Test App 2 |
++----------------------------+------------+
+"#
+        );
+    }
+}

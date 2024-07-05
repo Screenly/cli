@@ -1,6 +1,6 @@
 use crate::authentication::Authentication;
 use crate::commands;
-use crate::commands::edge_app_manifest::EdgeAppManifest;
+use crate::commands::edge_app_manifest::{EdgeAppManifest, Entrypoint};
 use crate::commands::edge_app_settings::{deserialize_settings_from_array, Setting, SettingType};
 use crate::commands::{CommandError, EdgeAppInstances, EdgeAppSettings, EdgeApps};
 use indicatif::ProgressBar;
@@ -29,6 +29,8 @@ use crate::commands::edge_app_utils::{
 
 use crate::commands::edge_app_server::{run_server, Metadata, MOCK_DATA_FILENAME};
 use crate::commands::edge_app_utils::transform_edge_app_path_to_manifest;
+
+use super::edge_app_manifest::EntrypointType;
 
 pub struct EdgeAppCommand {
     authentication: Authentication,
@@ -95,8 +97,10 @@ impl EdgeAppCommand {
 
         let manifest = EdgeAppManifest {
             app_id: Some(app_id),
-            installation_id: None,
-            entrypoint: Some("index.html".to_string()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("index.html".to_string()),
+            }),
             settings: vec![
                 Setting {
                     name: "secret_word".to_string(),
@@ -834,39 +838,39 @@ impl EdgeAppCommand {
         Ok(file_tree[0].file_tree.clone())
     }
 
-    pub fn get_or_create_installation(
-        &self,
-        app_id: &str,
-        manifest_path: PathBuf,
-    ) -> Result<String, CommandError> {
-        let mut manifest = EdgeAppManifest::new(manifest_path.as_path())?;
-
-        if manifest.installation_id.is_some() {
-            // Ideally installation_id should be stored in the manifest file
-            return Ok(manifest.installation_id.clone().unwrap());
-        }
-
-        // If it is not in manifest - it is either new app or old manifest
-        let installation_id = match self.get_installation_by_deprecated_name(app_id) {
-            Ok(installation) => {
-                debug!("Found installation. No need to install.");
-                // It is old manifest with deprecated installation name
-                installation
-            }
-            Err(_) => {
-                debug!("No installation found. Installing...");
-                // New app - just make installation same name as app
-                let name = self.get_app_name(app_id)?;
-                self.install_edge_app(app_id, &name, manifest.entrypoint.clone())?
-            }
-        };
-
-        // Anyway save installation_id to manifest
-        manifest.installation_id = Some(installation_id.clone());
-        EdgeAppManifest::save_to_file(&manifest, &manifest_path)?;
-
-        Ok(installation_id)
-    }
+    // pub fn get_or_create_installation(
+    //     &self,
+    //     app_id: &str,
+    //     manifest_path: PathBuf,
+    // ) -> Result<String, CommandError> {
+    //     let mut manifest = EdgeAppManifest::new(manifest_path.as_path())?;
+    //
+    //     if manifest.installation_id.is_some() {
+    //         // Ideally installation_id should be stored in the manifest file
+    //         return Ok(manifest.installation_id.clone().unwrap());
+    //     }
+    //
+    //     // If it is not in manifest - it is either new app or old manifest
+    //     let installation_id = match self.get_installation_by_deprecated_name(app_id) {
+    //         Ok(installation) => {
+    //             debug!("Found installation. No need to install.");
+    //             // It is old manifest with deprecated installation name
+    //             installation
+    //         }
+    //         Err(_) => {
+    //             debug!("No installation found. Installing...");
+    //             // New app - just make installation same name as app
+    //             let name = self.get_app_name(app_id)?;
+    //             self.install_edge_app(app_id, &name, manifest.entrypoint.clone())?
+    //         }
+    //     };
+    //
+    //     // Anyway save installation_id to manifest
+    //     manifest.installation_id = Some(installation_id.clone());
+    //     EdgeAppManifest::save_to_file(&manifest, &manifest_path)?;
+    //
+    //     Ok(installation_id)
+    // }
 
     fn get_installation_by_deprecated_name(&self, app_id: &str) -> Result<String, CommandError> {
         let v = commands::get(
@@ -1239,21 +1243,22 @@ impl EdgeAppCommand {
         app_id: &str,
         manifest: &EdgeAppManifest,
     ) -> Result<bool, CommandError> {
-        let version = self.get_latest_revision(app_id)?;
-
-        match version {
-            Some(_version) => Ok(_version
-                != EdgeAppVersion {
-                    user_version: manifest.user_version.clone(),
-                    description: manifest.description.clone(),
-                    icon: manifest.icon.clone(),
-                    author: manifest.author.clone(),
-                    entrypoint: manifest.entrypoint.clone(),
-                    homepage_url: manifest.homepage_url.clone(),
-                    revision: _version.revision,
-                }),
-            None => Ok(false),
-        }
+        // let version = self.get_latest_revision(app_id)?;
+        //
+        // match version {
+        //     Some(_version) => Ok(_version
+        //         != EdgeAppVersion {
+        //             user_version: manifest.user_version.clone(),
+        //             description: manifest.description.clone(),
+        //             icon: manifest.icon.clone(),
+        //             author: manifest.author.clone(),
+        //             entrypoint: manifest.entrypoint.clone(),
+        //             homepage_url: manifest.homepage_url.clone(),
+        //             revision: _version.revision,
+        //         }),
+        //     None => Ok(false),
+        // }
+        Ok(false)
     }
 
     pub fn get_actual_app_id(
@@ -1291,18 +1296,19 @@ impl EdgeAppCommand {
 
         let manifest = EdgeAppManifest::new(manifest_path.as_path())?;
 
-        let actual_installation_id = match manifest.installation_id {
-            Some(_installation_id) => _installation_id,
-            None => {
-                let actual_app_id = match manifest.app_id {
-                    Some(_app_id) => _app_id,
-                    None => return Err(CommandError::MissingAppId),
-                };
-                self.get_or_create_installation(&actual_app_id, manifest_path)?
-            }
-        };
-
-        Ok(actual_installation_id)
+        // let actual_installation_id = match manifest.installation_id {
+        //     Some(_installation_id) => _installation_id,
+        //     None => {
+        //         let actual_app_id = match manifest.app_id {
+        //             Some(_app_id) => _app_id,
+        //             None => return Err(CommandError::MissingAppId),
+        //         };
+        //         self.get_or_create_installation(&actual_app_id, manifest_path)?
+        //     }
+        // };
+        //
+        // Ok(actual_installation_id)
+        Ok("".to_string())
     }
 
     fn update_entrypoint_if_needed(
@@ -1310,38 +1316,38 @@ impl EdgeAppCommand {
         app_id: &str,
         manifest_path: PathBuf,
     ) -> Result<(), CommandError> {
-        let installation_id = self.get_or_create_installation(app_id, manifest_path.clone())?;
-
-        let v = commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/installations?select=entrypoint&id=eq.{}",
-                installation_id
-            ),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct Installation {
-            entrypoint: Option<String>,
-        }
-
-        let installation = serde_json::from_value::<Vec<Installation>>(v)?;
-        if installation.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-
-        let manifest = EdgeAppManifest::new(manifest_path.as_path())?;
-        let manifest_entrypoint = manifest.entrypoint.clone();
-        if installation[0].entrypoint != manifest_entrypoint {
-            commands::patch(
-                &self.authentication,
-                &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
-                &json!({
-                    "entrypoint": manifest_entrypoint,
-                }),
-            )?;
-        };
-
+        // let installation_id = self.get_or_create_installation(app_id, manifest_path.clone())?;
+        //
+        // let v = commands::get(
+        //     &self.authentication,
+        //     &format!(
+        //         "v4.1/edge-apps/installations?select=entrypoint&id=eq.{}",
+        //         installation_id
+        //     ),
+        // )?;
+        //
+        // #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        // struct Installation {
+        //     entrypoint: Option<String>,
+        // }
+        //
+        // let installation = serde_json::from_value::<Vec<Installation>>(v)?;
+        // if installation.is_empty() {
+        //     return Err(CommandError::MissingField);
+        // }
+        //
+        // let manifest = EdgeAppManifest::new(manifest_path.as_path())?;
+        // let manifest_entrypoint = manifest.entrypoint.clone();
+        // if installation[0].entrypoint != manifest_entrypoint {
+        //     commands::patch(
+        //         &self.authentication,
+        //         &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
+        //         &json!({
+        //             "entrypoint": manifest_entrypoint,
+        //         }),
+        //     )?;
+        // };
+        //
         Ok(())
     }
 }

@@ -196,6 +196,7 @@ pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::edge_app_manifest::{Entrypoint, EntrypointType, MANIFEST_VERSION};
     use crate::commands::SettingType;
     use std::fs::File;
     use std::io::Write;
@@ -204,13 +205,18 @@ mod tests {
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZBW".to_string()),
+            auth: None,
+            syntax: MANIFEST_VERSION.to_owned(),
+            ready_signal: None,
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![
                 Setting {
                     name: "display_time".to_string(),
@@ -401,13 +407,18 @@ mod tests {
         // Arrange
         let manifest = EdgeAppManifest {
             app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZBW".to_string()),
+            auth: None,
+            syntax: MANIFEST_VERSION.to_owned(),
+            ready_signal: None,
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
-            entrypoint: Some("entrypoint.html".to_owned()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
             settings: vec![
                 Setting {
                     name: "display_time".to_string(),
