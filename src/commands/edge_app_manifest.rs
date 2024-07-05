@@ -44,6 +44,8 @@ pub enum EntrypointType {
 pub struct Entrypoint {
     #[serde(rename = "type")]
     pub entrypoint_type: EntrypointType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
 }
 
@@ -119,6 +121,10 @@ pub struct EdgeAppManifest {
         default
     )]
     pub settings: Vec<Setting>,
+}
+
+fn default_syntax() -> String {
+    MANIFEST_VERSION.to_owned()
 }
 
 fn deserialize_auth<'de, D>(deserializer: D) -> Result<Option<Auth>, D::Error>
@@ -346,7 +352,7 @@ mod tests {
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
+                uri: None,
             }),
             settings: vec![create_test_setting()],
         }
@@ -404,7 +410,6 @@ author: test_author
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 ready_signal: true
 settings:
   username:
@@ -439,7 +444,6 @@ icon: test_icon
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 settings:
   username:
     type: string
@@ -472,7 +476,6 @@ icon: test_icon
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 ready_signal: true
 settings:
   username:
@@ -550,7 +553,7 @@ settings:
             homepage_url: None,
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
+                uri: None,
             }),
             settings: vec![create_test_setting()],
         };
@@ -755,7 +758,7 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
+                uri: None,
             }),
             settings: vec![Setting {
                 name: "username".to_string(),
@@ -782,7 +785,6 @@ author: test_author
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 settings:
   username:
     type: string

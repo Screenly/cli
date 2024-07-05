@@ -1519,6 +1519,7 @@ mod tests {
         File::create(tmp_dir.path().join("index.html")).unwrap();
         EdgeAppManifest::save_to_file(
             &EdgeAppManifest {
+                syntax: MANIFEST_VERSION.to_owned(),
                 ..Default::default()
             },
             tmp_dir.path().join("screenly.yml").as_path(),
@@ -1589,6 +1590,7 @@ mod tests {
 
         let manifest = EdgeAppManifest {
             id: Some("non-empty".to_string()),
+            syntax: MANIFEST_VERSION.to_owned(),
             ..Default::default()
         };
 
