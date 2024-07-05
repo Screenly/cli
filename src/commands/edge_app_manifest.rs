@@ -44,6 +44,8 @@ pub enum EntrypointType {
 pub struct Entrypoint {
     #[serde(rename = "type")]
     pub entrypoint_type: EntrypointType,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
 }
 
@@ -119,6 +121,10 @@ pub struct EdgeAppManifest {
         default
     )]
     pub settings: Vec<Setting>,
+}
+
+fn default_syntax() -> String {
+    MANIFEST_VERSION.to_owned()
 }
 
 fn deserialize_auth<'de, D>(deserializer: D) -> Result<Option<Auth>, D::Error>
@@ -238,26 +244,28 @@ where
                  uri,
              }| {
                 match (entrypoint_type, uri) {
-                    (EntrypointType::RemoteLocal, Some(_)) => Err(serde::de::Error::custom(
-                        "URI should not be provided for remote-local type",
+                    (EntrypointType::RemoteLocal, None) => Err(serde::de::Error::custom(
+                        "URI is required for remote-local type",
                     )),
-                    (EntrypointType::RemoteLocal, None) => Ok(Entrypoint {
-                        entrypoint_type,
-                        uri: None,
-                    }),
-                    (_, None) => Err(serde::de::Error::custom(
-                        "URI is required for file and remote-global types",
-                    )),
-                    (_, Some(uri)) => Ok(Entrypoint {
+                    (EntrypointType::RemoteLocal, Some(uri)) => Ok(Entrypoint {
                         entrypoint_type,
                         uri: Some(uri),
+                    }),
+                    (EntrypointType::RemoteGlobal, Some(_)) => Err(serde::de::Error::custom(
+                        "URI should not be provided for remote-global type",
+                    )),
+                    (EntrypointType::File, Some(_)) => Err(serde::de::Error::custom(
+                        "URI should not be provided for file type",
+                    )),
+                    (_, None) => Ok(Entrypoint {
+                        entrypoint_type,
+                        uri: None,
                     }),
                 }
             },
         )
         .transpose()
 }
-
 impl EdgeAppManifest {
     pub fn new(path: &Path) -> Result<EdgeAppManifest, CommandError> {
         match fs::read_to_string(path) {
@@ -344,7 +352,7 @@ mod tests {
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
+                uri: None,
             }),
             settings: vec![create_test_setting()],
         }
@@ -402,7 +410,6 @@ author: test_author
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 ready_signal: true
 settings:
   username:
@@ -437,7 +444,6 @@ icon: test_icon
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 settings:
   username:
     type: string
@@ -470,7 +476,6 @@ icon: test_icon
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 ready_signal: true
 settings:
   username:
@@ -548,7 +553,7 @@ settings:
             homepage_url: None,
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
+                uri: None,
             }),
             settings: vec![create_test_setting()],
         };
@@ -753,7 +758,7 @@ settings:
             homepage_url: Some("test_url".to_string()),
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
+                uri: None,
             }),
             settings: vec![Setting {
                 name: "username".to_string(),
@@ -780,7 +785,6 @@ author: test_author
 homepage_url: test_url
 entrypoint:
   type: file
-  uri: entrypoint.html
 settings:
   username:
     type: string
