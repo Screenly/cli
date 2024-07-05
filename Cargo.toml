@@ -42,6 +42,7 @@ regex = "1.9.3"
 walkdir = "2.3.3"
 glob = "0.3.1"
 futures = "0.3.28"
+serde_with = "3.8.3"
 
 [dev-dependencies]
 httpmock = "0.6"

@@ -204,7 +204,7 @@ mod tests {
 
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {
-            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
             ready_signal: None,
@@ -406,7 +406,7 @@ mod tests {
     fn test_detect_changed_settings_when_is_global_changed_on_setting_should_detect_changes() {
         // Arrange
         let manifest = EdgeAppManifest {
-            app_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
             ready_signal: None,
