@@ -331,6 +331,37 @@ mod tests {
     use crate::commands::edge_app_settings::SettingType;
     use tempfile::tempdir;
 
+    fn create_test_manifest() -> EdgeAppManifest {
+        EdgeAppManifest {
+            syntax: MANIFEST_VERSION.to_owned(),
+            id: Some("test_app".to_string()),
+            ready_signal: Some(true),
+            auth: None,
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("test_author".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
+            settings: vec![create_test_setting()],
+        }
+    }
+
+    fn create_test_setting() -> Setting {
+        Setting {
+            name: "username".to_string(),
+            title: Some("username title".to_string()),
+            type_: SettingType::String,
+            default_value: Some("stranger".to_string()),
+            optional: true,
+            is_global: false,
+            help_text: "An example of a setting that is used in index.html".to_string(),
+        }
+    }
+
     fn write_to_tempfile(
         dir: &tempfile::TempDir,
         file_name: &str,
@@ -348,40 +379,14 @@ mod tests {
         let file_path = dir.path().join("screenly.yml");
 
         EdgeAppManifest::save_to_file(&manifest, &file_path)?;
-        let new_manifest = EdgeAppManifest::new(&file_path)?;
-
-        Ok(new_manifest)
+        EdgeAppManifest::new(&file_path)
     }
 
     #[test]
     fn test_save_manifest_to_file_should_save_yaml_correctly() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
-
-        let manifest = EdgeAppManifest {
-            syntax: MANIFEST_VERSION.to_owned(),
-            id: Some("test_app".to_string()),
-            ready_signal: Some(true),
-            auth: None,
-            user_version: Some("test_version".to_string()),
-            description: Some("test_description".to_string()),
-            icon: Some("test_icon".to_string()),
-            author: Some("test_author".to_string()),
-            homepage_url: Some("test_url".to_string()),
-            entrypoint: Some(Entrypoint {
-                entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
-            }),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: false,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
-        };
+        let manifest = create_test_manifest();
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
 
@@ -415,31 +420,10 @@ settings:
     fn test_save_manifest_to_file_should_skip_none_optional_fields() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
-
-        let manifest = EdgeAppManifest {
-            id: Some("test_app".to_string()),
-            ready_signal: None,
-            auth: None,
-            syntax: MANIFEST_VERSION.to_owned(),
-            user_version: Some("test_version".to_string()),
-            description: None,
-            icon: Some("test_icon".to_string()),
-            author: None,
-            homepage_url: Some("test_url".to_string()),
-            entrypoint: Some(Entrypoint {
-                entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
-            }),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: false,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
-        };
+        let mut manifest = create_test_manifest();
+        manifest.description = None;
+        manifest.author = None;
+        manifest.ready_signal = None;
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
 
@@ -470,31 +454,9 @@ settings:
     fn test_save_manifest_to_file_should_skip_empty_optional_fields() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
-
-        let manifest = EdgeAppManifest {
-            id: Some("test_app".to_string()),
-            ready_signal: None,
-            auth: None,
-            syntax: MANIFEST_VERSION.to_owned(),
-            user_version: Some("test_version".to_string()),
-            description: Some("".to_string()),
-            icon: Some("test_icon".to_string()),
-            author: Some("".to_string()),
-            homepage_url: Some("test_url".to_string()),
-            entrypoint: Some(Entrypoint {
-                entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
-            }),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: false,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
-        };
+        let mut manifest = create_test_manifest();
+        manifest.description = Some("".to_string());
+        manifest.author = Some("".to_string());
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
 
@@ -509,6 +471,7 @@ homepage_url: test_url
 entrypoint:
   type: file
   uri: entrypoint.html
+ready_signal: true
 settings:
   username:
     type: string
@@ -529,15 +492,7 @@ settings:
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
             id: Some("test_app".to_string()),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: false,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
+            settings: vec![create_test_setting()],
             ..Default::default()
         };
 
@@ -564,85 +519,18 @@ settings:
     fn test_save_manifest_to_file_should_fail_on_empty_help_text_in_setting() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
+        let mut manifest = create_test_manifest();
+        manifest.settings[0].help_text = "".to_string();
 
-        let manifest = EdgeAppManifest {
-            id: Some("test_app".to_string()),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: false,
-                help_text: "".to_string(),
-            }],
-            ..Default::default()
-        };
-
-        assert!(EdgeAppManifest::save_to_file(&manifest, &file_path).is_err());
+        let result = EdgeAppManifest::save_to_file(&manifest, &file_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("help_text"));
     }
 
     #[test]
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct() {
-        let manifest = EdgeAppManifest {
-            id: Some("test_app".to_string()),
-            ready_signal: Some(true),
-            auth: None,
-            syntax: MANIFEST_VERSION.to_owned(),
-            user_version: Some("test_version".to_string()),
-            description: Some("test_description".to_string()),
-            icon: Some("test_icon".to_string()),
-            author: Some("test_author".to_string()),
-            homepage_url: Some("test_url".to_string()),
-            entrypoint: Some(Entrypoint {
-                entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
-            }),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: false,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
-        };
-
+        let manifest = create_test_manifest();
         let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
-
-        assert_eq!(manifest, deserialized_manifest);
-    }
-
-    #[test]
-    fn test_serialize_deserialize_cycle_with_is_global_setting_should_pass() {
-        let manifest = EdgeAppManifest {
-            id: Some("test_app".to_string()),
-            ready_signal: Some(true),
-            auth: None,
-            syntax: MANIFEST_VERSION.to_owned(),
-            user_version: Some("test_version".to_string()),
-            description: Some("test_description".to_string()),
-            icon: Some("test_icon".to_string()),
-            author: Some("test_author".to_string()),
-            homepage_url: Some("test_url".to_string()),
-            entrypoint: Some(Entrypoint {
-                entrypoint_type: EntrypointType::File,
-                uri: Some("entrypoint.html".to_string()),
-            }),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: true,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
-        };
-
-        let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
-
         assert_eq!(manifest, deserialized_manifest);
     }
 
@@ -662,19 +550,10 @@ settings:
                 entrypoint_type: EntrypointType::File,
                 uri: Some("entrypoint.html".to_string()),
             }),
-            settings: vec![Setting {
-                name: "username".to_string(),
-                title: Some("username title".to_string()),
-                type_: SettingType::String,
-                default_value: Some("stranger".to_string()),
-                optional: true,
-                is_global: false,
-                help_text: "An example of a setting that is used in index.html".to_string(),
-            }],
+            settings: vec![create_test_setting()],
         };
 
         let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
-
         assert_eq!(manifest, deserialized_manifest);
     }
 
@@ -683,9 +562,13 @@ settings:
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
 
-        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        let error_string = result.unwrap_err().to_string();
+        assert!(error_string
+            .contains("Edge App Manifest (screenly.yml) doesn't exist under provided path"));
+        assert!(error_string.contains("Enter a valid command line --path parameter or invoke command in a directory containing Edge App Manifest"));
     }
-
     #[test]
     fn test_ensure_manifest_is_valid_when_file_valid_should_return_ok() {
         let dir = tempdir().unwrap();
@@ -702,8 +585,7 @@ settings:
     help_text: An example of a setting that is used in index.html
 "#;
 
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
+        let file_path = write_to_tempfile(&dir, file_name, content);
         assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_ok());
     }
 
@@ -719,17 +601,21 @@ settings:
     type: string
     default_value: stranger
     title: username
-    is_global: false,
+    is_global: false
     help_text: An example of a setting that is used in index.html
 "#;
 
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
-        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
+        let file_path = write_to_tempfile(&dir, file_name, content);
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("missing field `optional`"));
     }
 
     #[test]
-    fn test_ensure_manifest_is_valid_when_required_empty_field_should_return_error() {
+    fn test_ensure_manifest_is_valid_when_invalid_type_should_return_error() {
         let dir = tempdir().unwrap();
         let file_name = "screenly.yml";
         let content = r#"---
@@ -737,38 +623,19 @@ syntax: manifest_v1
 id: test_app
 settings:
   username:
-    type: string
-    default_value: stranger
-    title: username
-    optional: true
-    is_global: false,
-    help_text: ''
-"#;
-
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
-        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
-    }
-
-    #[test]
-    fn test_ensure_manifest_is_valid_when_invaild_type_should_return_error() {
-        let dir = tempdir().unwrap();
-        let file_name = "screenly.yml";
-        let content = r#"---
-id: test_app
-settings:
-  username:
     type: bool
     default_value: stranger
     title: username
     optional: true
-    is_global: false,
+    is_global: false
     help_text: An example of a setting that is used in index.html
 "#;
 
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
-        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
+        let file_path = write_to_tempfile(&dir, file_name, content);
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        let error_string = result.unwrap_err().to_string();
+        assert!(error_string.contains("Setting type should be one of the following:"));
     }
 
     #[test]
@@ -778,20 +645,24 @@ settings:
         let content = r#"---
 syntax: manifest_v1
 id: test_app
-asdqweuser_version: test version
-  settings:
-    username:
-      type: bool
-      default_value: stranger
-      title: username
-      optional: true
-      is_global: false,
-      help_text: An example of a setting that is used in index.html
+invalid_field: test value
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username
+    optional: true
+    is_global: false
+    help_text: An example of a setting that is used in index.html
 "#;
 
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
-        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
+        let file_path = write_to_tempfile(&dir, file_name, content);
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("unknown field `invalid_field`"));
     }
 
     #[test]
@@ -803,7 +674,7 @@ syntax: manifest_v1
 id: ''
 settings:
   username:
-    type: bool
+    type: string
     default_value: stranger
     title: username
     optional: true
@@ -811,9 +682,13 @@ settings:
     help_text: An example of a setting that is used in index.html
 "#;
 
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
-        assert!(EdgeAppManifest::ensure_manifest_is_valid(&file_path).is_err());
+        let file_path = write_to_tempfile(&dir, file_name, content);
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Field \"id\" cannot be empty"));
     }
 
     #[test]
@@ -832,8 +707,7 @@ settings:
     help_text: An example of a setting that is used in index.html
 "#;
 
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
+        let file_path = write_to_tempfile(&dir, file_name, content);
         let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains(
@@ -857,8 +731,7 @@ settings:
     help_text: An example of a setting that is used in index.html
 "#;
 
-        write_to_tempfile(&dir, file_name, content);
-        let file_path = dir.path().join(file_name);
+        let file_path = write_to_tempfile(&dir, file_name, content);
         let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
         assert!(result.is_ok());
     }
