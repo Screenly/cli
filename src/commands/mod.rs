@@ -127,6 +127,8 @@ pub enum CommandError {
     WrongSettingName(String),
     #[error("Failed to open browser")]
     OpenBrowserError(String),
+    #[error("Instance already exists")]
+    InstanceAlreadyExists,
 }
 
 pub fn get(

@@ -2,6 +2,7 @@ use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::edge_app_manifest::{EdgeAppManifest, Entrypoint};
 use crate::commands::edge_app_settings::{deserialize_settings_from_array, Setting, SettingType};
+use crate::commands::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
 use crate::commands::{CommandError, EdgeAppInstances, EdgeAppSettings, EdgeApps};
 use indicatif::ProgressBar;
 use log::debug;
@@ -652,11 +653,34 @@ impl EdgeAppCommand {
         Ok(instances)
     }
 
-    pub fn create_instance(&self, app_id: &str, name: &str) -> Result<String, CommandError> {
+    pub fn create_instance(
+        &self,
+        path: &Path,
+        app_id: &str,
+        name: &str,
+    ) -> Result<String, CommandError> {
+        // TODO: for now we don't allow instance to be created if it already exists
+        // Though we could either allow --force to re-create it or --new to create a new instance w/o writing to instance.yml
+        match InstanceManifest::new(path) {
+            Ok(manifest) => {
+                if manifest.id.is_some() {
+                    return Err(CommandError::InstanceAlreadyExists);
+                }
+            }
+            Err(_) => {}
+        }
+
         let installation_id = self.install_edge_app(app_id, name, None)?;
-        // let installation_id =
-        // self.install_edge_app(&app_id, name, Some("index.html".to_string()))?;
-        // TODO: EdgeAppManifest::save_to_file(&manifest, path)?;
+
+        let instance_manifest = InstanceManifest {
+            id: Some(installation_id.clone()),
+            syntax: INSTANCE_MANIFEST_VERSION.to_owned(),
+            name: name.to_owned(),
+            entrypoint_uri: None,
+        };
+
+        InstanceManifest::save_to_file(&instance_manifest, path)?;
+
         Ok(installation_id)
     }
 
@@ -1362,6 +1386,7 @@ mod tests {
     use commands::edge_app_manifest::MANIFEST_VERSION;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
+    use reqwest::header::Entry;
 
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
     use crate::commands::edge_app_utils::EdgeAppFile;
@@ -1369,11 +1394,9 @@ mod tests {
 
     fn create_edge_app_manifest_for_test(settings: Vec<Setting>) -> EdgeAppManifest {
         EdgeAppManifest {
-            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            auth: None,
-            ready_signal: None,
             syntax: MANIFEST_VERSION.to_owned(),
-            // installation_id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEB".to_string()),
+            auth: None,
+            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
             user_version: Some("1".to_string()),
             description: Some("asdf".to_string()),
             icon: Some("asdf".to_string()),
@@ -1384,6 +1407,16 @@ mod tests {
                 uri: None,
             }),
             settings,
+            ready_signal: None,
+        }
+    }
+
+    fn create_instance_manifest_for_test() -> InstanceManifest {
+        InstanceManifest {
+            syntax: INSTANCE_MANIFEST_VERSION.to_owned(),
+            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            name: "test".to_string(),
+            entrypoint_uri: None,
         }
     }
 
@@ -1631,29 +1664,30 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    // #[test]
-    // fn test_list_settings_should_send_correct_request() {
-    //     let mock_server = MockServer::start();
     //
-    //     let installations_get_mock = mock_server.mock(|when, then| {
-    //         when.method(GET)
-    //             .path("/v4.1/edge-apps/installations")
-    //             .header("Authorization", "Token token")
-    //             .header(
-    //                 "user-agent",
-    //                 format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-    //             )
-    //             .query_param("select", "app_id")
-    //             .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-    //         then.status(200).json_body(json!([
-    //             {
-    //                 "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-    //             }
-    //         ]));
-    //     });
+    //     #[test]
+    //     fn test_list_settings_should_send_correct_request() {
+    //         let mock_server = MockServer::start();
     //
-    //     // &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text,edge_app_setting_values(value)&app_id=eq.{}&order=name.asc",
-    //     let settings_mock = mock_server.mock(|when, then| {
+    //         let installations_get_mock = mock_server.mock(|when, then| {
+    //             when.method(GET)
+    //                 .path("/v4.1/edge-apps/installations")
+    //                 .header("Authorization", "Token token")
+    //                 .header(
+    //                     "user-agent",
+    //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+    //                 )
+    //                 .query_param("select", "app_id")
+    //                 .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
+    //             then.status(200).json_body(json!([
+    //                 {
+    //                     "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
+    //                 }
+    //             ]));
+    //         });
+    //
+    //         // &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text,edge_app_setting_values(value)&app_id=eq.{}&order=name.asc",
+    //         let settings_mock = mock_server.mock(|when, then| {
     //             when.method(GET)
     //                 .path("/v4.1/edge-apps/settings")
     //                 .header("Authorization", "Token token")
@@ -1713,70 +1747,70 @@ mod tests {
     //             ]));
     //         });
     //
-    //     let config = Config::new(mock_server.base_url());
-    //     let authentication = Authentication::new_with_config(config, "token");
-    //     let command = EdgeAppCommand::new(authentication);
-    //     let manifest = create_edge_app_manifest_for_test(vec![]);
+    //         let config = Config::new(mock_server.base_url());
+    //         let authentication = Authentication::new_with_config(config, "token");
+    //         let command = EdgeAppCommand::new(authentication);
+    //         let manifest = create_edge_app_manifest_for_test(vec![]);
     //
-    //     let result = command.list_settings(&manifest.installation_id.unwrap());
+    //         let result = command.list_settings(&manifest.installation_id.unwrap());
     //
-    //     installations_get_mock.assert();
-    //     settings_mock.assert();
+    //         installations_get_mock.assert();
+    //         settings_mock.assert();
     //
-    //     assert!(result.is_ok());
-    //     let settings = result.unwrap();
-    //     let settings_json: Value = serde_json::from_value(settings.value).unwrap();
-    //     assert_eq!(
-    //         settings_json,
-    //         json!([
-    //             {
-    //                 "name": "Example setting1",
-    //                 "type": "string",
-    //                 "default_value": "stranger",
-    //                 "optional": true,
-    //                 "title": "Example title1",
-    //                 "help_text": "An example of a setting that is used in index.html",
-    //                 "edge_app_setting_values": [
-    //                     {
-    //                         "value": "stranger1"
-    //                     }
-    //                 ]
-    //             },
-    //             {
-    //                 "name": "Example setting2",
-    //                 "type": "string",
-    //                 "default_value": "stranger",
-    //                 "optional": true,
-    //                 "title": "Example title2",
-    //                 "help_text": "An example of a setting that is used in index.html",
-    //                 "edge_app_setting_values": [
-    //                     {
-    //                         "value": "stranger2"
-    //                     }
-    //                 ]
-    //             },
-    //             {
-    //                 "name": "Example setting3",
-    //                 "type": "string",
-    //                 "default_value": "stranger",
-    //                 "optional": true,
-    //                 "title": "Example title3",
-    //                 "help_text": "An example of a setting that is used in index.html",
-    //                 "edge_app_setting_values": []
-    //             },
-    //             {
-    //                 "name": "Example secret",
-    //                 "type": "secret",
-    //                 "default_value": "stranger",
-    //                 "optional": true,
-    //                 "title": "Example title4",
-    //                 "help_text": "An example of a secret that is used in index.html",
-    //                 "edge_app_setting_values": []
-    //             }
-    //         ])
-    //     );
-    // }
-
+    //         assert!(result.is_ok());
+    //         let settings = result.unwrap();
+    //         let settings_json: Value = serde_json::from_value(settings.value).unwrap();
+    //         assert_eq!(
+    //             settings_json,
+    //             json!([
+    //                 {
+    //                     "name": "Example setting1",
+    //                     "type": "string",
+    //                     "default_value": "stranger",
+    //                     "optional": true,
+    //                     "title": "Example title1",
+    //                     "help_text": "An example of a setting that is used in index.html",
+    //                     "edge_app_setting_values": [
+    //                         {
+    //                             "value": "stranger1"
+    //                         }
+    //                     ]
+    //                 },
+    //                 {
+    //                     "name": "Example setting2",
+    //                     "type": "string",
+    //                     "default_value": "stranger",
+    //                     "optional": true,
+    //                     "title": "Example title2",
+    //                     "help_text": "An example of a setting that is used in index.html",
+    //                     "edge_app_setting_values": [
+    //                         {
+    //                             "value": "stranger2"
+    //                         }
+    //                     ]
+    //                 },
+    //                 {
+    //                     "name": "Example setting3",
+    //                     "type": "string",
+    //                     "default_value": "stranger",
+    //                     "optional": true,
+    //                     "title": "Example title3",
+    //                     "help_text": "An example of a setting that is used in index.html",
+    //                     "edge_app_setting_values": []
+    //                 },
+    //                 {
+    //                     "name": "Example secret",
+    //                     "type": "secret",
+    //                     "default_value": "stranger",
+    //                     "optional": true,
+    //                     "title": "Example title4",
+    //                     "help_text": "An example of a secret that is used in index.html",
+    //                     "edge_app_setting_values": []
+    //                 }
+    //             ])
+    //         );
+    //     }
+    //
     //     #[test]
     //     fn test_set_setting_should_send_correct_request() {
     //         let mock_server = MockServer::start();
@@ -3984,169 +4018,209 @@ mod tests {
     //         assert!(result.is_ok());
     //     }
     //
-    //     #[test]
-    //     fn test_instance_list_should_list_instances() {
-    //         let mock_server = MockServer::start();
-    //
-    //         let config = Config::new(mock_server.base_url());
-    //         let authentication = Authentication::new_with_config(config, "token");
-    //         let command = EdgeAppCommand::new(authentication);
-    //         let manifest = create_edge_app_manifest_for_test(vec![]);
-    //
-    //         let temp_dir = tempdir().unwrap();
-    //         let manifest_path = temp_dir.path().join("screenly.yml");
-    //         EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-    //
-    //         let installations_mock = mock_server.mock(|when, then| {
-    //             when.method(GET)
-    //                 .path("/v4/edge-apps/installations")
-    //                 .query_param("select", "id,name")
-    //                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-    //                 .header("Authorization", "Token token")
-    //                 .header(
-    //                     "user-agent",
-    //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-    //                 );
-    //             then.status(200).json_body(json!([
-    //                 {
-    //                     "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-    //                     "name": "Edge app cli installation",
-    //                 },
-    //                 {
-    //                     "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
-    //                     "name": "Edge app cli installation 2",
-    //                 }
-    //             ]));
-    //         });
-    //
-    //         let result = command.list_instances(&manifest.app_id.unwrap());
-    //
-    //         installations_mock.assert();
-    //
-    //         assert!(result.is_ok());
-    //         let installations = result.unwrap();
-    //         let installations_json: Value = serde_json::from_value(installations.value).unwrap();
-    //         assert_eq!(
-    //             installations_json,
-    //             json!(
-    //                 [
-    //                     {
-    //                         "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-    //                         "name": "Edge app cli installation",
-    //                     },
-    //                     {
-    //                         "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
-    //                         "name": "Edge app cli installation 2",
-    //                     }
-    //                 ]
-    //             )
-    //         );
-    //     }
-    //
-    //     #[test]
-    //     fn test_create_instance_should_create_instance() {
-    //         let mock_server = MockServer::start();
-    //
-    //         let config = Config::new(mock_server.base_url());
-    //         let authentication = Authentication::new_with_config(config, "token");
-    //         let command = EdgeAppCommand::new(authentication);
-    //         let manifest = create_edge_app_manifest_for_test(vec![]);
-    //
-    //         let temp_dir = tempdir().unwrap();
-    //         let manifest_path = temp_dir.path().join("screenly.yml");
-    //         EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-    //
-    //         let create_instance_mock = mock_server.mock(|when, then| {
-    //             when.method(POST)
-    //                 .path("/v4.1/edge-apps/installations")
-    //                 .header("Authorization", "Token token")
-    //                 .header(
-    //                     "user-agent",
-    //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-    //                 )
-    //                 .json_body(json!({
-    //                     "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-    //                     "name": "Edge app cli installation",
-    //                 }));
-    //             then.status(201)
-    //                 .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
-    //         });
-    //
-    //         let result =
-    //             command.create_instance(&manifest.app_id.unwrap(), "Edge app cli installation");
-    //
-    //         create_instance_mock.assert();
-    //         assert!(result.is_ok());
-    //
-    //         assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
-    //     }
-    //
-    //     #[test]
-    //     fn test_update_instance_should_update_instance() {
-    //         let mock_server = MockServer::start();
-    //
-    //         let config = Config::new(mock_server.base_url());
-    //         let authentication = Authentication::new_with_config(config, "token");
-    //         let command = EdgeAppCommand::new(authentication);
-    //         let manifest = create_edge_app_manifest_for_test(vec![]);
-    //
-    //         let temp_dir = tempdir().unwrap();
-    //         let manifest_path = temp_dir.path().join("screenly.yml");
-    //         EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-    //
-    //         let update_instance_mock = mock_server.mock(|when, then| {
-    //             when.method(PATCH)
-    //                 .path("/v4.1/edge-apps/installations")
-    //                 .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-    //                 .header("Authorization", "Token token")
-    //                 .header(
-    //                     "user-agent",
-    //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-    //                 )
-    //                 .json_body(json!({
-    //                     "name": "Edge app cli installation 2",
-    //                 }));
-    //             then.status(200)
-    //                 .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
-    //         });
-    //
-    //         let result = command.update_instance(
-    //             "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-    //             &Some("Edge app cli installation 2".to_string()),
-    //         );
-    //
-    //         update_instance_mock.assert();
-    //         assert!(result.is_ok());
-    //     }
-    //
-    //     #[test]
-    //     fn test_delete_instance_should_delete_instance() {
-    //         let mock_server = MockServer::start();
-    //
-    //         let config = Config::new(mock_server.base_url());
-    //         let authentication = Authentication::new_with_config(config, "token");
-    //         let command = EdgeAppCommand::new(authentication);
-    //         let manifest = create_edge_app_manifest_for_test(vec![]);
-    //
-    //         let temp_dir = tempdir().unwrap();
-    //         let manifest_path = temp_dir.path().join("screenly.yml");
-    //         EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-    //
-    //         let delete_instance_mock = mock_server.mock(|when, then| {
-    //             when.method(DELETE)
-    //                 .path("/v4.1/edge-apps/installations")
-    //                 .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-    //                 .header("Authorization", "Token token")
-    //                 .header(
-    //                     "user-agent",
-    //                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-    //                 );
-    //             then.status(204).body("");
-    //         });
-    //
-    //         let result = command.delete_instance("01H2QZ6Z8WXWNDC0KQ198XCZEB");
-    //
-    //         delete_instance_mock.assert();
-    //         assert!(result.is_ok());
-    //     }
+    #[test]
+    fn test_instance_list_should_list_instances() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let installations_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/installations")
+                .query_param("select", "id,name")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200).json_body(json!([
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                    "name": "Edge app cli installation",
+                },
+                {
+                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
+                    "name": "Edge app cli installation 2",
+                }
+            ]));
+        });
+
+        let result = command.list_instances(&manifest.id.unwrap());
+
+        installations_mock.assert();
+
+        assert!(result.is_ok());
+        let installations = result.unwrap();
+        let installations_json: Value = serde_json::from_value(installations.value).unwrap();
+        assert_eq!(
+            installations_json,
+            json!(
+                [
+                    {
+                        "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                        "name": "Edge app cli installation",
+                    },
+                    {
+                        "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
+                        "name": "Edge app cli installation 2",
+                    }
+                ]
+            )
+        );
+    }
+
+    #[test]
+    fn test_create_instance_should_create_instance() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        let instance_manifest_path = temp_dir.path().join("instance.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let create_instance_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4.1/edge-apps/installations")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "name": "Edge app cli installation",
+                }));
+            then.status(201)
+                .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
+        });
+
+        let result = command.create_instance(
+            &instance_manifest_path,
+            &manifest.id.unwrap(),
+            "Edge app cli installation",
+        );
+
+        create_instance_mock.assert();
+        assert!(result.is_ok());
+
+        assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
+
+        let instance_manifest =
+            InstanceManifest::new(&temp_dir.path().join("instance.yml")).unwrap();
+        assert_eq!(
+            instance_manifest.id,
+            Some("01H2QZ6Z8WXWNDC0KQ198XCZEB".to_string())
+        );
+    }
+
+    #[test]
+    fn test_create_instance_when_instance_exist_should_fail() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        let instance_manifest_path = temp_dir.path().join("instance.yml");
+
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+        let instance_manifest = create_instance_manifest_for_test();
+        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
+            .unwrap();
+
+        let result = command.create_instance(
+            &instance_manifest_path,
+            &manifest.id.unwrap(),
+            "Edge app cli installation",
+        );
+
+        assert!(result.is_err());
+
+        assert_eq!(result.unwrap_err().to_string(), "Instance already exists");
+    }
+
+    #[test]
+    fn test_update_instance_should_update_instance() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let update_instance_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4.1/edge-apps/installations")
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "name": "Edge app cli installation 2",
+                }));
+            then.status(200)
+                .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
+        });
+
+        let result = command.update_instance(
+            "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+            &Some("Edge app cli installation 2".to_string()),
+        );
+
+        update_instance_mock.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_delete_instance_should_delete_instance() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let delete_instance_mock = mock_server.mock(|when, then| {
+            when.method(DELETE)
+                .path("/v4.1/edge-apps/installations")
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(204).body("");
+        });
+
+        let result = command.delete_instance("01H2QZ6Z8WXWNDC0KQ198XCZEB");
+
+        delete_instance_mock.assert();
+        assert!(result.is_ok());
+    }
 }
