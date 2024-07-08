@@ -13,7 +13,9 @@ use crate::authentication::{verify_and_store_token, Authentication, Authenticati
 use crate::commands;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
-use crate::commands::edge_app_utils::transform_edge_app_path_to_manifest;
+use crate::commands::edge_app_utils::{
+    transform_edge_app_path_to_manifest, transform_instance_path_to_instance_manifest,
+};
 use crate::commands::playlist::PlaylistCommand;
 use crate::commands::{CommandError, Formatter, OutputType, PlaylistFile};
 const DEFAULT_ASSET_DURATION: u32 = 15;
@@ -1093,7 +1095,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     Some(name) => name,
                     None => "Edge App instance created by Screenly CLI",
                 };
-                match edge_app_command.create_instance(&actual_app_id, new_name) {
+
+                let instance_manifest_path = transform_instance_path_to_instance_manifest(path);
+                match edge_app_command.create_instance(
+                    &instance_manifest_path,
+                    &actual_app_id,
+                    new_name,
+                ) {
                     Ok(_some_id) => {
                         println!("Edge app instance successfully created.");
                     }

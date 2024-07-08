@@ -79,6 +79,16 @@ pub fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
     result
 }
 
+pub fn transform_instance_path_to_instance_manifest(path: &Option<String>) -> PathBuf {
+    let mut result = match path {
+        Some(path) => PathBuf::from(path),
+        None => env::current_dir().unwrap(),
+    };
+
+    result.push("instance.yml");
+    result
+}
+
 pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, CommandError> {
     let mut files = Vec::new();
 
