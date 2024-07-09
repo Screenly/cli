@@ -41,7 +41,7 @@ $ API_SERVER_NAME=local cargo build --release
 
 ## Commands
 
-Explore available commands [here](https://github.com/Screenly/cli/blob/master/docs/CommandLineHelp.md).
+Explore available commands [here](https://developer.screenly.io/cli/#commands).
 
 ## GitHub Action
 
