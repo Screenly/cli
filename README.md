@@ -8,7 +8,7 @@ The Screenly CLI simplifies interactions with Screenly through your terminal, de
 
 Download the latest release [here](https://github.com/Screenly/cli/releases/latest).
 
-#### macOS (via Homebrew)
+### Homebrew (macOS only)
 
 ```bash
 $ brew tap screenly/screenly-cli
