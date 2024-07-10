@@ -85,4 +85,4 @@ $ mv signature.rs src/pb_signature.rs
 - Merge PRs into `master`.
 - Update version in `Cargo.toml`, `action.yml`, `Dockerfile`, and GitHub Actions configurations.
 - Create release branch (e.g., `release-1.0.0`) and tag (e.g., `v1.0.0`).
-- Update Homebrew repo with the latest version.
+- Update [Homebrew repo](https://github.com/Screenly/homebrew-screenly-cli) with the latest version.
