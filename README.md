@@ -15,12 +15,20 @@ $ brew tap screenly/screenly-cli
 $ brew install screenly-cli
 ```
 
+### Nix
+
+```bash
+$ nix-shell -p screenly-cli
+```
+
 ### Docker
 
 For other operating systems or Docker usage:
 
 ```bash
-$ docker run --rm -e API_TOKEN=YOUR_API_TOKEN screenly/cli:latest help
+$ docker run --rm \
+    -e API_TOKEN=YOUR_API_TOKEN \
+    screenly/cli:latest help
 ```
 
 ## Building from Source
