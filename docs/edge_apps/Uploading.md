@@ -1,6 +1,6 @@
 ## Uploading an Edge App
 
-To upload your Edge Apps to Screenly, you use the `edge-app upload` command. This will copy all files in the current directory and generate a release.
+To upload your Edge App to Screenly, you use the `edge-app upload` command. This will copy all files in the current directory and generate a release.
 
 When you upload subsequent releases, you'll notice a few more things:
 
@@ -11,6 +11,6 @@ When you upload subsequent releases, you'll notice a few more things:
 
 > Upload an edge app from the current directory:
 
-```bash
-$ screenly edge-app upload
+```shell
+screenly edge-app upload
 ```

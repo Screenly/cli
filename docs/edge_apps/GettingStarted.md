@@ -46,20 +46,6 @@ screenly edge-app upload
 
 To use this Edge App, first upload it using the upload command. This will automatically create a new version (you can see your versions using screenly edge-app version list). After the Edge App is successfully uploaded, promote it to a channel (stable or candidate) to use it on the player.
 
-#### List Edge App Versions
-
-```shell
-screenly edge-app version list
-```
-
-```
-+----------+-------------------------+-----------+----------+
-| Revision | Description             | Published | Channels |
-+----------+-------------------------+-----------+----------+
-| 1        | Screenly Clock Edge App | ✅        |          |
-+----------+-------------------------+-----------+----------+
-```
-
 ### Promote the Edge App
 
 The `upload` command only uploads the Edge App and its assets to the server. To make it available for screens, you need to promote it. This way, it will be available for further processing.

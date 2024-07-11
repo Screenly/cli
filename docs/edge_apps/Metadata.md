@@ -19,18 +19,18 @@
 </html>
 ```
 
-There are numerous scenario where you want to use some sort of metadata for your Edge Apps. For instance, you might want to build a wayfinding apps that shows the location from where the screen is located to a particular destination.
+In many scenarios, you may need to utilize metadata within your Edge Apps. For example, you might want to develop a wayfinding app that shows the location of the screen and directs users to a specific destination.
 
-Since the screen already knows a lot about itself, including where it is in the world, we've exposed this to the Edge App framework.
+Since each screen inherently possesses a wealth of information about itself, including its geographical location, we've made this data accessible within the Edge App framework.
 
-This data includes:
+This metadata includes:
 
-* **name:** The human readable name you have given the screen.
-* **hostname:** The unique hostname (which also corresponds with the id) the screen has been given.
-* **coordinates:** The latitude and longitude coordinates where the screen has been set to. You can edit this location in the web interface.
-  * Returned as a dict.
-* **location:** The human readable location as shown in the web interface.
-* **hardware:** The hardware for the given device.
-* **version:** The software version of the Screenly device.
-* **tags:** The tags/labels assigned to the screen.
-  * Returned as a dict.
+* **name:** The human-readable name assigned to the screen.
+* **hostname:** The unique hostname (which also serves as the identifier) assigned to the screen.
+* **coordinates:** The latitude and longitude coordinates of the screen's location, which can be edited via the web interface.
+  * Returned as a dictionary.
+* **location:** The human-readable location as displayed in the web interface.
+* **hardware:** Details about the hardware of the device.
+* **version:** The software version running on the Screenly device.
+* **tags:** The tags or labels assigned to the screen.
+  * Returned as a dictionary.

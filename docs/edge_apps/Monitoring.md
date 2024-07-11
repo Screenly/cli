@@ -2,8 +2,8 @@
 
 *Monitoring is in invite-only beta.*
 
-When building Edge Apps, you sometimes need the ability to monitor performance of the device running the Edge App. This is particularly true for low-powered devices, like Raspberry Pis where you have very limited resources to work with.
+When developing Edge Apps, it's crucial to monitor the performance of the device running the app. This is especially important for low-powered devices, such as Raspberry Pis, where resources are limited.
 
-To help you with this, we've decided to adopt [Prometheus](https://prometheus.io), as the platform to expose metrics.
+To assist with monitoring, we have chosen [Prometheus](https://prometheus.io) as the platform to expose metrics.
 
-With the monitoring feature enabled, the device will the Prometheus end-point on port `9100`, where we expose data from [Node Exporter](https://prometheus.io/docs/guides/node-exporter/#monitoring-linux-host-metrics-with-the-node-exporter). This allows you to scrape metrics and visualize them with a tool like [Grafana](https://grafana.com/) (which in turn you can [visualize with Screenly](https://www.screenly.io/tutorials/grafana/)).
+When monitoring is enabled, the device exposes Prometheus metrics at port `9100`, utilizing [Node Exporter](https://prometheus.io/docs/guides/node-exporter/#monitoring-linux-host-metrics-with-the-node-exporter). This enables you to scrape metrics and visualize them using tools like [Grafana](https://grafana.com/), which can be integrated seamlessly with Screenly for visualization purposes ([learn more about Grafana integration with Screenly](https://www.screenly.io/tutorials/grafana/)).
