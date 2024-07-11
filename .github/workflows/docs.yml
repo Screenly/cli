@@ -9,6 +9,24 @@ on:
     - master
 
 jobs:
+  check_files_changed:
+    runs-on: ubuntu-latest
+    # Required permissions
+    permissions:
+      contents: 'read'
+      pull-requests: 'read'
+    outputs:
+      docs_command_line_help: ${{ steps.filter.outputs.docs_command_line_help }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            docs_command_line_help:
+              - modified: 'docs/CommandLineHelp.md'
+
   docs-help-md:
     permissions:
       contents: write
@@ -40,6 +58,7 @@ jobs:
           fi
 
       - name: Trigger Developer Portal deploy workflow
+        if: steps.check_files_changed.outputs.docs_command_line_help == 'false'
         run: |
           curl -L \
             -X POST \
