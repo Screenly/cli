@@ -7,7 +7,9 @@ If you're familiar with Heroku, Cloudflare Workers, or any similar technology, y
 ## Table of Contents
 
 [Getting Started](GettingStarted.md)
-[Workflow](Workflow.md)
+[Creating](Creating.md)
+[Uploading](Uploading.md)
+[Versions](Versions.md)
 [Manifest](Manifest.md)
 [Settings and Secrets](SettingsAndSecrets.md)
 [Metadata](Metadata.md)
