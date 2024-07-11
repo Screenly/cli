@@ -28,6 +28,8 @@ jobs:
               - modified: 'docs/CommandLineHelp.md'
 
   docs-help-md:
+    needs:
+      - check_files_changed
     permissions:
       contents: write
     runs-on: ubuntu-22.04
@@ -58,7 +60,7 @@ jobs:
           fi
 
       - name: Trigger Developer Portal deploy workflow
-        if: steps.check_files_changed.outputs.docs_command_line_help == 'false'
+        if: needs.check_files_changed.outputs.docs_command_line_help == 'false'
         run: |
           curl -L \
             -X POST \
