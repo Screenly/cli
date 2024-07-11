@@ -16,6 +16,7 @@ jobs:
       contents: 'read'
       pull-requests: 'read'
     outputs:
+      readme: ${{ steps.filter.outputs.readme }}
       docs_command_line_help: ${{ steps.filter.outputs.docs_command_line_help }}
       docs_edge_apps: ${{ steps.filter.outputs.docs_edge_apps }}
     steps:
@@ -25,6 +26,8 @@ jobs:
         with:
           list-files: shell
           filters: |
+            readme:
+              - modified: 'README.md'
             docs_command_line_help:
               - modified: 'docs/CommandLineHelp.md'
             docs_edge_apps:
@@ -64,6 +67,7 @@ jobs:
     if: (github.event_name == 'push') && 
         (github.ref == 'refs/heads/master') &&
         (
+          (needs.check_files_changed.outputs.readme == 'true') ||
           (needs.check_files_changed.outputs.docs_command_line_help == 'true') ||
           (needs.check_files_changed.outputs.docs_edge_apps == 'true')
         )
