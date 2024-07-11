@@ -60,7 +60,9 @@ jobs:
           fi
 
       - name: Trigger Developer Portal deploy workflow
-        if: needs.check_files_changed.outputs.docs_command_line_help == 'false'
+        if: (needs.check_files_changed.outputs.docs_command_line_help == 'true') && 
+            (github.event_name == 'push') && 
+            (github.ref == 'refs/heads/master')
         run: |
           curl -L \
             -X POST \
