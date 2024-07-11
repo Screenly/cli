@@ -1,6 +1,6 @@
 ## Getting Started
 
-First, you need to install the Screenly [CLI](/cli). The CLI is used to both generate and upload Edge Apps.
+First, you need to install the Screenly [CLI](https://developer.screenly.io/cli). The CLI is used to both generate and upload Edge Apps.
 
 With the CLI installed and logged in (`screenly login`), we can create our "Hello World" example.
 
