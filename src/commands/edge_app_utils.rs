@@ -13,6 +13,8 @@ use crate::commands::ignorer::Ignorer;
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
+const INSTANCE_FILE_NAME_ENV: &str = "INSTANCE_FILE_NAME";
+
 #[derive(Debug, Clone)]
 pub struct EdgeAppFile {
     pub(crate) path: String,
@@ -79,14 +81,35 @@ pub fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
     result
 }
 
-pub fn transform_instance_path_to_instance_manifest(path: &Option<String>) -> PathBuf {
+pub fn transform_instance_path_to_instance_manifest(
+    path: &Option<String>,
+) -> Result<PathBuf, CommandError> {
+    let instance_path = env::var(INSTANCE_FILE_NAME_ENV);
+
+    let filename = match instance_path {
+        Ok(path) => {
+            let path_obj = Path::new(&path);
+            if path_obj.components().count() != 1 {
+                return Err(CommandError::InstanceFilenameError(path));
+            }
+            path
+        }
+        Err(_) => "instance.yml".to_string(),
+    };
+
     let mut result = match path {
-        Some(path) => PathBuf::from(path),
+        Some(path) => {
+            let path_buf_obj = PathBuf::from(path);
+            if !path_buf_obj.is_dir() {
+                return Err(CommandError::PathIsNotDirError(path.clone()));
+            }
+            path_buf_obj
+        }
         None => env::current_dir().unwrap(),
     };
 
-    result.push("instance.yml");
-    result
+    result.push(filename);
+    Ok(result)
 }
 
 pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, CommandError> {
@@ -217,6 +240,7 @@ mod tests {
     use crate::commands::SettingType;
     use std::fs::File;
     use std::io::Write;
+    use temp_env;
     use tempfile::tempdir;
 
     fn create_manifest() -> EdgeAppManifest {

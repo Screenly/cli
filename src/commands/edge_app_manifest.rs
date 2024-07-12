@@ -303,7 +303,10 @@ impl EdgeAppManifest {
         .filter_map(|(key, value)| value.as_ref().map(|v| (*key, json!(v))))
         .collect();
 
-        payload.insert("ready_signal", json!(manifest.ready_signal));
+        payload.insert(
+            "ready_signal",
+            json!(manifest.ready_signal.unwrap_or(false)),
+        );
 
         payload
     }

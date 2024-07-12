@@ -438,15 +438,11 @@ pub enum EdgeAppInstanceCommands {
         #[arg(short, long)]
         path: Option<String>,
     },
-    /// Update Edge App instance.
+    /// Update Edge App instance based on changes in the instance.yml.
     Update {
         /// Edge App instance id.
         #[arg(short, long)]
         instance_id: Option<String>,
-
-        /// Name of the Edge App instance.
-        #[arg(short, long)]
-        name: Option<String>,
 
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
@@ -1096,7 +1092,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     None => "Edge App instance created by Screenly CLI",
                 };
 
-                let instance_manifest_path = transform_instance_path_to_instance_manifest(path);
+                let instance_manifest_path =
+                    match transform_instance_path_to_instance_manifest(path) {
+                        Ok(path) => path,
+                        Err(e) => {
+                            eprintln!("Failed to create edge app instance: {e}.");
+                            std::process::exit(1);
+                        }
+                    };
+
                 match edge_app_command.create_instance(
                     &instance_manifest_path,
                     &actual_app_id,
@@ -1122,7 +1126,21 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                 };
 
-                match edge_app_command.delete_instance(&actual_installation_id) {
+                // If we override instance_id with arg, we don't want to delete an instance manifest.
+                let instance_manifest_path: Option<String> = match instance_id {
+                    Some(_id) => None,
+                    None => match transform_instance_path_to_instance_manifest(path) {
+                        Ok(_path) => Some(_path.to_str().unwrap().to_string()),
+                        Err(e) => {
+                            eprintln!("Failed to delete edge app instance: {e}.");
+                            std::process::exit(1);
+                        }
+                    },
+                };
+
+                match edge_app_command
+                    .delete_instance(&actual_installation_id, instance_manifest_path)
+                {
                     Ok(()) => {
                         println!("Edge app instance successfully deleted.");
                     }
@@ -1132,11 +1150,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                 }
             }
-            EdgeAppInstanceCommands::Update {
-                instance_id,
-                path,
-                name,
-            } => {
+            EdgeAppInstanceCommands::Update { instance_id, path } => {
                 let actual_installation_id = match edge_app_command
                     .ensure_installation_id(instance_id.clone(), path.clone())
                 {
@@ -1146,7 +1160,19 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         std::process::exit(1);
                     }
                 };
-                match edge_app_command.update_instance(&actual_installation_id, name) {
+
+                let instance_manifest_path =
+                    match transform_instance_path_to_instance_manifest(path) {
+                        Ok(path) => path,
+                        Err(e) => {
+                            eprintln!("Failed to create edge app instance: {e}.");
+                            std::process::exit(1);
+                        }
+                    };
+
+                match edge_app_command
+                    .update_instance(&actual_installation_id, instance_manifest_path.as_path())
+                {
                     Ok(()) => {
                         println!("Edge app instance successfully updated.");
                     }

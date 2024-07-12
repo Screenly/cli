@@ -130,6 +130,10 @@ pub enum CommandError {
     OpenBrowserError(String),
     #[error("Instance already exists")]
     InstanceAlreadyExists,
+    #[error("Env var INSTANCE_FILENAME must hold only file name, not a path. {0}")]
+    InstanceFilenameError(String),
+    #[error("Path is not a directory: {0}")]
+    PathIsNotDirError(String),
 }
 
 pub fn get(
