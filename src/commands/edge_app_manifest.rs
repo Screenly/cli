@@ -15,6 +15,8 @@ use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };
 
+use super::manifest_auth::AuthType;
+
 pub const MANIFEST_VERSION: &str = "manifest_v1";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -22,14 +24,6 @@ pub struct Auth {
     #[serde(deserialize_with = "deserialize_auth_type")]
     pub auth_type: AuthType,
     pub global: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthType {
-    Basic,
-    Bearer,
-    OAuth2ClientCredential,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -150,7 +144,6 @@ where
     match s.as_str() {
         "basic" => Ok(AuthType::Basic),
         "bearer" => Ok(AuthType::Bearer),
-        "oauth2_client_credential" => Ok(AuthType::OAuth2ClientCredential),
         _ => Err(serde::de::Error::custom(format!(
             "Invalid auth type: {}",
             s
@@ -297,7 +290,7 @@ impl EdgeAppManifest {
             None => None,
         };
 
-        [
+        let mut payload: HashMap<&str, serde_json::Value> = [
             ("app_id", &manifest.id),
             ("user_version", &manifest.user_version),
             ("description", &manifest.description),
@@ -308,7 +301,14 @@ impl EdgeAppManifest {
         ]
         .iter()
         .filter_map(|(key, value)| value.as_ref().map(|v| (*key, json!(v))))
-        .collect()
+        .collect();
+
+        payload.insert(
+            "ready_signal",
+            json!(manifest.ready_signal.unwrap_or(false)),
+        );
+
+        payload
     }
 
     pub fn ensure_manifest_is_valid(path: &Path) -> Result<(), CommandError> {
@@ -802,7 +802,7 @@ settings:
     fn test_prepare_manifest_payload_includes_some_fields() {
         let manifest = EdgeAppManifest {
             id: Some("test_app".to_string()),
-            ready_signal: Some(true),
+            ready_signal: Some(false), // Changed to false
             auth: None,
             syntax: MANIFEST_VERSION.to_owned(),
             user_version: Some("test_version".to_string()),
@@ -824,7 +824,6 @@ settings:
                 help_text: "An example of a setting that is used in index.html".to_string(),
             }],
         };
-
         let result = EdgeAppManifest::prepare_payload(&manifest);
         assert_eq!(result["app_id"], json!("test_app"));
         assert_eq!(result["user_version"], json!("test_version"));
@@ -833,6 +832,7 @@ settings:
         assert_eq!(result["author"], json!("test_author"));
         assert_eq!(result["homepage_url"], json!("test_url"));
         assert_eq!(result["entrypoint"], json!("entrypoint.html"));
+        assert_eq!(result["ready_signal"], json!(false)); // Added assertion for ready_signal
     }
 
     #[test]
@@ -844,9 +844,9 @@ settings:
             icon: Some("test_icon".to_string()),
             author: None,
             homepage_url: Some("test_url".to_string()),
+            ready_signal: Some(false), // Added ready_signal
             ..Default::default()
         };
-
         let result = EdgeAppManifest::prepare_payload(&manifest);
         assert_eq!(result["app_id"], json!("test_app"));
         assert!(!result.contains_key("user_version"));
@@ -855,5 +855,33 @@ settings:
         assert!(!result.contains_key("author"));
         assert_eq!(result["homepage_url"], json!("test_url"));
         assert!(!result.contains_key("entrypoint"));
+        assert_eq!(result["ready_signal"], json!(false)); // Added assertion for ready_signal
+    }
+
+    #[test]
+    fn test_prepare_manifest_payload_with_ready_signal_true() {
+        let manifest = EdgeAppManifest {
+            id: Some("test_app".to_string()),
+            ready_signal: Some(true),
+            user_version: Some("test_version".to_string()),
+            description: Some("test_description".to_string()),
+            icon: Some("test_icon".to_string()),
+            author: Some("test_author".to_string()),
+            homepage_url: Some("test_url".to_string()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: Some("entrypoint.html".to_string()),
+            }),
+            ..Default::default()
+        };
+        let result = EdgeAppManifest::prepare_payload(&manifest);
+        assert_eq!(result["app_id"], json!("test_app"));
+        assert_eq!(result["user_version"], json!("test_version"));
+        assert_eq!(result["description"], json!("test_description"));
+        assert_eq!(result["icon"], json!("test_icon"));
+        assert_eq!(result["author"], json!("test_author"));
+        assert_eq!(result["homepage_url"], json!("test_url"));
+        assert_eq!(result["entrypoint"], json!("entrypoint.html"));
+        assert_eq!(result["ready_signal"], json!(true)); // Assert ready_signal is true
     }
 }

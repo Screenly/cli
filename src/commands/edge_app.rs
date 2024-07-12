@@ -65,6 +65,8 @@ pub struct EdgeAppVersion {
     #[serde(default)]
     pub homepage_url: Option<String>,
     #[serde(default)]
+    pub ready_signal: bool,
+    #[serde(default)]
     pub revision: u32,
 }
 
@@ -859,7 +861,7 @@ impl EdgeAppCommand {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=user_version,description,icon,author,entrypoint,homepage_url,revision&app_id=eq.{}&order=revision.desc&limit=1",
+                "v4.1/edge-apps/versions?select=user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal&app_id=eq.{}&order=revision.desc&limit=1",
                 app_id
             ),
         )?;
@@ -1310,6 +1312,7 @@ impl EdgeAppCommand {
         match version {
             Some(_version) => Ok(_version
                 != EdgeAppVersion {
+                    ready_signal: manifest.ready_signal.unwrap_or(false),
                     user_version: manifest.user_version.clone(),
                     description: manifest.description.clone(),
                     icon: manifest.icon.clone(),
@@ -2538,10 +2541,10 @@ mod tests {
         //         .query_param("select", "entrypoint");
         //     then.status(200).json_body(json!([{"entrypoint": null}]));
         // });
-        // "v4/edge-apps/versions?select=user_version,description,icon,author,entrypoint&app_id=eq.{}&order=revision.desc&limit=1",
+        // "v4.1/edge-apps/versions?select=user_version,description,icon,author,entrypoint&app_id=eq.{}&order=revision.desc&limit=1",
         let last_versions_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/versions")
+                .path("/v4.1/edge-apps/versions")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -2549,7 +2552,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2562,6 +2565,7 @@ mod tests {
                     "author": "author",
                     "entrypoint": "entrypoint",
                     "homepage_url": "homepage_url",
+                    "ready_signal": false,
                     "revision": 7,
                 }
             ]));
@@ -2644,7 +2648,8 @@ mod tests {
                         "homepage_url": "asdfasdf",
                         "file_tree": {
                             "index.html": "0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"
-                        }
+                        },
+                        "ready_signal": false,
                     }));
                 then.status(201).json_body(json!([{"revision": 8}]));
             });
@@ -2872,7 +2877,7 @@ mod tests {
 
         let last_versions_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/versions")
+                .path("/v4.1/edge-apps/versions")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -2880,7 +2885,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal"
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2893,6 +2898,7 @@ mod tests {
                     "author": "asdf",
                     "entrypoint": "index.html",
                     "homepage_url": "asdfasdf",
+                    "ready_signal": false,
                     "revision": 1
                 }
             ]));
@@ -2945,7 +2951,7 @@ mod tests {
 
         let last_versions_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/versions")
+                .path("/v4.1/edge-apps/versions")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -2953,7 +2959,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2966,6 +2972,7 @@ mod tests {
                     "author": "asdf",
                     "entrypoint": "entrypoint.html",
                     "homepage_url": "asdfasdf",
+                    "ready_signal": false,
                     "revision": 1,
                 }
             ]));
@@ -3018,7 +3025,7 @@ mod tests {
 
         let last_versions_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/edge-apps/versions")
+                .path("/v4.1/edge-apps/versions")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -3026,7 +3033,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision",
+                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -3327,8 +3334,9 @@ mod tests {
                     "icon": "asdf",
                     "author": "asdf",
                     "homepage_url": "asdfasdf",
-                    // "entrypoint": "entrypoint.html",
-                    "file_tree": {}
+                    // "entrypoint": "index.html",
+                    "file_tree": {},
+                    "ready_signal": false
                 }));
             then.status(201).json_body(json!([{"revision": 8}]));
         });

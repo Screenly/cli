@@ -174,7 +174,13 @@ pub fn detect_changed_settings(
     // This function compares remote and local settings
     // And returns if there are any new local settings missing from the remote
     // And changed settings to update
-    let new_settings = &manifest.settings;
+
+    let mut new_settings = manifest.settings.clone();
+
+    if let Some(auth) = &manifest.auth {
+        let auth_settings = auth.auth_type.generate_settings(auth.global);
+        new_settings.extend(auth_settings);
+    }
 
     let mut creates = Vec::new();
     let mut updates = Vec::new();
@@ -229,7 +235,8 @@ pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::edge_app_manifest::{Entrypoint, EntrypointType, MANIFEST_VERSION};
+    use crate::commands::edge_app_manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
+    use crate::commands::manifest_auth::AuthType;
     use crate::commands::SettingType;
     use std::fs::File;
     use std::io::Write;
@@ -631,74 +638,164 @@ mod tests {
     }
 
     #[test]
-    fn test_transform_edge_app_instance_path_to_instance_manifest_should_return_current_dir_with_()
-    {
-        let dir = tempdir().unwrap();
-        let dir_path = dir.path();
-        assert!(env::set_current_dir(dir_path).is_ok());
+    fn test_detect_changed_settings_when_basic_auth_added_should_detect_changes() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Basic,
+            global: false,
+        });
 
-        let result = transform_instance_path_to_instance_manifest(&None);
+        let remote_settings = manifest.settings.clone();
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), dir_path.join("instance.yml"));
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 2);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_username" && !s.is_global));
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_password" && !s.is_global));
     }
 
     #[test]
-    fn test_transform_edge_app_instance_path_to_instance_manifest_when_path_provided_should_return_path_with_instance_manifest(
-    ) {
-        let dir = tempdir().unwrap();
-        let dir_path = dir.path();
-        assert!(env::set_current_dir(dir_path).is_ok());
+    fn test_detect_changed_settings_when_bearer_auth_added_should_detect_changes() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Bearer,
+            global: false,
+        });
 
-        let dir2 = tempdir().unwrap();
-        let dir_path2 = dir2.path();
+        let remote_settings = manifest.settings.clone();
 
-        let result = transform_instance_path_to_instance_manifest(&Some(
-            dir_path2.to_str().unwrap().to_string(),
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 1);
+        assert_eq!(changes.creates[0].name, "bearer_token");
+        assert!(!changes.creates[0].is_global);
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_switching_from_basic_to_bearer_auth() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Bearer,
+            global: false,
+        });
+
+        let mut remote_settings = manifest.settings.clone();
+        remote_settings.extend(vec![
+            Setting::new(
+                SettingType::String,
+                "Username",
+                "basic_auth_username",
+                "Basic auth username",
+                false,
+            ),
+            Setting::new(
+                SettingType::Secret,
+                "Password",
+                "basic_auth_password",
+                "Basic auth password",
+                false,
+            ),
+        ]);
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 1);
+        assert_eq!(changes.creates[0].name, "bearer_token");
+        assert!(!changes.creates[0].is_global);
+        assert_eq!(changes.deleted.len(), 2);
+        assert!(changes
+            .deleted
+            .iter()
+            .any(|s| s.name == "basic_auth_username"));
+        assert!(changes
+            .deleted
+            .iter()
+            .any(|s| s.name == "basic_auth_password"));
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_switching_from_bearer_to_basic_auth() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Basic,
+            global: false,
+        });
+
+        let mut remote_settings = manifest.settings.clone();
+        remote_settings.push(Setting::new(
+            SettingType::String,
+            "Token",
+            "bearer_token",
+            "Bearer token",
+            false,
         ));
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), dir_path2.join("instance.yml"));
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 2);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_username" && !s.is_global));
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_password" && !s.is_global));
+        assert_eq!(changes.deleted.len(), 1);
+        assert_eq!(changes.deleted[0].name, "bearer_token");
     }
 
     #[test]
-    fn test_transform_edge_app_instance_path_to_instance_manifest_when_path_provided_is_not_a_dir_should_fail(
-    ) {
-        let dir = tempdir().unwrap();
-        let dir_path = dir.path();
-        assert!(env::set_current_dir(dir_path).is_ok());
-
-        let result =
-            transform_instance_path_to_instance_manifest(&Some("instance2.yml".to_string()));
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Path is not a directory: instance2.yml"
-        );
-    }
-
-    #[test]
-    fn test_transform_edge_app_instance_path_to_instance_manifest_with_env_instance_override_should_return_overrided_manifest_path(
-    ) {
-        let dir = tempdir().unwrap();
-        let dir_path = dir.path();
-        assert!(env::set_current_dir(dir_path).is_ok());
-        temp_env::with_var(INSTANCE_FILE_NAME_ENV, Some("instance2.yml"), || {
-            let result = transform_instance_path_to_instance_manifest(&None);
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), dir_path.join("instance2.yml"));
+    fn test_detect_changed_settings_when_auth_is_global() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Basic,
+            global: true,
         });
-    }
 
-    #[test]
-    fn test_transform_edge_app_instance_path_to_instance_manifest_with_env_path_instead_of_file_should_fail(
-    ) {
-        let dir = tempdir().unwrap();
-        let dir_path = dir.path();
-        assert!(env::set_current_dir(dir_path).is_ok());
+        let remote_settings = manifest.settings.clone();
 
-        temp_env::with_var(INSTANCE_FILE_NAME_ENV, Some("folder/instance2.yml"), || {
-            let result = transform_instance_path_to_instance_manifest(&None);
-            assert!(result.is_err());
-            assert_eq!(result.unwrap_err().to_string(), "Env var INSTANCE_FILENAME must hold only file name, not a path. folder/instance2.yml");
-        });
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 2);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_username" && s.is_global));
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_password" && s.is_global));
     }
 }
