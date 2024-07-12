@@ -550,6 +550,7 @@ dependencies = [
  "simple_logger",
  "strum",
  "strum_macros",
+ "temp-env",
  "tempfile",
  "term",
  "thiserror",
@@ -2789,6 +2790,15 @@ checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
 dependencies = [
  "core-foundation-sys",
  "libc",
+]
+
+[[package]]
+name = "temp-env"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
+dependencies = [
+ "parking_lot 0.12.1",
 ]
 
 [[package]]
