@@ -31,7 +31,7 @@ jobs:
             docs_command_line_help:
               - modified: 'docs/CommandLineHelp.md'
             docs_edge_apps:
-              - added|modified|deleted: 'docs/edge_apps/**'
+              - modified: 'docs/EdgeApps.md'
 
   docs-help-md:
     permissions:
