@@ -31,14 +31,14 @@ With the CLI installed and logged in (`screenly login`), we can create our "Hell
 To do this, first create a new directory where the Edge App will reside. For production applications, this would likely be a source-controlled folder (e.g., `git`), but for now, let's create a temporary folder with:
 
 ```shell
-mkdir -p ~/tmp/edge-app
-cd ~/tmp/edge-app
+$ mkdir -p ~/tmp/edge-app
+$ cd ~/tmp/edge-app
 ```
 
 ### Create an Edge App
 
 ```shell
-screenly edge-app create --name hello-world
+$ screenly edge-app create --name hello-world
 ```
 
 When you run the screenly edge-app create command, two files will be created in the current directory:
@@ -57,7 +57,7 @@ Getting started with our existing Playground Edge Apps can help ease your introd
 For instance, if our target is the Clock App, enter the directory (`Playground/edge-apps/clock`) and execute:
 
 ```shell
-screenly edge-app create --name "My Groundbreaking Clock App" --in-place
+$ screenly edge-app create --name "My Groundbreaking Clock App" --in-place
 ```
 
 Note the `--in-place` parameter. This is necessary when creating an app with existing `screenly.yml` and `index.html` files, as our Playground Edge Apps do. Otherwise, you'll encounter errors about conflicting files. This parameter is not mandatory if you are creating a brand new Edge App; it’s just here to make your developer life a little bit easier.
@@ -65,7 +65,7 @@ Note the `--in-place` parameter. This is necessary when creating an app with exi
 ### Upload the Edge App
 
 ```shell
-screenly edge-app upload
+$ screenly edge-app upload
 ```
 
 To use this Edge App, first upload it using the upload command. This will automatically create a new version (you can see your versions using screenly edge-app version list). After the Edge App is successfully uploaded, promote it to a channel (stable or candidate) to use it on the player.
@@ -74,7 +74,7 @@ To use this Edge App, first upload it using the upload command. This will automa
 
 The `upload` command only uploads the Edge App and its assets to the server. To make it available for screens, you need to promote it. This way, it will be available for further processing.
 ```shell
-screenly edge-app version promote --latest
+$ screenly edge-app version promote --latest
 ```
 
 ```
@@ -87,8 +87,8 @@ With the asset scheduled on your screen, you should see the headline "Hello Stra
 
 ### Modify the Greeting
 
-```bash
-screenly edge-app setting set greeting='Cowboy Neil'
+```shell
+$ screenly edge-app setting set greeting='Cowboy Neil'
 ```
 
 It might take a few minutes for your screen to pick up the change, but once it does, the headline should change from "Hello Stranger!" to "Hello Cowboy Neil!".
@@ -101,7 +101,7 @@ To create an Edge App, you need to use the CLI and invoke it using `edge-app cre
 
 > To create an Edge App, simply run:
 ```shell
-screenly edge-app create --name <name>
+$ screenly edge-app create --name <name>
 ```
 
 Once you have initiated your Edge App, you can start adding content. We make a few assumptions about your Edge App:
@@ -129,7 +129,7 @@ When you upload subsequent releases, you'll notice a few more things:
 > Upload an edge app from the current directory:
 
 ```shell
-screenly edge-app upload
+$ screenly edge-app upload
 ```
 
 ---
@@ -140,8 +140,8 @@ You can list all Edge Apps in a given account, along with their versions with th
 
 > List Edge Apps (and versions)
 
-```bash
-screenly edge-app version list
+```shell
+$ screenly edge-app version list
 ```
 ```
 +----------+-------------+-----------+
@@ -160,7 +160,7 @@ You also have the option to use `--latest` to employ the most recent version of 
 > Promote a version
 
 ```shell
-screenly edge-app version promote \
+$ screenly edge-app version promote \
     --revision=1 \
     --channel=candidate
 ```
@@ -171,13 +171,13 @@ Promote 1 of Edge App 'Weather App' (XXXXXXXXXXXXXXXXXXXXXXXXX)? (y/n)
 > Promote to latest version
 
 ```shell
-edge-app version promote --latest
+$ edge-app version promote --latest
 ```
 
 > Delete a version
 
 ```shell
-screenly edge-app version delete v2
+$ screenly edge-app version delete v2
 ```
 ```
 Delete v2 of Edge App 'Weather App' (XXXXXXXXXXXXXXXXXXXXXXXXX)? (y/n)
@@ -244,8 +244,8 @@ settings:
 ```
 > Setting a secret
 
-```bash
-screenly edge-app secret set api_key='ABC123'
+```shell
+$ screenly edge-app secret set api_key='ABC123'
 ```
 Screenly's secrets function similarly to settings, but with a distinct security model. They are write-only, ensuring they can't be retrieved via the API or web interface once written. To use secrets, you define them in `screenly.yml`, but you do not set a value.
 
@@ -307,7 +307,7 @@ After creating your Edge App, you can use the Edge App emulator to test it in yo
 > Run Edge App emulator
 
 ```shell
-screenly edge-app run
+$ screenly edge-app run
 ```
 
 This command will provide you with a URL to access your Edge App in your browser.
@@ -317,7 +317,7 @@ If you don't have sample data in your Edge App directory, you can create it by r
 > Add mock data to run Edge App emulator
 
 ```shell
-screenly edge-app run --generate-mock-data
+$ screenly edge-app run --generate-mock-data
 ```
 
 After generating the mock data, run the Edge App emulator again to see your app in action.
