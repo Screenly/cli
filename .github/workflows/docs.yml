@@ -16,7 +16,9 @@ jobs:
       contents: 'read'
       pull-requests: 'read'
     outputs:
+      readme: ${{ steps.filter.outputs.readme }}
       docs_command_line_help: ${{ steps.filter.outputs.docs_command_line_help }}
+      docs_edge_apps: ${{ steps.filter.outputs.docs_edge_apps }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -24,12 +26,14 @@ jobs:
         with:
           list-files: shell
           filters: |
+            readme:
+              - modified: 'README.md'
             docs_command_line_help:
               - modified: 'docs/CommandLineHelp.md'
+            docs_edge_apps:
+              - modified: 'docs/EdgeApps.md'
 
   docs-help-md:
-    needs:
-      - check_files_changed
     permissions:
       contents: write
     runs-on: ubuntu-22.04
@@ -59,10 +63,20 @@ jobs:
             echo "Documentation is up to date."
           fi
 
+  trigger-developer-portal-deploy:
+    if: (github.event_name == 'push') && 
+        (github.ref == 'refs/heads/master') &&
+        (
+          (needs.check_files_changed.outputs.readme == 'true') ||
+          (needs.check_files_changed.outputs.docs_command_line_help == 'true') ||
+          (needs.check_files_changed.outputs.docs_edge_apps == 'true')
+        )
+    runs-on: ubuntu-latest
+    needs:
+      - check_files_changed
+      - docs-help-md
+    steps:
       - name: Trigger Developer Portal deploy workflow
-        if: (needs.check_files_changed.outputs.docs_command_line_help == 'true') && 
-            (github.event_name == 'push') && 
-            (github.ref == 'refs/heads/master')
         run: |
           curl -L \
             -X POST \
