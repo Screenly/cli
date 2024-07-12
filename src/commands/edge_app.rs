@@ -639,6 +639,27 @@ impl EdgeAppCommand {
 }
 // Edge app instance commands
 impl EdgeAppCommand {
+    fn get_instance_name(&self, installation_id: &str) -> Result<String, CommandError> {
+        let response = commands::get(
+            &self.authentication,
+            &format!(
+                "v4.1/edge-apps/installations?select=name&id=eq.{}",
+                installation_id
+            ),
+        )?;
+
+        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        struct Instance {
+            name: String,
+        }
+
+        let instances = serde_json::from_value::<Vec<Instance>>(response)?;
+        if instances.is_empty() {
+            return Err(CommandError::MissingField);
+        }
+
+        Ok(instances[0].name.clone())
+    }
     pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
         let response = commands::get(
             &self.authentication,
@@ -659,7 +680,6 @@ impl EdgeAppCommand {
         app_id: &str,
         name: &str,
     ) -> Result<String, CommandError> {
-        // TODO: for now we don't allow instance to be created if it already exists
         // Though we could either allow --force to re-create it or --new to create a new instance w/o writing to instance.yml
         match InstanceManifest::new(path) {
             Ok(manifest) => {
@@ -684,22 +704,38 @@ impl EdgeAppCommand {
         Ok(installation_id)
     }
 
-    pub fn delete_instance(&self, installation_id: &str) -> Result<(), CommandError> {
+    pub fn delete_instance(
+        &self,
+        installation_id: &str,
+        manifest_path: Option<String>,
+    ) -> Result<(), CommandError> {
         commands::delete(
             &self.authentication,
             &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
         )?;
-        // TODO: delete from instance.yml
+        if let Some(manifest_path) = manifest_path {
+            match fs::remove_file(manifest_path) {
+                Ok(_) => {
+                    println!("Instance manifest file removed.")
+                }
+                Err(_) => {
+                    println!("Failed to remove instance manifest file.")
+                }
+            };
+        }
         Ok(())
     }
 
-    pub fn update_instance(
-        &self,
-        installation_id: &str,
-        name: &Option<String>,
-    ) -> Result<(), CommandError> {
+    pub fn update_instance(&self, installation_id: &str, path: &Path) -> Result<(), CommandError> {
+        let instance_manifest = InstanceManifest::new(path)?;
+        let server_instance_name = self.get_instance_name(installation_id)?;
+
+        if instance_manifest.name == server_instance_name {
+            return Ok(());
+        }
+
         let payload = json!({
-            "name": name,
+            "name": instance_manifest.name,
         });
 
         // if let Some(_entrypoint) = entrypoint {
@@ -3969,7 +4005,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_instance_should_update_instance() {
+    fn test_update_instance_when_name_changed_should_update_instance() {
         let mock_server = MockServer::start();
 
         let config = Config::new(mock_server.base_url());
@@ -3981,6 +4017,25 @@ mod tests {
         let manifest_path = temp_dir.path().join("screenly.yml");
         EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
 
+        let instance_manifest_path = temp_dir.path().join("instance.yml");
+        let instance_manifest = create_instance_manifest_for_test();
+        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
+            .unwrap();
+
+        let get_instance_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/installations")
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
+                .query_param("select", "name")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200)
+                .json_body(json!([{"name": "Edge app cli installation"}]));
+        });
+
         let update_instance_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
                 .path("/v4.1/edge-apps/installations")
@@ -3991,7 +4046,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .json_body(json!({
-                    "name": "Edge app cli installation 2",
+                    "name": "test",
                 }));
             then.status(200)
                 .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
@@ -3999,10 +4054,51 @@ mod tests {
 
         let result = command.update_instance(
             "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-            &Some("Edge app cli installation 2".to_string()),
+            instance_manifest_path.as_path(),
         );
 
+        get_instance_mock.assert();
         update_instance_mock.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_instance_when_name_not_changed_should_not_update_instance() {
+        let mock_server = MockServer::start();
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+
+        let temp_dir = tempdir().unwrap();
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+
+        let instance_manifest_path = temp_dir.path().join("instance.yml");
+        let instance_manifest = create_instance_manifest_for_test();
+        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
+            .unwrap();
+
+        let get_instance_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/installations")
+                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
+                .query_param("select", "name")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                );
+            then.status(200).json_body(json!([{"name": "test"}]));
+        });
+
+        let result = command.update_instance(
+            "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+            instance_manifest_path.as_path(),
+        );
+
+        get_instance_mock.assert();
         assert!(result.is_ok());
     }
 
@@ -4019,6 +4115,12 @@ mod tests {
         let manifest_path = temp_dir.path().join("screenly.yml");
         EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
 
+        let instance_manifest_path = temp_dir.path().join("instance.yml");
+
+        let instance_manifest = create_instance_manifest_for_test();
+        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
+            .unwrap();
+
         let delete_instance_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
                 .path("/v4.1/edge-apps/installations")
@@ -4031,9 +4133,14 @@ mod tests {
             then.status(204).body("");
         });
 
-        let result = command.delete_instance("01H2QZ6Z8WXWNDC0KQ198XCZEB");
+        let result = command.delete_instance(
+            "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+            Some(instance_manifest_path.to_str().unwrap().to_string()),
+        );
 
         delete_instance_mock.assert();
         assert!(result.is_ok());
+
+        assert!(!instance_manifest_path.as_path().exists());
     }
 }

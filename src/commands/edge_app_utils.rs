@@ -13,6 +13,8 @@ use crate::commands::ignorer::Ignorer;
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
+const INSTANCE_FILE_NAME_ENV: &str = "INSTANCE_FILE_NAME";
+
 #[derive(Debug, Clone)]
 pub struct EdgeAppFile {
     pub(crate) path: String,
@@ -79,14 +81,35 @@ pub fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
     result
 }
 
-pub fn transform_instance_path_to_instance_manifest(path: &Option<String>) -> PathBuf {
+pub fn transform_instance_path_to_instance_manifest(
+    path: &Option<String>,
+) -> Result<PathBuf, CommandError> {
+    let instance_path = env::var(INSTANCE_FILE_NAME_ENV);
+
+    let filename = match instance_path {
+        Ok(path) => {
+            let path_obj = Path::new(&path);
+            if path_obj.components().count() != 1 {
+                return Err(CommandError::InstanceFilenameError(path));
+            }
+            path
+        }
+        Err(_) => "instance.yml".to_string(),
+    };
+
     let mut result = match path {
-        Some(path) => PathBuf::from(path),
+        Some(path) => {
+            let path_buf_obj = PathBuf::from(path);
+            if !path_buf_obj.is_dir() {
+                return Err(CommandError::PathIsNotDirError(path.clone()));
+            }
+            path_buf_obj
+        }
         None => env::current_dir().unwrap(),
     };
 
-    result.push("instance.yml");
-    result
+    result.push(filename);
+    Ok(result)
 }
 
 pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, CommandError> {
@@ -210,6 +233,7 @@ mod tests {
     use crate::commands::SettingType;
     use std::fs::File;
     use std::io::Write;
+    use temp_env;
     use tempfile::tempdir;
 
     fn create_manifest() -> EdgeAppManifest {
@@ -604,5 +628,77 @@ mod tests {
         let result = collect_paths_for_upload(dir_path).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].path, "file1.txt");
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_should_return_current_dir_with_()
+    {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let result = transform_instance_path_to_instance_manifest(&None);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir_path.join("instance.yml"));
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_when_path_provided_should_return_path_with_instance_manifest(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let dir2 = tempdir().unwrap();
+        let dir_path2 = dir2.path();
+
+        let result = transform_instance_path_to_instance_manifest(&Some(
+            dir_path2.to_str().unwrap().to_string(),
+        ));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir_path2.join("instance.yml"));
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_when_path_provided_is_not_a_dir_should_fail(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let result =
+            transform_instance_path_to_instance_manifest(&Some("instance2.yml".to_string()));
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Path is not a directory: instance2.yml"
+        );
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_with_env_instance_override_should_return_overrided_manifest_path(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+        temp_env::with_var(INSTANCE_FILE_NAME_ENV, Some("instance2.yml"), || {
+            let result = transform_instance_path_to_instance_manifest(&None);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), dir_path.join("instance2.yml"));
+        });
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_with_env_path_instead_of_file_should_fail(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        temp_env::with_var(INSTANCE_FILE_NAME_ENV, Some("folder/instance2.yml"), || {
+            let result = transform_instance_path_to_instance_manifest(&None);
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().to_string(), "Env var INSTANCE_FILENAME must hold only file name, not a path. folder/instance2.yml");
+        });
     }
 }
