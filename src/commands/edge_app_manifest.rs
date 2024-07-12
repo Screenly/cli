@@ -15,6 +15,8 @@ use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };
 
+use super::manifest_auth::AuthType;
+
 pub const MANIFEST_VERSION: &str = "manifest_v1";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -22,14 +24,6 @@ pub struct Auth {
     #[serde(deserialize_with = "deserialize_auth_type")]
     pub auth_type: AuthType,
     pub global: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthType {
-    Basic,
-    Bearer,
-    OAuth2ClientCredential,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -150,7 +144,6 @@ where
     match s.as_str() {
         "basic" => Ok(AuthType::Basic),
         "bearer" => Ok(AuthType::Bearer),
-        "oauth2_client_credential" => Ok(AuthType::OAuth2ClientCredential),
         _ => Err(serde::de::Error::custom(format!(
             "Invalid auth type: {}",
             s

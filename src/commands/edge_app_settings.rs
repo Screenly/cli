@@ -182,3 +182,17 @@ where
 {
     deserialize_string_field("help_text", true, deserializer)
 }
+
+impl Setting {
+    pub fn new(type_: SettingType, title: &str, name: &str, help_text: &str, global: bool) -> Self {
+        Setting {
+            type_,
+            default_value: None,
+            title: Some(title.to_string()),
+            name: name.to_string(),
+            optional: false,
+            help_text: help_text.to_string(),
+            is_global: global,
+        }
+    }
+}

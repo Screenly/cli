@@ -151,7 +151,13 @@ pub fn detect_changed_settings(
     // This function compares remote and local settings
     // And returns if there are any new local settings missing from the remote
     // And changed settings to update
-    let new_settings = &manifest.settings;
+
+    let mut new_settings = manifest.settings.clone();
+
+    if let Some(auth) = &manifest.auth {
+        let auth_settings = auth.auth_type.generate_settings(auth.global);
+        new_settings.extend(auth_settings);
+    }
 
     let mut creates = Vec::new();
     let mut updates = Vec::new();
@@ -206,7 +212,8 @@ pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<St
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::edge_app_manifest::{Entrypoint, EntrypointType, MANIFEST_VERSION};
+    use crate::commands::edge_app_manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
+    use crate::commands::manifest_auth::AuthType;
     use crate::commands::SettingType;
     use std::fs::File;
     use std::io::Write;
@@ -604,5 +611,167 @@ mod tests {
         let result = collect_paths_for_upload(dir_path).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].path, "file1.txt");
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_basic_auth_added_should_detect_changes() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Basic,
+            global: false,
+        });
+
+        let remote_settings = manifest.settings.clone();
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 2);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_username" && !s.is_global));
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_password" && !s.is_global));
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_bearer_auth_added_should_detect_changes() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Bearer,
+            global: false,
+        });
+
+        let remote_settings = manifest.settings.clone();
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 1);
+        assert_eq!(changes.creates[0].name, "bearer_token");
+        assert!(!changes.creates[0].is_global);
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_switching_from_basic_to_bearer_auth() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Bearer,
+            global: false,
+        });
+
+        let mut remote_settings = manifest.settings.clone();
+        remote_settings.extend(vec![
+            Setting::new(
+                SettingType::String,
+                "Username",
+                "basic_auth_username",
+                "Basic auth username",
+                false,
+            ),
+            Setting::new(
+                SettingType::Secret,
+                "Password",
+                "basic_auth_password",
+                "Basic auth password",
+                false,
+            ),
+        ]);
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 1);
+        assert_eq!(changes.creates[0].name, "bearer_token");
+        assert!(!changes.creates[0].is_global);
+        assert_eq!(changes.deleted.len(), 2);
+        assert!(changes
+            .deleted
+            .iter()
+            .any(|s| s.name == "basic_auth_username"));
+        assert!(changes
+            .deleted
+            .iter()
+            .any(|s| s.name == "basic_auth_password"));
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_switching_from_bearer_to_basic_auth() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Basic,
+            global: false,
+        });
+
+        let mut remote_settings = manifest.settings.clone();
+        remote_settings.push(Setting::new(
+            SettingType::String,
+            "Token",
+            "bearer_token",
+            "Bearer token",
+            false,
+        ));
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 2);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_username" && !s.is_global));
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_password" && !s.is_global));
+        assert_eq!(changes.deleted.len(), 1);
+        assert_eq!(changes.deleted[0].name, "bearer_token");
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_auth_is_global() {
+        // Arrange
+        let mut manifest = create_manifest();
+        manifest.auth = Some(Auth {
+            auth_type: AuthType::Basic,
+            global: true,
+        });
+
+        let remote_settings = manifest.settings.clone();
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 2);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_username" && s.is_global));
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "basic_auth_password" && s.is_global));
     }
 }

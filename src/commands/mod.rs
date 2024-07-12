@@ -22,6 +22,7 @@ pub(crate) mod edge_app_settings;
 pub mod edge_app_utils;
 mod ignorer;
 pub mod instance_manifest;
+pub mod manifest_auth;
 pub(crate) mod playlist;
 pub mod screen;
 pub(crate) mod serde_utils;
