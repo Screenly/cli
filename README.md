@@ -11,14 +11,14 @@ Download the latest release [here](https://github.com/Screenly/cli/releases/late
 ### Homebrew (macOS only)
 
 ```bash
-$ brew tap screenly/screenly-cli
-$ brew install screenly-cli
+brew tap screenly/screenly-cli
+brew install screenly-cli
 ```
 
 ### Nix
 
 ```bash
-$ nix-shell -p screenly-cli
+nix-shell -p screenly-cli
 ```
 
 ### Docker
@@ -26,9 +26,9 @@ $ nix-shell -p screenly-cli
 For other operating systems or Docker usage:
 
 ```bash
-$ docker run --rm \
-    -e API_TOKEN=YOUR_API_TOKEN \
-    screenly/cli:latest help
+docker run --rm \
+  -e API_TOKEN=YOUR_API_TOKEN \
+  screenly/cli:latest help
 ```
 
 ## Building from Source
@@ -36,7 +36,7 @@ $ docker run --rm \
 To build the Screenly CLI from source, ensure you have [Rust](https://www.rust-lang.org) installed:
 
 ```bash
-$ cargo build --release
+cargo build --release
 ```
 
 The `screenly` binary will be located in `target/release`.
@@ -44,7 +44,7 @@ The `screenly` binary will be located in `target/release`.
 To configure a non-production API server, set the `API_SERVER_NAME` environment variable:
 
 ```bash
-$ API_SERVER_NAME=local cargo build --release
+API_SERVER_NAME=local cargo build --release
 ```
 
 ## Commands
@@ -83,9 +83,9 @@ with:
 Generate `pb_signature.rs` from `signature.proto`:
 
 ```bash
-$ cargo install protobuf-codegen
-$ protoc --rust_out . signature.proto
-$ mv signature.rs src/pb_signature.rs
+cargo install protobuf-codegen
+protoc --rust_out . signature.proto
+mv signature.rs src/pb_signature.rs
 ```
 
 ## Release Process
