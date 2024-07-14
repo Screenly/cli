@@ -374,10 +374,6 @@ pub enum EdgeAppSettingsCommands {
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
-        #[arg(short, long)]
-        installation_id: Option<String>,
-
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
@@ -387,10 +383,6 @@ pub enum EdgeAppSettingsCommands {
         /// Key value pair of the setting to be set in the form of `key=value`.
         #[arg(value_parser = parse_key_val)]
         setting_pair: (String, String),
-
-        /// Edge App Installation id. If not specified, CLI will use the installation_id from the manifest.
-        #[arg(short, long)]
-        installation_id: Option<String>,
 
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
@@ -430,20 +422,12 @@ pub enum EdgeAppInstanceCommands {
     },
     /// Deletes Edge App instance.
     Delete {
-        /// Edge App instance id.
-        #[arg(short, long)]
-        instance_id: Option<String>,
-
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
     },
     /// Update Edge App instance based on changes in the instance.yml.
     Update {
-        /// Edge App instance id.
-        #[arg(short, long)]
-        instance_id: Option<String>,
-
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
@@ -904,39 +888,29 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         }
         EdgeAppCommands::Setting(command) => match command {
-            EdgeAppSettingsCommands::List {
-                path,
-                json,
-                installation_id,
-            } => {
-                let actual_installation_id = match edge_app_command
-                    .ensure_installation_id(installation_id.clone(), path.clone())
-                {
-                    Ok(_installation_id) => _installation_id,
-                    Err(e) => {
-                        error!("Error calling list settings: {}", e);
-                        std::process::exit(1);
-                    }
-                };
+            EdgeAppSettingsCommands::List { path, json } => {
+                let actual_installation_id =
+                    match edge_app_command.get_installation_id(path.clone()) {
+                        Ok(_installation_id) => _installation_id,
+                        Err(e) => {
+                            error!("Error calling list settings: {}", e);
+                            std::process::exit(1);
+                        }
+                    };
                 handle_command_execution_result(
                     edge_app_command.list_settings(&actual_installation_id),
                     json,
                 );
             }
-            EdgeAppSettingsCommands::Set {
-                setting_pair,
-                installation_id,
-                path,
-            } => {
-                let actual_installation_id = match edge_app_command
-                    .ensure_installation_id(installation_id.clone(), path.clone())
-                {
-                    Ok(_installation_id) => _installation_id,
-                    Err(e) => {
-                        error!("Error calling set setting: {}", e);
-                        std::process::exit(1);
-                    }
-                };
+            EdgeAppSettingsCommands::Set { setting_pair, path } => {
+                let actual_installation_id =
+                    match edge_app_command.get_installation_id(path.clone()) {
+                        Ok(_installation_id) => _installation_id,
+                        Err(e) => {
+                            error!("Error calling set setting: {}", e);
+                            std::process::exit(1);
+                        }
+                    };
 
                 match edge_app_command.set_setting(
                     &actual_installation_id,
@@ -1115,28 +1089,27 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                 }
             }
-            EdgeAppInstanceCommands::Delete { instance_id, path } => {
-                let actual_installation_id = match edge_app_command
-                    .ensure_installation_id(instance_id.clone(), path.clone())
-                {
-                    Ok(_installation_id) => _installation_id,
-                    Err(e) => {
-                        error!("Error calling delete setting: {}", e);
-                        std::process::exit(1);
-                    }
-                };
-
-                // If we override instance_id with arg, we don't want to delete an instance manifest.
-                let instance_manifest_path: Option<String> = match instance_id {
-                    Some(_id) => None,
-                    None => match transform_instance_path_to_instance_manifest(path) {
-                        Ok(_path) => Some(_path.to_str().unwrap().to_string()),
+            EdgeAppInstanceCommands::Delete { path } => {
+                let actual_installation_id =
+                    match edge_app_command.get_installation_id(path.clone()) {
+                        Ok(_installation_id) => _installation_id,
                         Err(e) => {
-                            eprintln!("Failed to delete edge app instance: {e}.");
+                            error!("Error calling delete setting: {}", e);
                             std::process::exit(1);
                         }
-                    },
-                };
+                    };
+
+                let instance_manifest_path: String =
+                    match transform_edge_app_path_to_manifest(path).to_str() {
+                        Some(path) => path.to_string(),
+                        None => {
+                            eprintln!(
+                                "Failed to create edge app instance. Path is not valid. {:?}",
+                                path
+                            );
+                            std::process::exit(1);
+                        }
+                    };
 
                 match edge_app_command
                     .delete_instance(&actual_installation_id, instance_manifest_path)
@@ -1150,16 +1123,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                 }
             }
-            EdgeAppInstanceCommands::Update { instance_id, path } => {
-                let actual_installation_id = match edge_app_command
-                    .ensure_installation_id(instance_id.clone(), path.clone())
-                {
-                    Ok(_installation_id) => _installation_id,
-                    Err(e) => {
-                        error!("Error calling update setting: {}", e);
-                        std::process::exit(1);
-                    }
-                };
+            EdgeAppInstanceCommands::Update { path } => {
+                let actual_installation_id =
+                    match edge_app_command.get_installation_id(path.clone()) {
+                        Ok(_installation_id) => _installation_id,
+                        Err(e) => {
+                            error!("Error calling update setting: {}", e);
+                            std::process::exit(1);
+                        }
+                    };
 
                 let instance_manifest_path =
                     match transform_instance_path_to_instance_manifest(path) {
