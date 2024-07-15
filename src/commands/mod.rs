@@ -134,6 +134,8 @@ pub enum CommandError {
     InstanceFilenameError(String),
     #[error("Path is not a directory: {0}")]
     PathIsNotDirError(String),
+    #[error("Missing installation id in the instance file")]
+    MissingInstallationId,
 }
 
 pub fn get(
