@@ -251,7 +251,7 @@ $ screenly edge-app setting set greeting='Cowboy John'
 
 This will output:
 
-```diff
+```
 Edge app setting successfully set.
 ```
 
@@ -265,7 +265,7 @@ $ screenly edge-app setting list
 
 This will output:
 
-```diff
+```
 +----------+-------------+---------------+----------+--------+-----------------------------------------------------------+
 | Title    | Value       | Default value | Optional | Type   | Help text                                                 |
 +----------+-------------+---------------+----------+--------+-----------------------------------------------------------+
@@ -319,7 +319,7 @@ $ screenly edge-app secret set api_key='ABC123'
 
 This will output:
 
-```diff
+```
 Edge app secret successfully set.
 ```
 
@@ -333,7 +333,7 @@ $ screenly edge-app secret list
 
 This will output:
 
-```diff
+```
 +---------+----------+--------------------------+
 | Title   | Optional | Help text                |
 +---------+----------+--------------------------+
