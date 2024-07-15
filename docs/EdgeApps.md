@@ -100,6 +100,7 @@ It might take a few minutes for your screen to pick up the change, but once it d
 To create an Edge App, you need to use the CLI and invoke it using `edge-app create <name>`. This will fire off a number of API calls and create a file called `screenly.yml` in the current directory, as well as a sample `index.html` file.
 
 > To create an Edge App, simply run:
+
 ```shell
 $ screenly edge-app create --name <name>
 ```
@@ -225,13 +226,78 @@ Each setting may have a default value, an optional flag indicating if it's requi
 
 ## Settings
 
-Coming soon.
+### Defining a Setting
+
+To define a setting, you can use the following structure in your manifest file:
+
+```yaml
+settings:
+  [...]
+  greeting:
+    type: string
+    default_value: "Cowboy Neil"
+    title: greeting
+    optional: true
+    help_text: An example of a string setting that is used in index.html
+```
+
+### Setting a Setting
+
+You can set a setting using the following command:
+
+```shell
+$ screenly edge-app setting set greeting='Cowboy John'
+```
+
+This will output:
+
+```
+Edge app setting successfully set.
+```
+
+### Getting Settings
+
+To list the current settings, use the following command:
+
+```shell
+$ screenly edge-app setting list
+```
+
+This will output:
+
+```
++----------+-------------+---------------+----------+--------+-----------------------------------------------------------+
+| Title    | Value       | Default value | Optional | Type   | Help text                                                 |
++----------+-------------+---------------+----------+--------+-----------------------------------------------------------+
+| greeting | Cowboy John | Cowboy Neil   | Yes      | string | An example of a string setting that is used in index.html |
++----------+-------------+---------------+----------+--------+-----------------------------------------------------------+
+```
+
+### Using Settings in Your Edge App
+
+To use the settings in your Edge App, include them in your HTML or JavaScript files as follows:
+
+```html
+[...]
+<head>
+<script src="screenly.js?version=1"></script>
+</head>
+[...]
+<script>
+    document.getElementById("greeting").innerText = screenly.settings.greeting;
+</script>
+[...]
+```
+
+Settings are key-value pairs that users installing the app must provide at install time and can later edit.
 
 ---
 
 ## Secrets
 
-> Defining a secret
+### Defining a Secret
+
+To define a secret, use the following structure in your configuration file:
 
 ```yaml
 settings:
@@ -242,19 +308,68 @@ settings:
     optional: false
     help_text: An example of an API key
 ```
-> Setting a secret
+
+### Setting a Secret
+
+You can set a secret using the following command:
 
 ```shell
 $ screenly edge-app secret set api_key='ABC123'
 ```
-Screenly's secrets function similarly to settings, but with a distinct security model. They are write-only, ensuring they can't be retrieved via the API or web interface once written. To use secrets, you define them in `screenly.yml`, but you do not set a value.
 
-From a consumption perspective (i.e. to use them on the device), secrets are exposed the same way as settings. Thus you can't have a secret and a setting by the same name.
+This will output:
 
-The transmission and storage protocols employ enhanced security. Every Screenly device has its unique pair of public/private keys. For the Screenly Player Max, these keys are securely held in its Trusted Platform Module (TPM), which allows the use of robust x509 cryptography. When we send payload to a Screenly Player, we encrypt it using the device's unique public key, ensuring that only the intended device can decrypt it. Furthermore, secrets on the Player Max are fully encrypted on disk using the TPM, making them inaccessible even if the hard drive is compromised.
+```
+Edge app secret successfully set.
+```
 
-For the standard Screenly Player, which doesn't have a TPM, we still utilize robust x509 cryptography with certificates securely stored on disk. While these devices do not offer hardware-level security for stored secrets, our encryption still ensures a high level of protection for your sensitive data.
+### Getting Secrets
 
+To list the current secrets, use the following command:
+
+```shell
+$ screenly edge-app secret list
+```
+
+This will output:
+
+```
++---------+----------+--------------------------+
+| Title   | Optional | Help text                |
++---------+----------+--------------------------+
+| api_key | No       | An example of an API key |
++---------+----------+--------------------------+
+```
+
+### Using Secrets in Your Edge App
+
+Secrets can be used in your HTML or JavaScript files in a similar way to settings:
+
+```html
+[...]
+<head>
+<script src="screenly.js?version=1"></script>
+</head>
+[...]
+<script>
+    document.getElementById("api-key").innerText = screenly.settings.api_key;
+</script>
+[...]
+```
+
+### Security Model
+
+Screenly's secrets function similarly to settings but with enhanced security measures. They are write-only, meaning they cannot be retrieved via the API or web interface once written.
+
+Secrets are defined in `screenly.yml`, but their values are not set within the manifest file. Instead, they are securely managed through the Edge App.
+
+#### Transmission and Storage Security
+
+  * **Screenly Player Max**: Each device has a unique pair of public/private keys stored in a Trusted Platform Module (TPM), allowing the use of x509 cryptography. Payloads sent to a Screenly Player are encrypted with the device's public key, ensuring only the intended device can decrypt it. Secrets are encrypted on disk using the TPM, making them inaccessible even if the hard drive is compromised.
+
+  * **Standard Screenly Player**: While these devices do not have a TPM, they still use x509 cryptography with certificates securely stored on disk. This provides a high level of protection for stored secrets, even without hardware-level security.
+
+Secrets ensure that sensitive data is securely managed and transmitted, providing robust security for your applications.
 
 ---
 
