@@ -237,15 +237,15 @@ where
                  uri,
              }| {
                 match (entrypoint_type, uri) {
-                    (EntrypointType::RemoteLocal, None) => Err(serde::de::Error::custom(
-                        "URI is required for remote-local type",
+                    (EntrypointType::RemoteGlobal, None) => Err(serde::de::Error::custom(
+                        "URI is required for remote-global type",
                     )),
-                    (EntrypointType::RemoteLocal, Some(uri)) => Ok(Entrypoint {
+                    (EntrypointType::RemoteGlobal, Some(uri)) => Ok(Entrypoint {
                         entrypoint_type,
                         uri: Some(uri),
                     }),
-                    (EntrypointType::RemoteGlobal, Some(_)) => Err(serde::de::Error::custom(
-                        "URI should not be provided for remote-global type",
+                    (EntrypointType::RemoteLocal, Some(_)) => Err(serde::de::Error::custom(
+                        "URI should not be provided for remote-local type",
                     )),
                     (EntrypointType::File, Some(_)) => Err(serde::de::Error::custom(
                         "URI should not be provided for file type",

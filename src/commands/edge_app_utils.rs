@@ -1,6 +1,6 @@
 use crate::commands::edge_app::AssetSignature;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
-use crate::commands::edge_app_settings::Setting;
+use crate::commands::edge_app_settings::{Setting, SettingType};
 use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
@@ -180,6 +180,30 @@ pub fn detect_changed_settings(
     if let Some(auth) = &manifest.auth {
         let auth_settings = auth.auth_type.generate_settings(auth.global);
         new_settings.extend(auth_settings);
+    }
+
+    if let Some(_entrypoint) = &manifest.entrypoint {
+        match _entrypoint.entrypoint_type {
+            crate::commands::edge_app_manifest::EntrypointType::RemoteGlobal => {
+                new_settings.push(Setting::new(
+                    SettingType::String,
+                    "Entrypoint",
+                    "screenly_entrypoint",
+                    "The global entrypoint for the app.",
+                    true,
+                ));
+            }
+            crate::commands::edge_app_manifest::EntrypointType::RemoteLocal => {
+                new_settings.push(Setting::new(
+                    SettingType::String,
+                    "Entrypoint",
+                    "screenly_entrypoint",
+                    "The entrypoint for the app.",
+                    false,
+                ));
+            }
+            crate::commands::edge_app_manifest::EntrypointType::File => {}
+        }
     }
 
     let mut creates = Vec::new();
@@ -797,5 +821,68 @@ mod tests {
             .creates
             .iter()
             .any(|s| s.name == "basic_auth_password" && s.is_global));
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_entrypoint_is_remote_should_create_global_setting() {
+        let mut manifest = create_manifest();
+        manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteGlobal,
+            uri: Some("https://global_entrypoint.html".to_string()),
+        });
+
+        let remote_settings = manifest.settings.clone();
+
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 1);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "screenly_entrypoint"
+                && s.is_global
+                && s.type_ == SettingType::String));
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_entrypoint_is_local_should_create_local_setting() {
+        let mut manifest = create_manifest();
+        manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteLocal,
+            uri: Some("https://local_entrypoint.html".to_string()),
+        });
+
+        let remote_settings = manifest.settings.clone();
+
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 1);
+        assert!(changes
+            .creates
+            .iter()
+            .any(|s| s.name == "screenly_entrypoint"
+                && !s.is_global
+                && s.type_ == SettingType::String));
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_entrypoint_is_file_should_not_create_setting() {
+        let mut manifest = create_manifest();
+        manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::File,
+            uri: Some("entrypoint.html".to_string()),
+        });
+
+        let remote_settings = manifest.settings.clone();
+
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 0);
     }
 }

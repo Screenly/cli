@@ -188,12 +188,14 @@ impl EdgeAppCommand {
 
     pub fn deploy(
         self,
-        path: &Path,
+        path: Option<String>,
         app_id: Option<String>,
         delete_missing_settings: Option<bool>,
     ) -> Result<u32, CommandError> {
-        EdgeAppManifest::ensure_manifest_is_valid(path)?;
-        let mut manifest = EdgeAppManifest::new(path)?;
+        let manifest_path = transform_edge_app_path_to_manifest(&path);
+
+        EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
+        let mut manifest = EdgeAppManifest::new(&manifest_path)?;
 
         // override app_id if user passed it
         if let Some(id) = app_id {
@@ -210,7 +212,7 @@ impl EdgeAppCommand {
         let version_metadata_changed =
             self.detect_version_metadata_changes(actual_app_id, &manifest)?;
 
-        let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
+        let edge_app_dir = manifest_path.parent().ok_or(CommandError::MissingField)?;
 
         let local_files = collect_paths_for_upload(edge_app_dir)?;
         ensure_edge_app_has_all_necessary_files(&local_files)?;
@@ -240,6 +242,8 @@ impl EdgeAppCommand {
             actual_app_id.clone(),
             changed_settings,
         )?;
+
+        self.update_entrypoint_value(path)?;
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
@@ -376,6 +380,36 @@ impl EdgeAppCommand {
         Ok(())
     }
 
+    fn update_entrypoint_value(&self, path: Option<String>) -> Result<(), CommandError> {
+        let manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path))?;
+        let setting_key = "screenly_entrypoint";
+
+        if let Some(entrypoint) = &manifest.entrypoint {
+            match entrypoint.entrypoint_type {
+                EntrypointType::RemoteGlobal => {
+                    let setting_value = match entrypoint.uri {
+                        Some(ref uri) => uri.clone(),
+                        None => "".to_owned(),
+                    };
+                    self.set_setting(path, setting_key, &setting_value)?;
+                }
+                EntrypointType::RemoteLocal => {
+                    let instance_manifest = InstanceManifest::new(
+                        &transform_instance_path_to_instance_manifest(&path)?,
+                    )?;
+                    let setting_value = match instance_manifest.entrypoint_uri {
+                        Some(ref uri) => uri.clone(),
+                        None => "".to_owned(),
+                    };
+                    self.set_setting(path, setting_key, &setting_value)?;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
     fn get_version_asset_signatures(
         &self,
         app_id: &str,
@@ -473,11 +507,19 @@ impl EdgeAppCommand {
 
     pub fn set_setting(
         &self,
-        installation_id: &str,
+        path: Option<String>,
         setting_key: &str,
         setting_value: &str,
     ) -> Result<(), CommandError> {
-        let app_id = self.get_app_id_by_installation(installation_id)?;
+        let installation_id = match self.get_installation_id(path.clone()) {
+            Ok(id) => Some(id),
+            Err(_) => None,
+        };
+        let app_id: String = match self.get_app_id(path.clone()) {
+            Ok(id) => id,
+            Err(_) => return Err(CommandError::MissingAppId),
+        };
+
         let _is_setting_global = self.is_setting_global(&app_id, setting_key)?;
 
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -509,20 +551,25 @@ impl EdgeAppCommand {
                 app_id, setting_key,
             );
         } else {
+            let actual_installation_id = match installation_id {
+                Some(id) => id,
+                None => return Err(CommandError::MissingInstallationId),
+            };
+
             setting_url = format!(
                 "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&edge_app_setting_values.installation_id=eq.{}&name=eq.{}&app_id=eq.{}",
-                installation_id, setting_key, app_id
+                actual_installation_id, setting_key, app_id
             );
             settings_values_payload = json!(
                 {
-                    "installation_id": installation_id,
+                    "installation_id": actual_installation_id,
                     "name": setting_key,
                     "value": setting_value,
                 }
             );
             settings_values_patch_url = format!(
                 "v4.1/edge-apps/settings/values?installation_id=eq.{}&name=eq.{}",
-                installation_id, setting_key,
+                actual_installation_id, setting_key,
             );
         }
 
@@ -559,6 +606,12 @@ impl EdgeAppCommand {
             return Ok(());
         }
 
+        if setting.edge_app_setting_values.len() == 1
+            && setting.edge_app_setting_values[0].get("value").unwrap() == setting_value
+        {
+            println!("Setting value is already set to {}", setting_value);
+            return Ok(());
+        }
         commands::patch(
             &self.authentication,
             &settings_values_patch_url,
@@ -725,9 +778,15 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn update_instance(&self, installation_id: &str, path: &Path) -> Result<(), CommandError> {
-        let instance_manifest = InstanceManifest::new(path)?;
-        let server_instance_name = self.get_instance_name(installation_id)?;
+    pub fn update_instance(&self, path: Option<String>) -> Result<(), CommandError> {
+        let instance_manifest =
+            InstanceManifest::new(&transform_instance_path_to_instance_manifest(&path)?)?;
+        let installation_id = match instance_manifest.id {
+            Some(ref id) => id.clone(),
+            None => return Err(CommandError::MissingInstallationId),
+        };
+
+        let server_instance_name = self.get_instance_name(&installation_id)?;
 
         if instance_manifest.name == server_instance_name {
             return Ok(());
@@ -746,6 +805,8 @@ impl EdgeAppCommand {
             &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
             &payload,
         )?;
+
+        self.update_entrypoint_value(path)?;
 
         Ok(())
     }
@@ -1300,6 +1361,14 @@ impl EdgeAppCommand {
             _ => Err(CommandError::MissingInstallationId),
         }
     }
+
+    pub fn get_app_id(&self, path: Option<String>) -> Result<String, CommandError> {
+        let edge_app_manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path))?;
+        match edge_app_manifest.id {
+            Some(id) if !id.is_empty() => Ok(id),
+            _ => Err(CommandError::MissingAppId),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1309,6 +1378,7 @@ mod tests {
     use std::env;
 
     use commands::edge_app_manifest::MANIFEST_VERSION;
+    use commands::instance_manifest;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
     use reqwest::header::Entry;
@@ -1739,23 +1809,6 @@ mod tests {
     fn test_set_setting_should_send_correct_request() {
         let mock_server = MockServer::start();
 
-        let installations_get_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "app_id")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([
-                {
-                    "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-                }
-            ]));
-        });
-
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/settings")
@@ -1765,7 +1818,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("select", "is_global")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
@@ -1790,7 +1843,7 @@ mod tests {
                     "edge_app_setting_values.installation_id",
                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
                 )
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
             then.status(200).json_body(json!([]));
         });
 
@@ -1817,10 +1870,22 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let instance_manifest = create_instance_manifest_for_test();
 
-        let result =
-            command.set_setting(&instance_manifest.id.unwrap(), "best_setting", "best_value");
+        let temp_dir = tempdir().unwrap();
+        InstanceManifest::save_to_file(
+            &instance_manifest,
+            temp_dir.path().join("instance.yml").as_path(),
+        )
+        .unwrap();
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
 
-        installations_get_mock.assert();
+        let result = command.set_setting(
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            "best_setting",
+            "best_value",
+        );
+
         setting_get_is_global_mock.assert();
         setting_mock_get.assert();
         setting_values_mock_post.assert();
@@ -1831,22 +1896,6 @@ mod tests {
     fn test_set_setting_when_setting_value_exists_should_send_correct_update_request() {
         let mock_server = MockServer::start();
 
-        let installations_get_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "app_id")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([
-                {
-                    "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-                }
-            ]));
-        });
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/settings")
@@ -1856,7 +1905,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("select", "is_global")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
@@ -1877,7 +1926,7 @@ mod tests {
                 )
                 .query_param("name", "eq.best_setting")
                 .query_param("select", "name,type,edge_app_setting_values(value)")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param(
                     "edge_app_setting_values.installation_id",
                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
@@ -1919,13 +1968,22 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let instance_manifest = create_instance_manifest_for_test();
 
+        let temp_dir = tempdir().unwrap();
+        InstanceManifest::save_to_file(
+            &instance_manifest,
+            temp_dir.path().join("instance.yml").as_path(),
+        )
+        .unwrap();
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+
         let result = command.set_setting(
-            &instance_manifest.id.unwrap(),
+            Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value1",
         );
 
-        installations_get_mock.assert();
         setting_get_is_global_mock.assert();
         setting_mock_get.assert();
         setting_values_mock_patch.assert();
@@ -1936,23 +1994,6 @@ mod tests {
     fn test_set_global_setting_when_setting_value_exists_should_send_correct_update_request() {
         let mock_server = MockServer::start();
 
-        let installations_get_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "app_id")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([
-                {
-                    "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-                }
-            ]));
-        });
-
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/settings")
@@ -1962,7 +2003,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("select", "is_global")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
@@ -1985,9 +2026,9 @@ mod tests {
                 .query_param("select", "name,type,edge_app_setting_values(value)")
                 .query_param(
                     "edge_app_setting_values.app_id",
-                    "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW",
                 )
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
             then.status(200).json_body(json!([
                 {
                     "name": "best_setting",
@@ -2010,7 +2051,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("name", "eq.best_setting")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .json_body(json!(
                     {
                         "value": "best_value1",
@@ -2022,15 +2063,21 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let instance_manifest = create_instance_manifest_for_test();
+
+        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
 
         let result = command.set_setting(
-            &instance_manifest.id.unwrap(),
+            Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value1",
         );
 
-        installations_get_mock.assert();
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         setting_values_mock_patch.assert();
@@ -2041,22 +2088,6 @@ mod tests {
     fn test_set_global_setting_when_setting_value_not_exists_should_send_correct_create_request() {
         let mock_server = MockServer::start();
 
-        let installations_get_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "app_id")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([
-                {
-                    "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-                }
-            ]));
-        });
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/settings")
@@ -2066,7 +2097,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("select", "is_global")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([
@@ -2088,9 +2119,9 @@ mod tests {
                 .query_param("select", "name,type,edge_app_setting_values(value)")
                 .query_param(
                     "edge_app_setting_values.app_id",
-                    "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW",
                 )
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
             then.status(200).json_body(json!([]));
         });
 
@@ -2106,7 +2137,7 @@ mod tests {
                     {
                         "value": "best_value1",
                         "name": "best_setting",
-                        "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW",
+                        "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
                     }
                 ));
             then.status(200).json_body(json!({}));
@@ -2115,11 +2146,21 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_instance_manifest_for_test();
 
-        let result = command.set_setting(&manifest.id.unwrap(), "best_setting", "best_value1");
+        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
 
-        installations_get_mock.assert();
+        let result = command.set_setting(
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            "best_setting",
+            "best_value1",
+        );
+
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         setting_values_mock_post.assert();
@@ -2130,22 +2171,6 @@ mod tests {
     fn test_set_setting_when_setting_doesnt_exist_should_fail() {
         let mock_server = MockServer::start();
 
-        let installations_get_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "app_id")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([
-                {
-                    "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-                }
-            ]));
-        });
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/settings")
@@ -2155,7 +2180,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("select", "is_global")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("name", "eq.best_setting");
 
             then.status(200).json_body(json!([]));
@@ -2164,11 +2189,21 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_instance_manifest_for_test();
 
-        let result = command.set_setting(&manifest.id.unwrap(), "best_setting", "best_value1");
+        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
 
-        installations_get_mock.assert();
+        let result = command.set_setting(
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            "best_setting",
+            "best_value1",
+        );
+
         setting_get_mock.assert();
         assert!(result.is_err());
         let error = result.unwrap_err();
@@ -2182,22 +2217,6 @@ mod tests {
     fn test_set_setting_with_secret_should_send_correct_request() {
         let mock_server = MockServer::start();
 
-        let installations_get_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "app_id")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([
-                {
-                    "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-                }
-            ]));
-        });
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/settings")
@@ -2207,7 +2226,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("select", "is_global")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("name", "eq.best_secret_setting");
 
             then.status(200).json_body(json!([
@@ -2231,7 +2250,7 @@ mod tests {
                     "edge_app_setting_values.installation_id",
                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
                 )
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
             then.status(200).json_body(json!([
                 {
                     "name": "best_secret_setting",
@@ -2265,13 +2284,22 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let manifest = create_instance_manifest_for_test();
 
+        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
+        InstanceManifest::save_to_file(&manifest, temp_dir.path().join("instance.yml").as_path())
+            .unwrap();
+
         let result = command.set_setting(
-            &manifest.id.unwrap(),
+            Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_secret_setting",
             "best_secret_value",
         );
 
-        installations_get_mock.assert();
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         secrets_values_mock_post.assert();
@@ -2283,22 +2311,6 @@ mod tests {
     fn test_set_global_secrets_should_send_correct_request() {
         let mock_server = MockServer::start();
 
-        let installations_get_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "app_id")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB");
-            then.status(200).json_body(json!([
-                {
-                    "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
-                }
-            ]));
-        });
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/settings")
@@ -2308,7 +2320,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .query_param("select", "is_global")
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("name", "eq.best_secret_setting");
 
             then.status(200).json_body(json!([
@@ -2330,9 +2342,9 @@ mod tests {
                 .query_param("select", "name,type,edge_app_setting_values(value)")
                 .query_param(
                     "edge_app_setting_values.app_id",
-                    "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW",
                 )
-                .query_param("app_id", "eq.02H2QZ6Z8WXWNDC0KQ198XCZEW");
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
             then.status(200).json_body(json!([
                 {
                     "name": "best_secret_setting",
@@ -2356,7 +2368,7 @@ mod tests {
                     {
                         "name": "best_secret_setting",
                         "value": "best_secret_value",
-                        "app_id": "02H2QZ6Z8WXWNDC0KQ198XCZEW"
+                        "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW"
                     }
                 ));
             then.status(204).json_body(json!({}));
@@ -2365,19 +2377,104 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
-        let manifest = create_instance_manifest_for_test();
+
+        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
 
         let result = command.set_setting(
-            &manifest.id.unwrap(),
+            Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_secret_setting",
             "best_secret_value",
         );
 
-        installations_get_mock.assert();
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         secrets_values_mock_post.assert();
         debug!("result: {:?}", result);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_setting_when_value_has_not_changed_should_not_update_it() {
+        let mock_server = MockServer::start();
+
+        let setting_get_is_global_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "is_global")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.best_setting");
+
+            then.status(200).json_body(json!([
+                {
+                    "is_global": false,
+                }
+            ]));
+        });
+
+        // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
+        let setting_mock_get = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("name", "eq.best_setting")
+                .query_param("select", "name,type,edge_app_setting_values(value)")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param(
+                    "edge_app_setting_values.installation_id",
+                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                );
+            then.status(200).json_body(json!([
+                {
+                    "name": "best_setting",
+                    "type": "string",
+                    "edge_app_setting_values": [
+                        {
+                            "value": "best_value"
+                        }
+                    ]
+
+                }
+            ]));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        let instance_manifest = create_instance_manifest_for_test();
+
+        let temp_dir = tempdir().unwrap();
+        InstanceManifest::save_to_file(
+            &instance_manifest,
+            temp_dir.path().join("instance.yml").as_path(),
+        )
+        .unwrap();
+        let manifest = create_edge_app_manifest_for_test(vec![]);
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+
+        let result = command.set_setting(
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            "best_setting",
+            "best_value",
+        );
+
+        setting_get_is_global_mock.assert();
+        setting_mock_get.assert();
         assert!(result.is_ok());
     }
 
@@ -2707,7 +2804,7 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
 
         let result = command.deploy(
-            temp_dir.path().join("screenly.yml").as_path(),
+            Some(temp_dir.path().to_str().unwrap().to_string()),
             None,
             Some(true),
         );
@@ -3279,7 +3376,7 @@ mod tests {
         let authentication = Authentication::new_with_config(config, "token");
         let command = EdgeAppCommand::new(authentication);
         let result = command.deploy(
-            temp_dir.path().join("screenly.yml").as_path(),
+            Some(temp_dir.path().to_str().unwrap().to_string()),
             None,
             Some(true),
         );
@@ -3803,10 +3900,7 @@ mod tests {
                 .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
         });
 
-        let result = command.update_instance(
-            "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-            instance_manifest_path.as_path(),
-        );
+        let result = command.update_instance(Some(temp_dir.path().to_str().unwrap().to_string()));
 
         get_instance_mock.assert();
         update_instance_mock.assert();
@@ -3844,10 +3938,7 @@ mod tests {
             then.status(200).json_body(json!([{"name": "test"}]));
         });
 
-        let result = command.update_instance(
-            "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-            instance_manifest_path.as_path(),
-        );
+        let result = command.update_instance(Some(temp_dir.path().to_str().unwrap().to_string()));
 
         get_instance_mock.assert();
         assert!(result.is_ok());
@@ -3917,5 +4008,279 @@ mod tests {
         println!("{:?}", result);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
+    }
+
+    #[test]
+    fn test_update_entrypoint_value_when_entrypoint_is_global_and_it_is_not_set_should_post_value()
+    {
+        let mock_server = MockServer::start();
+
+        let setting_is_global_get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "is_global")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.screenly_entrypoint");
+
+            then.status(200).json_body(json!([
+                {
+                    "is_global": true,
+                }
+            ]));
+        });
+
+        let setting_mock_get = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("name", "eq.screenly_entrypoint")
+                .query_param("select", "name,type,edge_app_setting_values(value)")
+                .query_param(
+                    "edge_app_setting_values.app_id",
+                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
+            then.status(200).json_body(json!([]));
+        });
+
+        let setting_values_mock_post = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4.1/edge-apps/settings/values")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!(
+                    {
+                        "value": "https://global-entrypoint.com",
+                        "name": "screenly_entrypoint",
+                        "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    }
+                ));
+            then.status(200).json_body(json!({}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let mut edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        edge_app_manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteGlobal,
+            uri: Some("https://global-entrypoint.com".to_string()),
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
+
+        let result =
+            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+
+        setting_is_global_get_mock.assert();
+        setting_mock_get.assert();
+        setting_values_mock_post.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_entrypoint_value_when_entrypoint_is_global_and_setting_is_set_should_patch_it() {
+        let mock_server = MockServer::start();
+
+        let setting_is_global_get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "is_global")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.screenly_entrypoint");
+
+            then.status(200).json_body(json!([
+                {
+                    "is_global": true,
+                }
+            ]));
+        });
+
+        let setting_mock_get = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("name", "eq.screenly_entrypoint")
+                .query_param("select", "name,type,edge_app_setting_values(value)")
+                .query_param(
+                    "edge_app_setting_values.app_id",
+                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
+            then.status(200).json_body(json!([
+                {
+                    "name": "screenly_entrypoint",
+                    "type": "string",
+                    "edge_app_setting_values": [
+                        {
+                            "value": "https://global-entrypoint.com",
+                        }
+                    ]
+                }
+            ]));
+        });
+
+        let setting_values_mock_patch = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4.1/edge-apps/settings/values")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("name", "eq.screenly_entrypoint")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .json_body(json!(
+                    {
+                        "value": "https://new-global-entrypoint.com",
+                    }
+                ));
+            then.status(200).json_body(json!({}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let mut edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        edge_app_manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteGlobal,
+            uri: Some("https://new-global-entrypoint.com".to_string()),
+        });
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
+
+        let result =
+            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+
+        setting_is_global_get_mock.assert();
+        setting_mock_get.assert();
+        setting_values_mock_patch.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_update_entrypoint_value_when_entrypoint_is_local_and_it_is_not_set_should_post_value() {
+        let mock_server = MockServer::start();
+
+        let setting_is_global_get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "is_global")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.screenly_entrypoint");
+
+            then.status(200).json_body(json!([
+                {
+                    "is_global": false,
+                }
+            ]));
+        });
+
+        let setting_mock_get = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("name", "eq.screenly_entrypoint")
+                .query_param("select", "name,type,edge_app_setting_values(value)")
+                .query_param(
+                    "edge_app_setting_values.installation_id",
+                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
+            then.status(200).json_body(json!([]));
+        });
+
+        let setting_values_mock_post = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4.1/edge-apps/settings/values")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!(
+                    {
+                        "value": "https://local-entrypoint.com",
+                        "name": "screenly_entrypoint",
+                        "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                    }
+                ));
+            then.status(200).json_body(json!({}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let mut edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+        edge_app_manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteLocal,
+            uri: None,
+        });
+
+        let mut instance_manifest = create_instance_manifest_for_test();
+        instance_manifest.entrypoint_uri = Some("https://local-entrypoint.com".to_string());
+
+        let temp_dir = tempdir().unwrap();
+        EdgeAppManifest::save_to_file(
+            &edge_app_manifest,
+            temp_dir.path().join("screenly.yml").as_path(),
+        )
+        .unwrap();
+        InstanceManifest::save_to_file(
+            &instance_manifest,
+            temp_dir.path().join("instance.yml").as_path(),
+        )
+        .unwrap();
+
+        let result =
+            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+
+        setting_is_global_get_mock.assert();
+        setting_mock_get.assert();
+        setting_values_mock_post.assert();
+        assert!(result.is_ok());
     }
 }

@@ -870,11 +870,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             app_id,
             delete_missing_settings,
         } => {
-            match edge_app_command.deploy(
-                transform_edge_app_path_to_manifest(path).as_path(),
-                app_id.clone(),
-                *delete_missing_settings,
-            ) {
+            match edge_app_command.deploy(path.clone(), app_id.clone(), *delete_missing_settings) {
                 Ok(revision) => {
                     println!(
                         "Edge app successfully deployed. Revision: {revision}.",
@@ -903,20 +899,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 );
             }
             EdgeAppSettingsCommands::Set { setting_pair, path } => {
-                let actual_installation_id =
-                    match edge_app_command.get_installation_id(path.clone()) {
-                        Ok(_installation_id) => _installation_id,
-                        Err(e) => {
-                            error!("Error calling set setting: {}", e);
-                            std::process::exit(1);
-                        }
-                    };
-
-                match edge_app_command.set_setting(
-                    &actual_installation_id,
-                    &setting_pair.0,
-                    &setting_pair.1,
-                ) {
+                match edge_app_command.set_setting(path.clone(), &setting_pair.0, &setting_pair.1) {
                     Ok(()) => {
                         println!("Edge app setting successfully set.");
                     }
@@ -1124,27 +1107,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
             EdgeAppInstanceCommands::Update { path } => {
-                let actual_installation_id =
-                    match edge_app_command.get_installation_id(path.clone()) {
-                        Ok(_installation_id) => _installation_id,
-                        Err(e) => {
-                            error!("Error calling update setting: {}", e);
-                            std::process::exit(1);
-                        }
-                    };
-
-                let instance_manifest_path =
-                    match transform_instance_path_to_instance_manifest(path) {
-                        Ok(path) => path,
-                        Err(e) => {
-                            eprintln!("Failed to create edge app instance: {e}.");
-                            std::process::exit(1);
-                        }
-                    };
-
-                match edge_app_command
-                    .update_instance(&actual_installation_id, instance_manifest_path.as_path())
-                {
+                match edge_app_command.update_instance(path.clone()) {
                     Ok(()) => {
                         println!("Edge app instance successfully updated.");
                     }
