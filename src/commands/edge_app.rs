@@ -189,7 +189,6 @@ impl EdgeAppCommand {
     pub fn deploy(
         self,
         path: Option<String>,
-        app_id: Option<String>,
         delete_missing_settings: Option<bool>,
     ) -> Result<u32, CommandError> {
         let manifest_path = transform_edge_app_path_to_manifest(&path);
@@ -197,32 +196,25 @@ impl EdgeAppCommand {
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
         let mut manifest = EdgeAppManifest::new(&manifest_path)?;
 
-        // override app_id if user passed it
-        if let Some(id) = app_id {
-            if id.is_empty() {
-                return Err(CommandError::EmptyAppId);
-            }
-            manifest.id = Some(id);
-        }
-        let actual_app_id = match manifest.id {
-            Some(ref id) => id,
-            None => return Err(CommandError::MissingAppId),
+        let actual_app_id = match self.get_app_id(path.clone()) {
+            Ok(id) => id,
+            Err(_) => return Err(CommandError::MissingAppId),
         };
 
         let version_metadata_changed =
-            self.detect_version_metadata_changes(actual_app_id, &manifest)?;
+            self.detect_version_metadata_changes(&actual_app_id, &manifest)?;
 
         let edge_app_dir = manifest_path.parent().ok_or(CommandError::MissingField)?;
 
         let local_files = collect_paths_for_upload(edge_app_dir)?;
         ensure_edge_app_has_all_necessary_files(&local_files)?;
 
-        let revision = match self.get_latest_revision(actual_app_id)? {
+        let revision = match self.get_latest_revision(&actual_app_id)? {
             Some(revision) => revision.revision,
             None => 0,
         };
 
-        let remote_files = self.get_version_asset_signatures(actual_app_id, revision)?;
+        let remote_files = self.get_version_asset_signatures(&actual_app_id, revision)?;
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
@@ -247,7 +239,7 @@ impl EdgeAppCommand {
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
-        let old_file_tree = self.get_file_tree(actual_app_id, revision);
+        let old_file_tree = self.get_file_tree(&actual_app_id, revision);
 
         let file_tree_changed = match old_file_tree {
             Ok(tree) => file_tree != tree,
@@ -266,15 +258,15 @@ impl EdgeAppCommand {
         let revision =
             self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
 
-        self.upload_changed_files(edge_app_dir, actual_app_id, revision, &changed_files)?;
+        self.upload_changed_files(edge_app_dir, &actual_app_id, revision, &changed_files)?;
         debug!("Files uploaded");
 
-        self.ensure_assets_processing_finished(actual_app_id, revision)?;
+        self.ensure_assets_processing_finished(&actual_app_id, revision)?;
         // now we freeze it by publishing it
-        self.publish(actual_app_id, revision)?;
+        self.publish(&actual_app_id, revision)?;
         debug!("Edge app published.");
 
-        self.promote_version(actual_app_id, revision, "stable")?;
+        self.promote_version(&actual_app_id, revision, "stable")?;
 
         Ok(revision)
     }
@@ -2805,7 +2797,6 @@ mod tests {
 
         let result = command.deploy(
             Some(temp_dir.path().to_str().unwrap().to_string()),
-            None,
             Some(true),
         );
 
@@ -3377,7 +3368,6 @@ mod tests {
         let command = EdgeAppCommand::new(authentication);
         let result = command.deploy(
             Some(temp_dir.path().to_str().unwrap().to_string()),
-            None,
             Some(true),
         );
 

@@ -304,10 +304,6 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge App id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
-
         /// Edge App name
         #[arg(short, long)]
         name: String,
@@ -341,10 +337,6 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge App id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
-
         #[arg(short, long)]
         delete_missing_settings: Option<bool>,
     },
@@ -353,10 +345,6 @@ pub enum EdgeAppCommands {
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
-
-        /// Edge App id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
     },
     /// Validates Edge App manifest file
     Validate {
@@ -394,10 +382,6 @@ pub enum EdgeAppSettingsCommands {
 pub enum EdgeAppInstanceCommands {
     /// Lists Edge App instances.
     List {
-        /// Edge app id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
-
         /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
         #[arg(short, long)]
         path: Option<String>,
@@ -408,10 +392,6 @@ pub enum EdgeAppInstanceCommands {
     },
     /// Creates Edge App instance.
     Create {
-        /// Edge app id. If not specified CLI will use the id from the manifest.
-        #[arg(short, long)]
-        app_id: Option<String>,
-
         /// Name of the Edge App instance.
         #[arg(short, long)]
         name: Option<String>,
@@ -867,22 +847,19 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         }
         EdgeAppCommands::Deploy {
             path,
-            app_id,
             delete_missing_settings,
-        } => {
-            match edge_app_command.deploy(path.clone(), app_id.clone(), *delete_missing_settings) {
-                Ok(revision) => {
-                    println!(
-                        "Edge app successfully deployed. Revision: {revision}.",
-                        revision = revision
-                    );
-                }
-                Err(e) => {
-                    eprintln!("Failed to upload edge app: {e}.");
-                    std::process::exit(1);
-                }
+        } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
+            Ok(revision) => {
+                println!(
+                    "Edge app successfully deployed. Revision: {revision}.",
+                    revision = revision
+                );
             }
-        }
+            Err(e) => {
+                eprintln!("Failed to upload edge app: {e}.");
+                std::process::exit(1);
+            }
+        },
         EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List { path, json } => {
                 let actual_installation_id =
@@ -910,8 +887,8 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         },
-        EdgeAppCommands::Delete { path, app_id } => {
-            let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
+        EdgeAppCommands::Delete { path } => {
+            let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                 Ok(id) => id,
                 Err(e) => {
                     error!("Error calling delete Edge App: {}", e);
@@ -937,17 +914,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 Ok(()) => {
                     println!("Edge App Deletion in Progress.\nRequest to delete the Edge App has been received and is now being processed. The deletion is marked for asynchronous handling, so it won't happen instantly.");
                     // If the user didn't specify an app id, we need to clear it from the manifest
-                    if app_id.is_none() {
-                        match edge_app_command
-                            .clear_app_id(transform_edge_app_path_to_manifest(path).as_path())
-                        {
-                            Ok(()) => {
-                                println!("App id cleared from manifest.");
-                            }
-                            Err(e) => {
-                                error!("Error occurred while clearing manifest: {}", e);
-                                std::process::exit(1);
-                            }
+                    match edge_app_command
+                        .clear_app_id(transform_edge_app_path_to_manifest(path).as_path())
+                    {
+                        Ok(()) => {
+                            println!("App id cleared from manifest.");
+                        }
+                        Err(e) => {
+                            error!("Error occurred while clearing manifest: {}", e);
+                            std::process::exit(1);
                         }
                     }
                     std::process::exit(0);
@@ -958,8 +933,8 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             }
         }
-        EdgeAppCommands::Rename { path, app_id, name } => {
-            let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
+        EdgeAppCommands::Rename { path, name } => {
+            let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                 Ok(id) => id,
                 Err(e) => {
                     error!("Error calling delete Edge App: {}", e);
@@ -1023,8 +998,8 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         }
         EdgeAppCommands::Instance(command) => match command {
-            EdgeAppInstanceCommands::List { app_id, path, json } => {
-                let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
+            EdgeAppInstanceCommands::List { path, json } => {
+                let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                     Ok(id) => id,
                     Err(e) => {
                         error!("Error calling list instances: {}", e);
@@ -1036,8 +1011,8 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     json,
                 );
             }
-            EdgeAppInstanceCommands::Create { app_id, path, name } => {
-                let actual_app_id = match edge_app_command.get_actual_app_id(app_id, path) {
+            EdgeAppInstanceCommands::Create { path, name } => {
+                let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                     Ok(id) => id,
                     Err(e) => {
                         error!("Error calling create instance: {}", e);
