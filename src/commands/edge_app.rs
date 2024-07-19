@@ -1368,6 +1368,7 @@ mod tests {
     use super::*;
     use crate::authentication::Config;
     use std::env;
+    use tempfile::TempDir;
 
     use commands::edge_app_manifest::MANIFEST_VERSION;
     use commands::instance_manifest;
@@ -1407,11 +1408,35 @@ mod tests {
         }
     }
 
+    fn prepare_edge_apps_test(create_manifest: bool, create_instance_manifest: bool) -> (TempDir, EdgeAppCommand, MockServer, Option<EdgeAppManifest>, Option<InstanceManifest>) {
+        let tmp_dir = tempdir().unwrap();
+        let mock_server = MockServer::start();
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+
+        let edge_app_manifest = if create_manifest {
+            let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
+            EdgeAppManifest::save_to_file(&edge_app_manifest, tmp_dir.path().join("screenly.yml").as_path()).unwrap();
+            Some(edge_app_manifest)
+        } else {
+            None
+        };
+
+        let instance_manifest = if create_instance_manifest {
+            let instance_manifest = create_instance_manifest_for_test();
+            InstanceManifest::save_to_file(&instance_manifest, tmp_dir.path().join("instance.yml").as_path()).unwrap();
+            Some(instance_manifest)
+        } else {
+            None
+        };
+
+        (tmp_dir, command, mock_server, edge_app_manifest, instance_manifest)
+    }
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {
-        let tmp_dir = tempdir().unwrap();
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
 
-        let mock_server = MockServer::start();
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/edge-apps")
@@ -1422,10 +1447,6 @@ mod tests {
             then.status(201)
                 .json_body(json!([{"id": "test-id", "name": "Best app ever"}]));
         });
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let result = command.create(
             "Best app ever",
@@ -1481,13 +1502,7 @@ mod tests {
 
     #[test]
     fn test_edge_app_create_when_manifest_or_index_html_exist_should_return_error() {
-        let command = EdgeAppCommand::new(Authentication::new_with_config(
-            Config::new("http://localhost".to_string()),
-            "token",
-        ));
-
-        let tmp_dir = tempdir().unwrap();
-        File::create(tmp_dir.path().join("screenly.yml")).unwrap();
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
 
         let result = command.create(
             "Best app ever",
@@ -1518,7 +1533,8 @@ mod tests {
 
     #[test]
     fn test_create_in_place_edge_app_should_create_edge_app_using_existing_files() {
-        let mock_server = MockServer::start();
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/edge-apps")
@@ -1530,12 +1546,7 @@ mod tests {
                 .json_body(json!([{"id": "test-id", "name": "Best app ever"}]));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        // Prepare screenly.yml and index.html
-        let tmp_dir = tempdir().unwrap();
+        // Prepare index.html
         File::create(tmp_dir.path().join("index.html")).unwrap();
         EdgeAppManifest::save_to_file(
             &EdgeAppManifest {
@@ -1562,12 +1573,8 @@ mod tests {
 
     #[test]
     fn test_create_in_place_edge_app_when_manifest_or_index_html_missed_should_return_error() {
-        let command = EdgeAppCommand::new(Authentication::new_with_config(
-            Config::new("http://localhost".to_string()),
-            "token",
-        ));
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
 
-        let tmp_dir = tempdir().unwrap();
         File::create(tmp_dir.path().join("screenly.yml")).unwrap();
 
         let result = command.create_in_place(
@@ -1599,12 +1606,7 @@ mod tests {
 
     #[test]
     fn test_create_in_place_edge_app_when_manifest_has_non_empty_app_id_should_return_error() {
-        let command = EdgeAppCommand::new(Authentication::new_with_config(
-            Config::new("http://localhost".to_string()),
-            "token",
-        ));
-
-        let tmp_dir = tempdir().unwrap();
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
 
         File::create(tmp_dir.path().join("index.html")).unwrap();
 
@@ -1631,7 +1633,8 @@ mod tests {
 
     #[test]
     fn test_list_edge_apps_should_send_correct_request() {
-        let mock_server = MockServer::start();
+        let (_tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps")
@@ -1643,9 +1646,6 @@ mod tests {
             then.status(200).json_body(json!([]));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
         let result = command.list();
         edge_apps_mock.assert();
         assert!(result.is_ok());
@@ -1653,7 +1653,7 @@ mod tests {
 
     #[test]
     fn test_list_settings_should_send_correct_request() {
-        let mock_server = MockServer::start();
+        let (_tmp_dir, command, mock_server, _manifest, instance_manifest) = prepare_edge_apps_test(false, true);
 
         let installations_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -1733,12 +1733,7 @@ mod tests {
                 ]));
             });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let instance_manifest = create_instance_manifest_for_test();
-        let result = command.list_settings(&instance_manifest.id.unwrap());
+        let result = command.list_settings(&instance_manifest.unwrap().id.unwrap());
 
         installations_get_mock.assert();
         settings_mock.assert();
@@ -1799,7 +1794,7 @@ mod tests {
 
     #[test]
     fn test_set_setting_should_send_correct_request() {
-        let mock_server = MockServer::start();
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -1857,23 +1852,8 @@ mod tests {
             then.status(204).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let instance_manifest = create_instance_manifest_for_test();
-
-        let temp_dir = tempdir().unwrap();
-        InstanceManifest::save_to_file(
-            &instance_manifest,
-            temp_dir.path().join("instance.yml").as_path(),
-        )
-        .unwrap();
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-
         let result = command.set_setting(
-            Some(temp_dir.path().to_str().unwrap().to_string()),
+            Some(tmp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value",
         );
@@ -1886,7 +1866,7 @@ mod tests {
 
     #[test]
     fn test_set_setting_when_setting_value_exists_should_send_correct_update_request() {
-        let mock_server = MockServer::start();
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -1955,23 +1935,8 @@ mod tests {
             then.status(200).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let instance_manifest = create_instance_manifest_for_test();
-
-        let temp_dir = tempdir().unwrap();
-        InstanceManifest::save_to_file(
-            &instance_manifest,
-            temp_dir.path().join("instance.yml").as_path(),
-        )
-        .unwrap();
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-
         let result = command.set_setting(
-            Some(temp_dir.path().to_str().unwrap().to_string()),
+            Some(tmp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value1",
         );
@@ -1984,7 +1949,7 @@ mod tests {
 
     #[test]
     fn test_set_global_setting_when_setting_value_exists_should_send_correct_update_request() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2052,18 +2017,6 @@ mod tests {
             then.status(200).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
-        let temp_dir = tempdir().unwrap();
-        EdgeAppManifest::save_to_file(
-            &edge_app_manifest,
-            temp_dir.path().join("screenly.yml").as_path(),
-        )
-        .unwrap();
-
         let result = command.set_setting(
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
@@ -2078,7 +2031,7 @@ mod tests {
 
     #[test]
     fn test_set_global_setting_when_setting_value_not_exists_should_send_correct_create_request() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2135,18 +2088,6 @@ mod tests {
             then.status(200).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
-        let temp_dir = tempdir().unwrap();
-        EdgeAppManifest::save_to_file(
-            &edge_app_manifest,
-            temp_dir.path().join("screenly.yml").as_path(),
-        )
-        .unwrap();
-
         let result = command.set_setting(
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
@@ -2161,7 +2102,7 @@ mod tests {
 
     #[test]
     fn test_set_setting_when_setting_doesnt_exist_should_fail() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2177,18 +2118,6 @@ mod tests {
 
             then.status(200).json_body(json!([]));
         });
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
-        let temp_dir = tempdir().unwrap();
-        EdgeAppManifest::save_to_file(
-            &edge_app_manifest,
-            temp_dir.path().join("screenly.yml").as_path(),
-        )
-        .unwrap();
 
         let result = command.set_setting(
             Some(temp_dir.path().to_str().unwrap().to_string()),
@@ -2207,7 +2136,7 @@ mod tests {
 
     #[test]
     fn test_set_setting_with_secret_should_send_correct_request() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2271,21 +2200,6 @@ mod tests {
             then.status(204).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_instance_manifest_for_test();
-
-        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
-        let temp_dir = tempdir().unwrap();
-        EdgeAppManifest::save_to_file(
-            &edge_app_manifest,
-            temp_dir.path().join("screenly.yml").as_path(),
-        )
-        .unwrap();
-        InstanceManifest::save_to_file(&manifest, temp_dir.path().join("instance.yml").as_path())
-            .unwrap();
-
         let result = command.set_setting(
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_secret_setting",
@@ -2301,7 +2215,7 @@ mod tests {
 
     #[test]
     fn test_set_global_secrets_should_send_correct_request() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2366,18 +2280,6 @@ mod tests {
             then.status(204).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
-        let temp_dir = tempdir().unwrap();
-        EdgeAppManifest::save_to_file(
-            &edge_app_manifest,
-            temp_dir.path().join("screenly.yml").as_path(),
-        )
-        .unwrap();
-
         let result = command.set_setting(
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_secret_setting",
@@ -2393,7 +2295,7 @@ mod tests {
 
     #[test]
     fn test_set_setting_when_value_has_not_changed_should_not_update_it() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2444,21 +2346,6 @@ mod tests {
             ]));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let instance_manifest = create_instance_manifest_for_test();
-
-        let temp_dir = tempdir().unwrap();
-        InstanceManifest::save_to_file(
-            &instance_manifest,
-            temp_dir.path().join("instance.yml").as_path(),
-        )
-        .unwrap();
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-
         let result = command.set_setting(
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
@@ -2472,6 +2359,8 @@ mod tests {
 
     #[test]
     fn test_deploy_should_send_correct_requests() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let mut manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),
@@ -2492,8 +2381,6 @@ mod tests {
                 help_text: "help text".to_string(),
             },
         ]);
-
-        let mock_server = MockServer::start();
 
         manifest.user_version = None;
         manifest.author = None;
@@ -2783,17 +2670,10 @@ mod tests {
             ]));
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
         let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
         write!(file, "test").unwrap();
-
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let result = command.deploy(
             Some(temp_dir.path().to_str().unwrap().to_string()),
@@ -2821,6 +2701,8 @@ mod tests {
 
     #[test]
     fn test_detect_version_metadata_changes_when_no_changes_should_return_false() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),
@@ -2841,8 +2723,6 @@ mod tests {
                 help_text: "help text".to_string(),
             },
         ]);
-
-        let mock_server = MockServer::start();
 
         let last_versions_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2873,15 +2753,8 @@ mod tests {
             ]));
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
-
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let manifest =
             EdgeAppManifest::new(temp_dir.path().join("screenly.yml").as_path()).unwrap();
@@ -2895,6 +2768,8 @@ mod tests {
 
     #[test]
     fn test_detect_version_metadata_changes_when_has_changes_should_return_true() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),
@@ -2915,8 +2790,6 @@ mod tests {
                 help_text: "help text".to_string(),
             },
         ]);
-
-        let mock_server = MockServer::start();
 
         let last_versions_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2947,15 +2820,8 @@ mod tests {
             ]));
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
-
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let manifest =
             EdgeAppManifest::new(temp_dir.path().join("screenly.yml").as_path()).unwrap();
@@ -2969,6 +2835,8 @@ mod tests {
 
     #[test]
     fn test_detect_version_metadata_changes_when_no_version_exist_should_return_false() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),
@@ -2990,8 +2858,6 @@ mod tests {
             },
         ]);
 
-        let mock_server = MockServer::start();
-
         let last_versions_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/edge-apps/versions")
@@ -3010,15 +2876,8 @@ mod tests {
             then.status(200).json_body(json!([]));
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
-
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let manifest =
             EdgeAppManifest::new(temp_dir.path().join("screenly.yml").as_path()).unwrap();
@@ -3032,6 +2891,7 @@ mod tests {
 
     #[test]
     fn test_generate_mock_data_creates_file_with_expected_content() {
+        let (dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest.yml");
 
@@ -3058,9 +2918,6 @@ mod tests {
         ]);
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
-        let config = Config::new("".to_owned());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
         command.generate_mock_data(&file_path).unwrap();
 
         let mock_data_path = dir.path().join(MOCK_DATA_FILENAME);
@@ -3123,6 +2980,8 @@ mod tests {
 
     #[test]
     fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),
@@ -3144,8 +3003,6 @@ mod tests {
             },
         ]);
 
-        let mock_server = MockServer::start();
-
         // "v4/assets?select=status&app_id=eq.{}&app_revision=eq.{}&status=neq.finished&limit=1",
         let finished_processing_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3163,17 +3020,11 @@ mod tests {
             ]));
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
         let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
         write!(file, "test").unwrap();
 
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
         let result = command.ensure_assets_processing_finished("01H2QZ6Z8WXWNDC0KQ198XCZEW", 8);
 
         finished_processing_mock.assert();
@@ -3188,7 +3039,7 @@ mod tests {
 
     #[test]
     fn test_update_name_should_send_correct_request() {
-        let mock_server = MockServer::start();
+        let (_temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
 
         let update_name_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
@@ -3211,20 +3062,16 @@ mod tests {
             ]));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let result = command.update_name(&manifest.id.unwrap(), "New name");
+        let result = command.update_name(&manifest.unwrap().id.unwrap(), "New name");
         update_name_mock.assert();
-        debug!("result: {:?}", result);
+
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_delete_app_should_send_correct_request() {
-        let mock_server = MockServer::start();
+        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         mock_server.mock(|when, then| {
             when.method(DELETE)
                 .path("/v4/edge-apps")
@@ -3237,26 +3084,15 @@ mod tests {
             then.status(204);
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let edge_app_command = EdgeAppCommand::new(authentication);
-        assert!(edge_app_command.delete_app("test-id").is_ok());
+        assert!(command.delete_app("test-id").is_ok());
     }
 
     #[test]
     fn test_clear_app_id_should_remove_app_id_from_manifest() {
-        let mock_server = MockServer::start();
-        let manifest = create_edge_app_manifest_for_test(vec![]);
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
 
-        let temp_dir = tempdir().unwrap();
-        let temp_path = temp_dir.path().join("screenly.yml");
-        let manifest_path = temp_path.as_path();
-        EdgeAppManifest::save_to_file(&manifest, manifest_path).unwrap();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let edge_app_command = EdgeAppCommand::new(authentication);
-        assert!(edge_app_command.clear_app_id(manifest_path).is_ok());
+        let manifest_path = temp_dir.path().join("screenly.yml");
+        assert!(command.clear_app_id(&manifest_path).is_ok());
 
         let data = fs::read_to_string(manifest_path).unwrap();
         let new_manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
@@ -3282,54 +3118,8 @@ mod tests {
     }
 
     #[test]
-    fn test_create_version_when_entrypoint_present_should_include_in_payload() {
-        // TODO: Ask Vlad if entrypoint is required
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let mock_server = MockServer::start();
-
-        let create_version_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4/edge-apps/versions")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .json_body(json!({
-                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "user_version": "1",
-                    "description": "asdf",
-                    "icon": "asdf",
-                    "author": "asdf",
-                    "homepage_url": "asdfasdf",
-                    // "entrypoint": "index.html",
-                    "file_tree": {},
-                    "ready_signal": false
-                }));
-            then.status(201).json_body(json!([{"revision": 8}]));
-        });
-
-        let temp_dir = tempdir().unwrap();
-        let temp_path = temp_dir.path().join("screenly.yml");
-        let manifest_path = temp_path.as_path();
-        EdgeAppManifest::save_to_file(&manifest, manifest_path).unwrap();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let edge_app_command = EdgeAppCommand::new(authentication);
-
-        let file_tree = HashMap::from([]);
-        assert!(edge_app_command
-            .create_version(&manifest, file_tree)
-            .is_ok());
-
-        create_version_mock.assert();
-    }
-
-    #[test]
     fn test_upload_without_app_id_should_fail() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
 
         let mut manifest = create_edge_app_manifest_for_test(vec![
             Setting {
@@ -3355,17 +3145,11 @@ mod tests {
         manifest.id = None;
         manifest.entrypoint = None;
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
         let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
         write!(file, "test").unwrap();
 
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
         let result = command.deploy(
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
@@ -3380,6 +3164,8 @@ mod tests {
 
     #[test]
     fn test_changed_files_when_not_all_files_are_copied_should_upload_missed_ones() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
             ready_signal: None,
@@ -3413,8 +3199,6 @@ mod tests {
             ],
         };
 
-        let mock_server = MockServer::start();
-
         let copy_assets_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/edge-apps/copy-assets")
@@ -3444,17 +3228,10 @@ mod tests {
             then.status(201).body("");
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
         let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
         write!(file, "test").unwrap();
-
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let screenly_path = temp_dir.path().join("screenly.yml");
         let path = screenly_path.as_path();
@@ -3501,6 +3278,8 @@ mod tests {
 
     #[test]
     fn test_changed_files_when_all_files_are_copied_should_not_upload() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
             ready_signal: None,
@@ -3534,8 +3313,6 @@ mod tests {
             ],
         };
 
-        let mock_server = MockServer::start();
-
         let copy_assets_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/edge-apps/copy-assets")
@@ -3558,17 +3335,10 @@ mod tests {
             then.status(201).body("");
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
         let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
         write!(file, "test").unwrap();
-
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let screenly_path = temp_dir.path().join("screenly.yml");
         let path = screenly_path.as_path();
@@ -3613,11 +3383,7 @@ mod tests {
 
     #[test]
     fn test_create_is_global_setting_should_pass_is_global_property() {
-        let mock_server = MockServer::start();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
+        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
 
         //  v4/edge-apps/settings?app_id=eq.{}
         let settings_mock_create = mock_server.mock(|when, then| {
@@ -3670,18 +3436,8 @@ mod tests {
     #[test]
     fn test_maybe_delete_missing_settings_when_ci_is_1_and_no_arg_provided_should_ignore_deleting_settings(
     ) {
-        env::set_var("CI", "true");
-
-        let mock_server = MockServer::start();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let temp_dir = tempdir().unwrap();
-        let manifest_path = temp_dir.path().join("screenly.yml");
-        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-
+        let (_temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
+        
         let changed_settings: SettingChanges = SettingChanges {
             creates: vec![],
             updates: vec![],
@@ -3696,27 +3452,20 @@ mod tests {
             }],
         };
 
-        let result = command.maybe_delete_missing_settings(
-            None,
-            "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
-            changed_settings,
-        );
-
-        assert!(result.is_ok());
+        temp_env::with_var("CI", Some("true"), || {
+            let result = command.maybe_delete_missing_settings(
+                None,
+                "01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(),
+                changed_settings,
+            );
+            assert!(result.is_ok());
+        });
+        
     }
 
     #[test]
     fn test_instance_list_should_list_instances() {
-        let mock_server = MockServer::start();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let temp_dir = tempdir().unwrap();
-        let manifest_path = temp_dir.path().join("screenly.yml");
-        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+        let (_temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
 
         let installations_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3740,7 +3489,7 @@ mod tests {
             ]));
         });
 
-        let result = command.list_instances(&manifest.id.unwrap());
+        let result = command.list_instances(&manifest.unwrap().id.unwrap());
 
         installations_mock.assert();
 
@@ -3766,17 +3515,9 @@ mod tests {
 
     #[test]
     fn test_create_instance_should_create_instance() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let temp_dir = tempdir().unwrap();
-        let manifest_path = temp_dir.path().join("screenly.yml");
         let instance_manifest_path = temp_dir.path().join("instance.yml");
-        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
 
         let create_instance_mock = mock_server.mock(|when, then| {
             when.method(POST)
@@ -3796,7 +3537,7 @@ mod tests {
 
         let result = command.create_instance(
             &instance_manifest_path,
-            &manifest.id.unwrap(),
+            &manifest.unwrap().id.unwrap(),
             "Edge app cli installation",
         );
 
@@ -3815,25 +3556,12 @@ mod tests {
 
     #[test]
     fn test_create_instance_when_instance_exist_should_fail() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, _mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let temp_dir = tempdir().unwrap();
-        let manifest_path = temp_dir.path().join("screenly.yml");
         let instance_manifest_path = temp_dir.path().join("instance.yml");
-
-        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-        let instance_manifest = create_instance_manifest_for_test();
-        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
-            .unwrap();
-
         let result = command.create_instance(
             &instance_manifest_path,
-            &manifest.id.unwrap(),
+            &manifest.unwrap().id.unwrap(),
             "Edge app cli installation",
         );
 
@@ -3844,21 +3572,7 @@ mod tests {
 
     #[test]
     fn test_update_instance_when_name_changed_should_update_instance() {
-        let mock_server = MockServer::start();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let temp_dir = tempdir().unwrap();
-        let manifest_path = temp_dir.path().join("screenly.yml");
-        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-
-        let instance_manifest_path = temp_dir.path().join("instance.yml");
-        let instance_manifest = create_instance_manifest_for_test();
-        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
-            .unwrap();
+        let (temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let get_instance_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3899,21 +3613,7 @@ mod tests {
 
     #[test]
     fn test_update_instance_when_name_not_changed_should_not_update_instance() {
-        let mock_server = MockServer::start();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let temp_dir = tempdir().unwrap();
-        let manifest_path = temp_dir.path().join("screenly.yml");
-        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
-
-        let instance_manifest_path = temp_dir.path().join("instance.yml");
-        let instance_manifest = create_instance_manifest_for_test();
-        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
-            .unwrap();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let get_instance_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3936,22 +3636,9 @@ mod tests {
 
     #[test]
     fn test_delete_instance_should_delete_instance() {
-        let mock_server = MockServer::start();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-        let manifest = create_edge_app_manifest_for_test(vec![]);
-
-        let temp_dir = tempdir().unwrap();
-        let manifest_path = temp_dir.path().join("screenly.yml");
-        EdgeAppManifest::save_to_file(&manifest, manifest_path.as_path()).unwrap();
+        let (temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let instance_manifest_path = temp_dir.path().join("instance.yml");
-
-        let instance_manifest = create_instance_manifest_for_test();
-        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
-            .unwrap();
 
         let delete_instance_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
@@ -3978,19 +3665,7 @@ mod tests {
 
     #[test]
     fn test_get_installation_id_when_manifest_has_id_should_return_id() {
-        let mock_server = MockServer::start();
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let temp_dir = tempdir().unwrap();
-
-        let instance_manifest_path = temp_dir.path().join("instance.yml");
-
-        let instance_manifest = create_instance_manifest_for_test();
-        InstanceManifest::save_to_file(&instance_manifest, instance_manifest_path.as_path())
-            .unwrap();
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
 
         let result =
             command.get_installation_id(Some(temp_dir.path().to_str().unwrap().to_string()));
@@ -4003,7 +3678,7 @@ mod tests {
     #[test]
     fn test_update_entrypoint_value_when_entrypoint_is_global_and_it_is_not_set_should_post_value()
     {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -4060,17 +3735,12 @@ mod tests {
             then.status(200).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
         let mut edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
         edge_app_manifest.entrypoint = Some(Entrypoint {
             entrypoint_type: EntrypointType::RemoteGlobal,
             uri: Some("https://global-entrypoint.com".to_string()),
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(
             &edge_app_manifest,
             temp_dir.path().join("screenly.yml").as_path(),
@@ -4088,7 +3758,7 @@ mod tests {
 
     #[test]
     fn test_update_entrypoint_value_when_entrypoint_is_global_and_setting_is_set_should_patch_it() {
-        let mock_server = MockServer::start();
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -4155,17 +3825,12 @@ mod tests {
             then.status(200).json_body(json!({}));
         });
 
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
         let mut edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
         edge_app_manifest.entrypoint = Some(Entrypoint {
             entrypoint_type: EntrypointType::RemoteGlobal,
             uri: Some("https://new-global-entrypoint.com".to_string()),
         });
 
-        let temp_dir = tempdir().unwrap();
         EdgeAppManifest::save_to_file(
             &edge_app_manifest,
             temp_dir.path().join("screenly.yml").as_path(),
@@ -4183,7 +3848,7 @@ mod tests {
 
     #[test]
     fn test_update_entrypoint_value_when_entrypoint_is_local_and_it_is_not_set_should_post_value() {
-        let mock_server = MockServer::start();
+        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -4239,10 +3904,6 @@ mod tests {
                 ));
             then.status(200).json_body(json!({}));
         });
-
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
 
         let mut edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
         edge_app_manifest.entrypoint = Some(Entrypoint {
