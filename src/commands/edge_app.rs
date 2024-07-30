@@ -62,8 +62,6 @@ pub struct EdgeAppVersion {
     #[serde(default)]
     pub author: Option<String>,
     #[serde(default)]
-    pub entrypoint: Option<String>,
-    #[serde(default)]
     pub homepage_url: Option<String>,
     #[serde(default)]
     pub ready_signal: bool,
@@ -911,7 +909,7 @@ impl EdgeAppCommand {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/versions?select=user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal&app_id=eq.{}&order=revision.desc&limit=1",
+                "v4.1/edge-apps/versions?select=user_version,description,icon,author,homepage_url,revision,ready_signal&app_id=eq.{}&order=revision.desc&limit=1",
                 app_id
             ),
         )?;
@@ -1311,12 +1309,6 @@ impl EdgeAppCommand {
                     description: manifest.description.clone(),
                     icon: manifest.icon.clone(),
                     author: manifest.author.clone(),
-                    entrypoint: manifest
-                        .entrypoint
-                        .clone()
-                        .and_then(|ep| ep.uri)
-                        .or(Some("index.html".to_owned()))
-                        .clone(),
                     homepage_url: manifest.homepage_url.clone(),
                     revision: _version.revision,
                 }),
@@ -2409,7 +2401,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal",
+                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2420,7 +2412,6 @@ mod tests {
                     "description": "desc",
                     "icon": "icon",
                     "author": "author",
-                    "entrypoint": "entrypoint",
                     "homepage_url": "homepage_url",
                     "ready_signal": false,
                     "revision": 7,
@@ -2734,7 +2725,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal"
+                    "user_version,description,icon,author,homepage_url,revision,ready_signal"
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2745,7 +2736,6 @@ mod tests {
                     "description": "asdf",
                     "icon": "asdf",
                     "author": "asdf",
-                    "entrypoint": "index.html",
                     "homepage_url": "asdfasdf",
                     "ready_signal": false,
                     "revision": 1
@@ -2801,7 +2791,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal",
+                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2812,7 +2802,6 @@ mod tests {
                     "description": "description",
                     "icon": "another_icon",
                     "author": "asdf",
-                    "entrypoint": "entrypoint.html",
                     "homepage_url": "asdfasdf",
                     "ready_signal": false,
                     "revision": 1,
@@ -2868,7 +2857,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,entrypoint,homepage_url,revision,ready_signal",
+                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
