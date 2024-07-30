@@ -885,4 +885,76 @@ mod tests {
         let changes = result.unwrap();
         assert_eq!(changes.creates.len(), 0);
     }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_should_return_current_dir_with_()
+    {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let result = transform_instance_path_to_instance_manifest(&None);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir_path.join("instance.yml"));
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_when_path_provided_should_return_path_with_instance_manifest(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let dir2 = tempdir().unwrap();
+        let dir_path2 = dir2.path();
+
+        let result = transform_instance_path_to_instance_manifest(&Some(
+            dir_path2.to_str().unwrap().to_string(),
+        ));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir_path2.join("instance.yml"));
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_when_path_provided_is_not_a_dir_should_fail(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let result =
+            transform_instance_path_to_instance_manifest(&Some("instance2.yml".to_string()));
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Path is not a directory: instance2.yml"
+        );
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_with_env_instance_override_should_return_overrided_manifest_path(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+        temp_env::with_var(INSTANCE_FILE_NAME_ENV, Some("instance2.yml"), || {
+            let result = transform_instance_path_to_instance_manifest(&None);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), dir_path.join("instance2.yml"));
+        });
+    }
+
+    #[test]
+    fn test_transform_edge_app_instance_path_to_instance_manifest_with_env_path_instead_of_file_should_fail(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        temp_env::with_var(INSTANCE_FILE_NAME_ENV, Some("folder/instance2.yml"), || {
+            let result = transform_instance_path_to_instance_manifest(&None);
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().to_string(), "Env var INSTANCE_FILENAME must hold only file name, not a path. folder/instance2.yml");
+        });
+    }
 }
