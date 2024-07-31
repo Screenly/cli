@@ -206,6 +206,8 @@ pub fn detect_changed_settings(
         }
     }
 
+    new_settings.sort_by_key(|s| s.name.clone());
+
     let mut creates = Vec::new();
     let mut updates = Vec::new();
     let mut deleted: Vec<Setting> = Vec::new();
@@ -844,6 +846,39 @@ mod tests {
             .any(|s| s.name == "screenly_entrypoint"
                 && s.is_global
                 && s.type_ == SettingType::String));
+    }
+
+    #[test]
+    fn test_detect_changed_settings_when_entrypoint_setting_exist_in_remote_should_not_create_global_setting() {
+        let mut manifest = create_manifest();
+        manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteGlobal,
+            uri: Some("https://global_entrypoint.html".to_string()),
+        });
+
+        manifest.settings.push(Setting::new(
+            SettingType::String,
+            "SortedTest",
+            "t_sorted_after_entrypoint",
+            "Sorted after entrypoint setting.",
+            true,
+        ));
+
+        let mut remote_settings = manifest.settings.clone();
+        remote_settings.push(Setting::new(
+            SettingType::String,
+            "screenly_entrypoint",
+            "screenly_entrypoint",
+            "The global entrypoint for the app.",
+            true,
+        ));
+        remote_settings.sort_by_key(|s| s.name.clone());
+
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.creates.len(), 0);
     }
 
     #[test]
