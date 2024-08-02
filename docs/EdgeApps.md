@@ -292,7 +292,43 @@ To use the settings in your Edge App, include them in your HTML or JavaScript fi
 Settings are key-value pairs that users installing the app must provide at install time and can later edit.
 
 ---
+## Global Branding Settings
+Global Branding Settings is a feature, developed to provide related visual identity information, via fetching the information from the public customer web site automatically, based on their email domain. This feature is available automatically for every Edge App. Nothing special has to be done by the developer to get following settings.
 
+### Branding Settings List
+* screenly_color_accent
+* screenly_color_light
+* screenly_logo_light
+
+#### screenly_color_accent
+
+This is the accent color of the customers brand.
+
+| Setting | Example Value
+| --------| -------------
+| screenly_color_accent | #972eff |
+
+#### screenly_color_light
+
+This is the base color based on light theme.
+
+| Setting | Example Value
+| --------| -------------
+| screenly_color_light | #adafbe
+
+#### screenly_logo_light
+
+This is the company logo based on light theme.
+
+| Setting | Example Value
+| --------| -------------
+| screenly_logo_light | https://us-assets.screenlyapp.com/1dp2TKWzR0BCB38bI170Xf
+
+### Notes on Branding Settings
+
+These settings are available to the Edge App like the usual settings. But they cannot be listed, fetched, changed with CLI.
+
+---
 ## Secrets
 
 ### Defining a Secret
