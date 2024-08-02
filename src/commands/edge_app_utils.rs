@@ -1,6 +1,7 @@
 use crate::commands::edge_app::AssetSignature;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_settings::{Setting, SettingType};
+use crate::commands::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
 use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
@@ -256,6 +257,38 @@ pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<St
     debug!("File tree: {:?}", &tree);
 
     tree
+}
+
+pub fn validate_manifests_dependacies(
+    manifest: &EdgeAppManifest,
+    instance_manifest: &InstanceManifest,
+) -> Result<(), CommandError> {
+    if let Some(entrypoint) = &manifest.entrypoint {
+        match entrypoint.entrypoint_type {
+            crate::commands::edge_app_manifest::EntrypointType::RemoteLocal => {
+                if instance_manifest.entrypoint_uri.is_none() {
+                    return Err(CommandError::InvalidManifest(
+                        "entrypoint_uri must be set for remote local entrypoint".to_owned(),
+                    ));
+                }
+            }
+            _ => {
+                if instance_manifest.entrypoint_uri.is_some() {
+                    return Err(CommandError::InvalidManifest(
+                        "entrypoint_uri must not be set when entrypoint is not remote local"
+                            .to_owned(),
+                    ));
+                }
+            }
+        }
+    } else {
+        if instance_manifest.entrypoint_uri.is_some() {
+            return Err(CommandError::InvalidManifest(
+                "entrypoint_uri must not be set when entrypoint is not set".to_owned(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -849,7 +882,8 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_changed_settings_when_entrypoint_setting_exist_in_remote_should_not_create_global_setting() {
+    fn test_detect_changed_settings_when_entrypoint_setting_exist_in_remote_should_not_create_global_setting(
+    ) {
         let mut manifest = create_manifest();
         manifest.entrypoint = Some(Entrypoint {
             entrypoint_type: EntrypointType::RemoteGlobal,
@@ -991,5 +1025,109 @@ mod tests {
             assert!(result.is_err());
             assert_eq!(result.unwrap_err().to_string(), "Env var INSTANCE_FILENAME must hold only file name, not a path. folder/instance2.yml");
         });
+    }
+
+    #[test]
+    fn test_validate_manifests_dependacies_when_entrypoint_type_is_not_remote_local_and_entrypoint_uri_is_set_should_fail(
+    ) {
+        let mut manifest = EdgeAppManifest {
+            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            auth: None,
+            syntax: MANIFEST_VERSION.to_owned(),
+            ready_signal: None,
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: None,
+            }),
+            settings: vec![],
+        };
+
+        let instance_manifest = InstanceManifest {
+            entrypoint_uri: Some("entrypoint.html".to_string()),
+            syntax: INSTANCE_MANIFEST_VERSION.to_owned(),
+            id: Some("01B2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            name: "instance".to_string(),
+        };
+
+        let result = validate_manifests_dependacies(&manifest, &instance_manifest);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Manifest file validation failed with error: entrypoint_uri must not be set when entrypoint is not remote local");
+
+        manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteGlobal,
+            uri: None,
+        });
+
+        let result = validate_manifests_dependacies(&manifest, &instance_manifest);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Manifest file validation failed with error: entrypoint_uri must not be set when entrypoint is not remote local");
+    }
+
+    #[test]
+    fn test_validate_manifests_dependacies_when_entrypoint_type_is_remote_local_and_entrypoint_uri_is_not_set_should_fail(
+    ) {
+        let manifest = EdgeAppManifest {
+            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            auth: None,
+            syntax: MANIFEST_VERSION.to_owned(),
+            ready_signal: None,
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::RemoteLocal,
+                uri: None,
+            }),
+            settings: vec![],
+        };
+
+        let instance_manifest = InstanceManifest {
+            entrypoint_uri: None,
+            syntax: INSTANCE_MANIFEST_VERSION.to_owned(),
+            id: Some("01B2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            name: "instance".to_string(),
+        };
+
+        let result = validate_manifests_dependacies(&manifest, &instance_manifest);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Manifest file validation failed with error: entrypoint_uri must be set for remote local entrypoint");
+    }
+
+    #[test]
+    fn test_validate_manifests_dependacies_when_entrypoint_type_is_remote_local_and_entrypoint_uri_is_set_should_succeed(
+    ) {
+        let manifest = EdgeAppManifest {
+            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            auth: None,
+            syntax: MANIFEST_VERSION.to_owned(),
+            ready_signal: None,
+            user_version: Some("1".to_string()),
+            description: Some("asdf".to_string()),
+            icon: Some("asdf".to_string()),
+            author: Some("asdf".to_string()),
+            homepage_url: Some("asdfasdf".to_string()),
+            entrypoint: Some(Entrypoint {
+                entrypoint_type: EntrypointType::RemoteLocal,
+                uri: None,
+            }),
+            settings: vec![],
+        };
+
+        let instance_manifest = InstanceManifest {
+            entrypoint_uri: Some("https://remote-local.com".to_string()),
+            syntax: INSTANCE_MANIFEST_VERSION.to_owned(),
+            id: Some("01B2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            name: "instance".to_string(),
+        };
+
+        let result = validate_manifests_dependacies(&manifest, &instance_manifest);
+        assert!(result.is_ok());
     }
 }

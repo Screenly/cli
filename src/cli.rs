@@ -15,7 +15,9 @@ use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
 use crate::commands::edge_app_utils::{
     transform_edge_app_path_to_manifest, transform_instance_path_to_instance_manifest,
+    validate_manifests_dependacies,
 };
+use crate::commands::instance_manifest::InstanceManifest;
 use crate::commands::playlist::PlaylistCommand;
 use crate::commands::{CommandError, Formatter, OutputType, PlaylistFile};
 const DEFAULT_ASSET_DURATION: u32 = 15;
@@ -990,6 +992,48 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             match EdgeAppManifest::ensure_manifest_is_valid(&manifest_path) {
                 Ok(()) => {
                     println!("Manifest file is valid.");
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+            let instance_manifest_path = match transform_instance_path_to_instance_manifest(path) {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Failed to validate edge app instance file path: {e}.");
+                    std::process::exit(1);
+                }
+            };
+
+            match InstanceManifest::ensure_manifest_is_valid(&instance_manifest_path) {
+                Ok(()) => {
+                    println!("Instance manifest file is valid.");
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+
+            let manifest = match EdgeAppManifest::new(&manifest_path) {
+                Ok(manifest) => manifest,
+                Err(e) => {
+                    eprintln!("Failed to validate edge app manifest file: {e}.");
+                    std::process::exit(1);
+                }
+            };
+            let instance_manifest = match InstanceManifest::new(&instance_manifest_path) {
+                Ok(manifest) => manifest,
+                Err(e) => {
+                    eprintln!("Failed to validate edge app instance manifest file: {e}.");
+                    std::process::exit(1);
+                }
+            };
+
+            match validate_manifests_dependacies(&manifest, &instance_manifest) {
+                Ok(()) => {
+                    println!("Manifests dependancies are valid.");
                 }
                 Err(e) => {
                     eprintln!("{e}");
