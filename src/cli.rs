@@ -1006,6 +1006,11 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             };
 
+            if !instance_manifest_path.exists() {
+                println!("Instance manifest file does not exist.");
+                std::process::exit(0);
+            }
+
             match InstanceManifest::ensure_manifest_is_valid(&instance_manifest_path) {
                 Ok(()) => {
                     println!("Instance manifest file is valid.");
