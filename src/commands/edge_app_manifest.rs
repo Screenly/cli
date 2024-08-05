@@ -760,7 +760,7 @@ settings:
         let file_path = write_to_tempfile(&dir, file_name, content);
         let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains( 
+        assert!(result.unwrap_err().to_string().contains(
             "Setting \"screenly_setting\" cannot start with \"screenly_\" as this prefix is preserved."
         ));
     }
