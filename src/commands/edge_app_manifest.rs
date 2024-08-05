@@ -742,6 +742,30 @@ settings:
     }
 
     #[test]
+    fn test_ensure_manifest_is_valid_when_setting_starts_with_predefined_string_should_fail() {
+        let dir = tempdir().unwrap();
+        let file_name = "screenly.yml";
+        let content = r#"---
+syntax: manifest_v1
+id: test_app
+settings:
+  screenly_setting:
+    type: string
+    default_value: stranger
+    title: some_setting
+    optional: true
+    help_text: An example of a setting that is used in index.html
+"#;
+
+        let file_path = write_to_tempfile(&dir, file_name, content);
+        let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains( 
+            "Setting \"screenly_setting\" cannot start with \"screenly_\" as this prefix is preserved."
+        ));
+    }
+
+    #[test]
     fn test_save_manifest_to_file_with_is_global_true_should_save_yaml_correctly() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");

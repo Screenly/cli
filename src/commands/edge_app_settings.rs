@@ -88,6 +88,12 @@ where
                 setting.name
             )));
         }
+        if setting.name.starts_with("screenly_") {
+            return Err(serde::de::Error::custom(format!(
+                "Setting \"{}\" cannot start with \"screenly_\" as this prefix is preserved.",
+                setting.name
+            )));
+        }
     }
 
     settings.sort_by_key(|s| s.name.clone());
