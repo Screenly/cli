@@ -192,7 +192,7 @@ impl EdgeAppCommand {
         let manifest_path = transform_edge_app_path_to_manifest(&path);
 
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
-        let mut manifest = EdgeAppManifest::new(&manifest_path)?;
+        let manifest = EdgeAppManifest::new(&manifest_path)?;
 
         let actual_app_id = match self.get_app_id(path.clone()) {
             Ok(id) => id,
@@ -725,13 +725,10 @@ impl EdgeAppCommand {
         name: &str,
     ) -> Result<String, CommandError> {
         // Though we could either allow --force to re-create it or --new to create a new instance w/o writing to instance.yml
-        match InstanceManifest::new(path) {
-            Ok(manifest) => {
-                if manifest.id.is_some() {
-                    return Err(CommandError::InstanceAlreadyExists);
-                }
+        if let Ok(manifest) = InstanceManifest::new(path) {
+            if manifest.id.is_some() {
+                return Err(CommandError::InstanceAlreadyExists);
             }
-            Err(_) => {}
         }
 
         let installation_id = self.install_edge_app(app_id, name, None)?;
@@ -1309,27 +1306,6 @@ impl EdgeAppCommand {
         }
     }
 
-    pub fn get_actual_app_id(
-        &self,
-        app_id: &Option<String>,
-        path: &Option<String>,
-    ) -> Result<String, CommandError> {
-        match app_id {
-            Some(id) if id.is_empty() => Err(CommandError::EmptyAppId),
-            Some(id) => Ok(id.clone()),
-            None => {
-                let manifest_path = transform_edge_app_path_to_manifest(path);
-                EdgeAppManifest::ensure_manifest_is_valid(manifest_path.as_path())?;
-
-                let manifest = EdgeAppManifest::new(manifest_path.as_path())?;
-                match manifest.id {
-                    Some(id) if !id.is_empty() => Ok(id),
-                    _ => Err(CommandError::MissingAppId),
-                }
-            }
-        }
-    }
-
     pub fn get_installation_id(&self, path: Option<String>) -> Result<String, CommandError> {
         let instance_manifest =
             InstanceManifest::new(&transform_instance_path_to_instance_manifest(&path)?)?;
@@ -1356,10 +1332,8 @@ mod tests {
     use tempfile::TempDir;
 
     use commands::edge_app_manifest::MANIFEST_VERSION;
-    use commands::instance_manifest;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
-    use reqwest::header::Entry;
 
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
     use crate::commands::edge_app_utils::EdgeAppFile;
@@ -1393,7 +1367,16 @@ mod tests {
         }
     }
 
-    fn prepare_edge_apps_test(create_manifest: bool, create_instance_manifest: bool) -> (TempDir, EdgeAppCommand, MockServer, Option<EdgeAppManifest>, Option<InstanceManifest>) {
+    fn prepare_edge_apps_test(
+        create_manifest: bool,
+        create_instance_manifest: bool,
+    ) -> (
+        TempDir,
+        EdgeAppCommand,
+        MockServer,
+        Option<EdgeAppManifest>,
+        Option<InstanceManifest>,
+    ) {
         let tmp_dir = tempdir().unwrap();
         let mock_server = MockServer::start();
         let config = Config::new(mock_server.base_url());
@@ -1402,7 +1385,11 @@ mod tests {
 
         let edge_app_manifest = if create_manifest {
             let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
-            EdgeAppManifest::save_to_file(&edge_app_manifest, tmp_dir.path().join("screenly.yml").as_path()).unwrap();
+            EdgeAppManifest::save_to_file(
+                &edge_app_manifest,
+                tmp_dir.path().join("screenly.yml").as_path(),
+            )
+            .unwrap();
             Some(edge_app_manifest)
         } else {
             None
@@ -1410,17 +1397,28 @@ mod tests {
 
         let instance_manifest = if create_instance_manifest {
             let instance_manifest = create_instance_manifest_for_test();
-            InstanceManifest::save_to_file(&instance_manifest, tmp_dir.path().join("instance.yml").as_path()).unwrap();
+            InstanceManifest::save_to_file(
+                &instance_manifest,
+                tmp_dir.path().join("instance.yml").as_path(),
+            )
+            .unwrap();
             Some(instance_manifest)
         } else {
             None
         };
 
-        (tmp_dir, command, mock_server, edge_app_manifest, instance_manifest)
+        (
+            tmp_dir,
+            command,
+            mock_server,
+            edge_app_manifest,
+            instance_manifest,
+        )
     }
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {
-        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
@@ -1487,7 +1485,8 @@ mod tests {
 
     #[test]
     fn test_edge_app_create_when_manifest_or_index_html_exist_should_return_error() {
-        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
 
         let result = command.create(
             "Best app ever",
@@ -1518,7 +1517,8 @@ mod tests {
 
     #[test]
     fn test_create_in_place_edge_app_should_create_edge_app_using_existing_files() {
-        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
@@ -1558,7 +1558,8 @@ mod tests {
 
     #[test]
     fn test_create_in_place_edge_app_when_manifest_or_index_html_missed_should_return_error() {
-        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         File::create(tmp_dir.path().join("screenly.yml")).unwrap();
 
@@ -1591,7 +1592,8 @@ mod tests {
 
     #[test]
     fn test_create_in_place_edge_app_when_manifest_has_non_empty_app_id_should_return_error() {
-        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         File::create(tmp_dir.path().join("index.html")).unwrap();
 
@@ -1618,7 +1620,8 @@ mod tests {
 
     #[test]
     fn test_list_edge_apps_should_send_correct_request() {
-        let (_tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (_tmp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -1638,7 +1641,8 @@ mod tests {
 
     #[test]
     fn test_list_settings_should_send_correct_request() {
-        let (_tmp_dir, command, mock_server, _manifest, instance_manifest) = prepare_edge_apps_test(false, true);
+        let (_tmp_dir, command, mock_server, _manifest, instance_manifest) =
+            prepare_edge_apps_test(false, true);
 
         let installations_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -1779,7 +1783,8 @@ mod tests {
 
     #[test]
     fn test_set_setting_should_send_correct_request() {
-        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -1851,7 +1856,8 @@ mod tests {
 
     #[test]
     fn test_set_setting_when_setting_value_exists_should_send_correct_update_request() {
-        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -1934,7 +1940,8 @@ mod tests {
 
     #[test]
     fn test_set_global_setting_when_setting_value_exists_should_send_correct_update_request() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2016,7 +2023,8 @@ mod tests {
 
     #[test]
     fn test_set_global_setting_when_setting_value_not_exists_should_send_correct_create_request() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2087,7 +2095,8 @@ mod tests {
 
     #[test]
     fn test_set_setting_when_setting_doesnt_exist_should_fail() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2121,7 +2130,8 @@ mod tests {
 
     #[test]
     fn test_set_setting_with_secret_should_send_correct_request() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2200,7 +2210,8 @@ mod tests {
 
     #[test]
     fn test_set_global_secrets_should_send_correct_request() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2280,7 +2291,8 @@ mod tests {
 
     #[test]
     fn test_set_setting_when_value_has_not_changed_should_not_update_it() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -2344,7 +2356,8 @@ mod tests {
 
     #[test]
     fn test_deploy_should_send_correct_requests() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let mut manifest = create_edge_app_manifest_for_test(vec![
             Setting {
@@ -2685,7 +2698,8 @@ mod tests {
 
     #[test]
     fn test_detect_version_metadata_changes_when_no_changes_should_return_false() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
@@ -2718,7 +2732,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,homepage_url,revision,ready_signal"
+                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -2751,7 +2765,8 @@ mod tests {
 
     #[test]
     fn test_detect_version_metadata_changes_when_has_changes_should_return_true() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
@@ -2817,7 +2832,8 @@ mod tests {
 
     #[test]
     fn test_detect_version_metadata_changes_when_no_version_exist_should_return_false() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
@@ -2873,7 +2889,8 @@ mod tests {
 
     #[test]
     fn test_generate_mock_data_creates_file_with_expected_content() {
-        let (dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest.yml");
 
@@ -2962,7 +2979,8 @@ mod tests {
 
     #[test]
     fn test_ensure_assets_processing_finished_when_processing_failed_should_return_error() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
@@ -3021,7 +3039,8 @@ mod tests {
 
     #[test]
     fn test_update_name_should_send_correct_request() {
-        let (_temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
+        let (_temp_dir, command, mock_server, manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
 
         let update_name_mock = mock_server.mock(|when, then| {
             when.method(PATCH)
@@ -3052,7 +3071,8 @@ mod tests {
 
     #[test]
     fn test_delete_app_should_send_correct_request() {
-        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         mock_server.mock(|when, then| {
             when.method(DELETE)
@@ -3071,7 +3091,8 @@ mod tests {
 
     #[test]
     fn test_clear_app_id_should_remove_app_id_from_manifest() {
-        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
 
         let manifest_path = temp_dir.path().join("screenly.yml");
         assert!(command.clear_app_id(&manifest_path).is_ok());
@@ -3101,7 +3122,8 @@ mod tests {
 
     #[test]
     fn test_upload_without_app_id_should_fail() {
-        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let mut manifest = create_edge_app_manifest_for_test(vec![
             Setting {
@@ -3140,13 +3162,14 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "App id is required. Either in manifest or with --app-id."
+            "App id is required in manifest."
         );
     }
 
     #[test]
     fn test_changed_files_when_not_all_files_are_copied_should_upload_missed_ones() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
@@ -3260,7 +3283,8 @@ mod tests {
 
     #[test]
     fn test_changed_files_when_all_files_are_copied_should_not_upload() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
@@ -3365,7 +3389,8 @@ mod tests {
 
     #[test]
     fn test_create_is_global_setting_should_pass_is_global_property() {
-        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
+        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
 
         //  v4/edge-apps/settings?app_id=eq.{}
         let settings_mock_create = mock_server.mock(|when, then| {
@@ -3418,8 +3443,9 @@ mod tests {
     #[test]
     fn test_maybe_delete_missing_settings_when_ci_is_1_and_no_arg_provided_should_ignore_deleting_settings(
     ) {
-        let (_temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
-        
+        let (_temp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
+
         let changed_settings: SettingChanges = SettingChanges {
             creates: vec![],
             updates: vec![],
@@ -3442,12 +3468,12 @@ mod tests {
             );
             assert!(result.is_ok());
         });
-        
     }
 
     #[test]
     fn test_instance_list_should_list_instances() {
-        let (_temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
+        let (_temp_dir, command, mock_server, manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
 
         let installations_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3497,7 +3523,8 @@ mod tests {
 
     #[test]
     fn test_create_instance_should_create_instance() {
-        let (temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, false);
+        let (temp_dir, command, mock_server, manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
 
         let instance_manifest_path = temp_dir.path().join("instance.yml");
 
@@ -3538,7 +3565,8 @@ mod tests {
 
     #[test]
     fn test_create_instance_when_instance_exist_should_fail() {
-        let (temp_dir, command, _mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let instance_manifest_path = temp_dir.path().join("instance.yml");
         let result = command.create_instance(
@@ -3554,7 +3582,8 @@ mod tests {
 
     #[test]
     fn test_update_instance_when_name_changed_should_update_instance() {
-        let (temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let get_instance_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3595,7 +3624,8 @@ mod tests {
 
     #[test]
     fn test_update_instance_when_name_not_changed_should_not_update_instance() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let get_instance_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3618,8 +3648,9 @@ mod tests {
 
     #[test]
     fn test_update_instance_when_entrypoint_uri_added_should_create_entrypoint_setting_value() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
-        
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
+
         let mut manifest = _manifest.unwrap();
         let mut instance_manifest = _instance_manifest.unwrap();
 
@@ -3630,8 +3661,11 @@ mod tests {
         instance_manifest.entrypoint_uri = Some("https://local-entrypoint.com".to_string());
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
-        InstanceManifest::save_to_file(&instance_manifest, temp_dir.path().join("instance.yml").as_path())
-            .unwrap();
+        InstanceManifest::save_to_file(
+            &instance_manifest,
+            temp_dir.path().join("instance.yml").as_path(),
+        )
+        .unwrap();
 
         let get_instance_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3643,8 +3677,7 @@ mod tests {
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 );
-            then.status(200)
-                .json_body(json!([{"name": "test"}]));
+            then.status(200).json_body(json!([{"name": "test"}]));
         });
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
@@ -3714,8 +3747,9 @@ mod tests {
 
     #[test]
     fn test_update_instance_when_entrypoint_uri_updated_should_update_entrypoint_setting_value() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
-        
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
+
         let mut manifest = _manifest.unwrap();
         let mut instance_manifest = _instance_manifest.unwrap();
 
@@ -3726,8 +3760,11 @@ mod tests {
         instance_manifest.entrypoint_uri = Some("https://local-entrypoint2.com".to_string());
         EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
             .unwrap();
-        InstanceManifest::save_to_file(&instance_manifest, temp_dir.path().join("instance.yml").as_path())
-            .unwrap();
+        InstanceManifest::save_to_file(
+            &instance_manifest,
+            temp_dir.path().join("instance.yml").as_path(),
+        )
+        .unwrap();
 
         let get_instance_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3739,8 +3776,7 @@ mod tests {
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 );
-            then.status(200)
-                .json_body(json!([{"name": "test"}]));
+            then.status(200).json_body(json!([{"name": "test"}]));
         });
 
         let setting_get_is_global_mock = mock_server.mock(|when, then| {
@@ -3821,7 +3857,8 @@ mod tests {
 
     #[test]
     fn test_delete_instance_should_delete_instance() {
-        let (temp_dir, command, mock_server, manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let instance_manifest_path = temp_dir.path().join("instance.yml");
 
@@ -3850,7 +3887,8 @@ mod tests {
 
     #[test]
     fn test_get_installation_id_when_manifest_has_id_should_return_id() {
-        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(true, true);
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, true);
 
         let result =
             command.get_installation_id(Some(temp_dir.path().to_str().unwrap().to_string()));
@@ -3863,7 +3901,8 @@ mod tests {
     #[test]
     fn test_update_entrypoint_value_when_entrypoint_is_global_and_it_is_not_set_should_post_value()
     {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -3943,7 +3982,8 @@ mod tests {
 
     #[test]
     fn test_update_entrypoint_value_when_entrypoint_is_global_and_setting_is_set_should_patch_it() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, true);
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, true);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)
@@ -4033,7 +4073,8 @@ mod tests {
 
     #[test]
     fn test_update_entrypoint_value_when_entrypoint_is_local_and_it_is_not_set_should_post_value() {
-        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) = prepare_edge_apps_test(false, false);
+        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
 
         let setting_is_global_get_mock = mock_server.mock(|when, then| {
             when.method(GET)

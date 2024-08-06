@@ -117,10 +117,6 @@ pub struct EdgeAppManifest {
     pub settings: Vec<Setting>,
 }
 
-fn default_syntax() -> String {
-    MANIFEST_VERSION.to_owned()
-}
-
 fn deserialize_auth<'de, D>(deserializer: D) -> Result<Option<Auth>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
@@ -760,7 +756,7 @@ settings:
         let file_path = write_to_tempfile(&dir, file_name, content);
         let result = EdgeAppManifest::ensure_manifest_is_valid(&file_path);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains( 
+        assert!(result.unwrap_err().to_string().contains(
             "Setting \"screenly_setting\" cannot start with \"screenly_\" as this prefix is preserved."
         ));
     }
