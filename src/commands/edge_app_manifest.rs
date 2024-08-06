@@ -117,10 +117,6 @@ pub struct EdgeAppManifest {
     pub settings: Vec<Setting>,
 }
 
-fn default_syntax() -> String {
-    MANIFEST_VERSION.to_owned()
-}
-
 fn deserialize_auth<'de, D>(deserializer: D) -> Result<Option<Auth>, D::Error>
 where
     D: serde::de::Deserializer<'de>,

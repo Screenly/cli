@@ -1,7 +1,7 @@
 use crate::commands::edge_app::AssetSignature;
 use crate::commands::edge_app_manifest::EdgeAppManifest;
 use crate::commands::edge_app_settings::{Setting, SettingType};
-use crate::commands::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
+use crate::commands::instance_manifest::InstanceManifest;
 use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
@@ -281,12 +281,10 @@ pub fn validate_manifests_dependacies(
                 }
             }
         }
-    } else {
-        if instance_manifest.entrypoint_uri.is_some() {
-            return Err(CommandError::InvalidManifest(
-                "entrypoint_uri must not be set when entrypoint is not set".to_owned(),
-            ));
-        }
+    } else if instance_manifest.entrypoint_uri.is_some() {
+        return Err(CommandError::InvalidManifest(
+            "entrypoint_uri must not be set when entrypoint is not set".to_owned(),
+        ));
     }
     Ok(())
 }
@@ -295,6 +293,7 @@ pub fn validate_manifests_dependacies(
 mod tests {
     use super::*;
     use crate::commands::edge_app_manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
+    use crate::commands::instance_manifest::INSTANCE_MANIFEST_VERSION;
     use crate::commands::manifest_auth::AuthType;
     use crate::commands::SettingType;
     use std::fs::File;

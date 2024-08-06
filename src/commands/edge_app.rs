@@ -192,7 +192,7 @@ impl EdgeAppCommand {
         let manifest_path = transform_edge_app_path_to_manifest(&path);
 
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
-        let mut manifest = EdgeAppManifest::new(&manifest_path)?;
+        let manifest = EdgeAppManifest::new(&manifest_path)?;
 
         let actual_app_id = match self.get_app_id(path.clone()) {
             Ok(id) => id,
@@ -725,13 +725,10 @@ impl EdgeAppCommand {
         name: &str,
     ) -> Result<String, CommandError> {
         // Though we could either allow --force to re-create it or --new to create a new instance w/o writing to instance.yml
-        match InstanceManifest::new(path) {
-            Ok(manifest) => {
-                if manifest.id.is_some() {
-                    return Err(CommandError::InstanceAlreadyExists);
-                }
+        if let Ok(manifest) = InstanceManifest::new(path) {
+            if manifest.id.is_some() {
+                return Err(CommandError::InstanceAlreadyExists);
             }
-            Err(_) => {}
         }
 
         let installation_id = self.install_edge_app(app_id, name, None)?;
@@ -1309,27 +1306,6 @@ impl EdgeAppCommand {
         }
     }
 
-    pub fn get_actual_app_id(
-        &self,
-        app_id: &Option<String>,
-        path: &Option<String>,
-    ) -> Result<String, CommandError> {
-        match app_id {
-            Some(id) if id.is_empty() => Err(CommandError::EmptyAppId),
-            Some(id) => Ok(id.clone()),
-            None => {
-                let manifest_path = transform_edge_app_path_to_manifest(path);
-                EdgeAppManifest::ensure_manifest_is_valid(manifest_path.as_path())?;
-
-                let manifest = EdgeAppManifest::new(manifest_path.as_path())?;
-                match manifest.id {
-                    Some(id) if !id.is_empty() => Ok(id),
-                    _ => Err(CommandError::MissingAppId),
-                }
-            }
-        }
-    }
-
     pub fn get_installation_id(&self, path: Option<String>) -> Result<String, CommandError> {
         let instance_manifest =
             InstanceManifest::new(&transform_instance_path_to_instance_manifest(&path)?)?;
@@ -1356,10 +1332,8 @@ mod tests {
     use tempfile::TempDir;
 
     use commands::edge_app_manifest::MANIFEST_VERSION;
-    use commands::instance_manifest;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
-    use reqwest::header::Entry;
 
     use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
     use crate::commands::edge_app_utils::EdgeAppFile;
@@ -1511,7 +1485,7 @@ mod tests {
 
     #[test]
     fn test_edge_app_create_when_manifest_or_index_html_exist_should_return_error() {
-        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) =
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(true, false);
 
         let result = command.create(
@@ -2915,7 +2889,7 @@ mod tests {
 
     #[test]
     fn test_generate_mock_data_creates_file_with_expected_content() {
-        let (dir, command, mock_server, _manifest, _instance_manifest) =
+        let (_dir, command, _mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(false, false);
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest.yml");
@@ -3188,7 +3162,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "App id is required. Either in manifest or with --app-id."
+            "App id is required in manifest."
         );
     }
 
@@ -3608,7 +3582,7 @@ mod tests {
 
     #[test]
     fn test_update_instance_when_name_changed_should_update_instance() {
-        let (temp_dir, command, mock_server, manifest, _instance_manifest) =
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(true, true);
 
         let get_instance_mock = mock_server.mock(|when, then| {
@@ -3883,7 +3857,7 @@ mod tests {
 
     #[test]
     fn test_delete_instance_should_delete_instance() {
-        let (temp_dir, command, mock_server, manifest, _instance_manifest) =
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(true, true);
 
         let instance_manifest_path = temp_dir.path().join("instance.yml");
