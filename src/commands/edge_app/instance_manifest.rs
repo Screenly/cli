@@ -14,7 +14,8 @@ use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };
 
-use super::{edge_app_manifest::beautify_error_message, CommandError};
+use crate::commands::edge_app::manifest::beautify_error_message;
+use crate::commands::CommandError;
 
 pub const INSTANCE_MANIFEST_VERSION: &str = "instance_v1";
 

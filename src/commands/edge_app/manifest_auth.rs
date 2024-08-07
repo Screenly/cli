@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{edge_app_settings::Setting, SettingType};
+use crate::commands::edge_app::setting::{Setting, SettingType};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

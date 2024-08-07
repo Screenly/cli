@@ -1,7 +1,7 @@
-use crate::commands::edge_app::AssetSignature;
-use crate::commands::edge_app_manifest::EdgeAppManifest;
-use crate::commands::edge_app_settings::{Setting, SettingType};
-use crate::commands::instance_manifest::InstanceManifest;
+use crate::commands::edge_app::app::AssetSignature;
+use crate::commands::edge_app::instance_manifest::InstanceManifest;
+use crate::commands::edge_app::manifest::EdgeAppManifest;
+use crate::commands::edge_app::setting::{Setting, SettingType};
 use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
@@ -185,7 +185,7 @@ pub fn detect_changed_settings(
 
     if let Some(_entrypoint) = &manifest.entrypoint {
         match _entrypoint.entrypoint_type {
-            crate::commands::edge_app_manifest::EntrypointType::RemoteGlobal => {
+            crate::commands::edge_app::manifest::EntrypointType::RemoteGlobal => {
                 new_settings.push(Setting::new(
                     SettingType::String,
                     "Entrypoint",
@@ -194,7 +194,7 @@ pub fn detect_changed_settings(
                     true,
                 ));
             }
-            crate::commands::edge_app_manifest::EntrypointType::RemoteLocal => {
+            crate::commands::edge_app::manifest::EntrypointType::RemoteLocal => {
                 new_settings.push(Setting::new(
                     SettingType::String,
                     "Entrypoint",
@@ -203,7 +203,7 @@ pub fn detect_changed_settings(
                     false,
                 ));
             }
-            crate::commands::edge_app_manifest::EntrypointType::File => {}
+            crate::commands::edge_app::manifest::EntrypointType::File => {}
         }
     }
 
@@ -265,7 +265,7 @@ pub fn validate_manifests_dependacies(
 ) -> Result<(), CommandError> {
     if let Some(entrypoint) = &manifest.entrypoint {
         match entrypoint.entrypoint_type {
-            crate::commands::edge_app_manifest::EntrypointType::RemoteLocal => {
+            crate::commands::edge_app::manifest::EntrypointType::RemoteLocal => {
                 if instance_manifest.entrypoint_uri.is_none() {
                     return Err(CommandError::InvalidManifest(
                         "entrypoint_uri must be set for remote local entrypoint".to_owned(),
@@ -292,10 +292,10 @@ pub fn validate_manifests_dependacies(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::edge_app_manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
-    use crate::commands::instance_manifest::INSTANCE_MANIFEST_VERSION;
-    use crate::commands::manifest_auth::AuthType;
-    use crate::commands::SettingType;
+    use crate::commands::edge_app::instance_manifest::INSTANCE_MANIFEST_VERSION;
+    use crate::commands::edge_app::manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
+    use crate::commands::edge_app::manifest_auth::AuthType;
+    use crate::commands::edge_app::setting::SettingType;
     use std::fs::File;
     use std::io::Write;
     use temp_env;
