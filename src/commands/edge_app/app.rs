@@ -1,9 +1,10 @@
-use crate::authentication::Authentication;
+
 use crate::commands;
-use crate::commands::edge_app_manifest::{EdgeAppManifest, Entrypoint};
-use crate::commands::edge_app_settings::{deserialize_settings_from_array, Setting, SettingType};
-use crate::commands::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
+use crate::commands::edge_app::manifest::{EdgeAppManifest, Entrypoint};
+use crate::commands::edge_app::setting::{deserialize_settings_from_array, Setting, SettingType};
+use crate::commands::edge_app::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
 use crate::commands::{CommandError, EdgeAppInstances, EdgeAppSettings, EdgeApps};
+use crate::commands::edge_app::EdgeAppCommand;
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
@@ -23,20 +24,18 @@ use std::sync::{Arc, Mutex};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::time::{Duration, Instant};
 
-use crate::commands::edge_app_utils::{
+use crate::commands::edge_app::utils::{
     collect_paths_for_upload, detect_changed_files, detect_changed_settings,
     ensure_edge_app_has_all_necessary_files, generate_file_tree, FileChanges, SettingChanges,
 };
 
-use crate::commands::edge_app_server::{run_server, Metadata, MOCK_DATA_FILENAME};
-use crate::commands::edge_app_utils::transform_edge_app_path_to_manifest;
+use crate::commands::edge_app::server::{run_server, Metadata, MOCK_DATA_FILENAME};
+use crate::commands::edge_app::utils::transform_edge_app_path_to_manifest;
 
-use super::edge_app_manifest::{EntrypointType, MANIFEST_VERSION};
-use super::edge_app_utils::transform_instance_path_to_instance_manifest;
+use crate::commands::edge_app::manifest::{EntrypointType, MANIFEST_VERSION};
+use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
 
-pub struct EdgeAppCommand {
-    authentication: Authentication,
-}
+
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct AssetSignature {
@@ -131,7 +130,7 @@ impl EdgeAppCommand {
 
         EdgeAppManifest::save_to_file(&manifest, path)?;
 
-        let index_html_template = include_str!("../../data/index.html");
+        let index_html_template = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/index.html"));
         let index_html_file = File::create(&index_html_path)?;
         write!(&index_html_file, "{index_html_template}")?;
 
@@ -370,7 +369,7 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn update_entrypoint_value(&self, path: Option<String>) -> Result<(), CommandError> {
+    pub fn update_entrypoint_value(&self, path: Option<String>) -> Result<(), CommandError> {
         let manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path))?;
         let setting_key = "screenly_entrypoint";
 
@@ -387,7 +386,7 @@ impl EdgeAppCommand {
                     let instance_manifest = InstanceManifest::new(
                         &transform_instance_path_to_instance_manifest(&path)?,
                     )?;
-                    let setting_value = match instance_manifest.entrypoint_uri {
+                    let setting_value: String = match instance_manifest.entrypoint_uri {
                         Some(ref uri) => uri.clone(),
                         None => "".to_owned(),
                     };
@@ -681,122 +680,9 @@ impl EdgeAppCommand {
         Ok(())
     }
 }
-// Edge app instance commands
-impl EdgeAppCommand {
-    fn get_instance_name(&self, installation_id: &str) -> Result<String, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/installations?select=name&id=eq.{}",
-                installation_id
-            ),
-        )?;
 
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct Instance {
-            name: String,
-        }
-
-        let instances = serde_json::from_value::<Vec<Instance>>(response)?;
-        if instances.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-
-        Ok(instances[0].name.clone())
-    }
-    pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/installations?select=id,name&app_id=eq.{}",
-                app_id
-            ),
-        )?;
-
-        let instances = EdgeAppInstances::new(response);
-
-        Ok(instances)
-    }
-
-    pub fn create_instance(
-        &self,
-        path: &Path,
-        app_id: &str,
-        name: &str,
-    ) -> Result<String, CommandError> {
-        // Though we could either allow --force to re-create it or --new to create a new instance w/o writing to instance.yml
-        if let Ok(manifest) = InstanceManifest::new(path) {
-            if manifest.id.is_some() {
-                return Err(CommandError::InstanceAlreadyExists);
-            }
-        }
-
-        let installation_id = self.install_edge_app(app_id, name, None)?;
-
-        let instance_manifest = InstanceManifest {
-            id: Some(installation_id.clone()),
-            syntax: INSTANCE_MANIFEST_VERSION.to_owned(),
-            name: name.to_owned(),
-            entrypoint_uri: None,
-        };
-
-        InstanceManifest::save_to_file(&instance_manifest, path)?;
-
-        Ok(installation_id)
-    }
-
-    pub fn delete_instance(
-        &self,
-        installation_id: &str,
-        manifest_path: String,
-    ) -> Result<(), CommandError> {
-        commands::delete(
-            &self.authentication,
-            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
-        )?;
-        match fs::remove_file(manifest_path) {
-            Ok(_) => {
-                println!("Instance manifest file removed.")
-            }
-            Err(_) => {
-                println!("Failed to remove instance manifest file.")
-            }
-        };
-        Ok(())
-    }
-
-    pub fn update_instance(&self, path: Option<String>) -> Result<(), CommandError> {
-        let instance_manifest =
-            InstanceManifest::new(&transform_instance_path_to_instance_manifest(&path)?)?;
-        let installation_id = match instance_manifest.id {
-            Some(ref id) => id.clone(),
-            None => return Err(CommandError::MissingInstallationId),
-        };
-
-        let server_instance_name = self.get_instance_name(&installation_id)?;
-
-        if instance_manifest.name != server_instance_name {
-            let payload = json!({
-                "name": instance_manifest.name,
-            });
-            commands::patch(
-                &self.authentication,
-                &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
-                &payload,
-            )?;
-        }
-
-        self.update_entrypoint_value(path)?;
-
-        Ok(())
-    }
-}
 
 impl EdgeAppCommand {
-    pub fn new(authentication: Authentication) -> Self {
-        Self { authentication }
-    }
-
     pub fn get_app_name(&self, app_id: &str) -> Result<String, CommandError> {
         let response = commands::get(
             &self.authentication,
@@ -1187,7 +1073,7 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn install_edge_app(
+    pub fn install_edge_app(
         &self,
         app_id: &str,
         name: &str,
@@ -1331,90 +1217,15 @@ mod tests {
     use std::env;
     use tempfile::TempDir;
 
-    use commands::edge_app_manifest::MANIFEST_VERSION;
+    use commands::edge_app::manifest::MANIFEST_VERSION;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
-    use httpmock::MockServer;
 
-    use crate::commands::edge_app_server::MOCK_DATA_FILENAME;
-    use crate::commands::edge_app_utils::EdgeAppFile;
+    use crate::authentication::Authentication;
+    use crate::commands::edge_app::server::MOCK_DATA_FILENAME;
+    use crate::commands::edge_app::utils::EdgeAppFile;
+    use crate::commands::edge_app::test_utils::tests::{prepare_edge_apps_test, create_edge_app_manifest_for_test, create_instance_manifest_for_test};
     use tempfile::tempdir;
 
-    fn create_edge_app_manifest_for_test(settings: Vec<Setting>) -> EdgeAppManifest {
-        EdgeAppManifest {
-            syntax: MANIFEST_VERSION.to_owned(),
-            auth: None,
-            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
-            user_version: Some("1".to_string()),
-            description: Some("asdf".to_string()),
-            icon: Some("asdf".to_string()),
-            author: Some("asdf".to_string()),
-            homepage_url: Some("asdfasdf".to_string()),
-            entrypoint: Some(Entrypoint {
-                entrypoint_type: EntrypointType::File,
-                uri: None,
-            }),
-            settings,
-            ready_signal: None,
-        }
-    }
-
-    fn create_instance_manifest_for_test() -> InstanceManifest {
-        InstanceManifest {
-            syntax: INSTANCE_MANIFEST_VERSION.to_owned(),
-            id: Some("01H2QZ6Z8WXWNDC0KQ198XCZEB".to_string()),
-            name: "test".to_string(),
-            entrypoint_uri: None,
-        }
-    }
-
-    fn prepare_edge_apps_test(
-        create_manifest: bool,
-        create_instance_manifest: bool,
-    ) -> (
-        TempDir,
-        EdgeAppCommand,
-        MockServer,
-        Option<EdgeAppManifest>,
-        Option<InstanceManifest>,
-    ) {
-        let tmp_dir = tempdir().unwrap();
-        let mock_server = MockServer::start();
-        let config = Config::new(mock_server.base_url());
-        let authentication = Authentication::new_with_config(config, "token");
-        let command = EdgeAppCommand::new(authentication);
-
-        let edge_app_manifest = if create_manifest {
-            let edge_app_manifest = create_edge_app_manifest_for_test(vec![]);
-            EdgeAppManifest::save_to_file(
-                &edge_app_manifest,
-                tmp_dir.path().join("screenly.yml").as_path(),
-            )
-            .unwrap();
-            Some(edge_app_manifest)
-        } else {
-            None
-        };
-
-        let instance_manifest = if create_instance_manifest {
-            let instance_manifest = create_instance_manifest_for_test();
-            InstanceManifest::save_to_file(
-                &instance_manifest,
-                tmp_dir.path().join("instance.yml").as_path(),
-            )
-            .unwrap();
-            Some(instance_manifest)
-        } else {
-            None
-        };
-
-        (
-            tmp_dir,
-            command,
-            mock_server,
-            edge_app_manifest,
-            instance_manifest,
-        )
-    }
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {
         let (tmp_dir, command, mock_server, _manifest, _instance_manifest) =
@@ -1478,7 +1289,7 @@ mod tests {
         );
 
         let data_index_html = fs::read_to_string(tmp_dir.path().join("index.html")).unwrap();
-        assert_eq!(data_index_html, include_str!("../../data/index.html"));
+        assert_eq!(data_index_html, include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/index.html")));
 
         assert!(result.is_ok());
     }
@@ -3468,421 +3279,6 @@ mod tests {
             );
             assert!(result.is_ok());
         });
-    }
-
-    #[test]
-    fn test_instance_list_should_list_instances() {
-        let (_temp_dir, command, mock_server, manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, false);
-
-        let installations_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/edge-apps/installations")
-                .query_param("select", "id,name")
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(200).json_body(json!([
-                {
-                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-                    "name": "Edge app cli installation",
-                },
-                {
-                    "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
-                    "name": "Edge app cli installation 2",
-                }
-            ]));
-        });
-
-        let result = command.list_instances(&manifest.unwrap().id.unwrap());
-
-        installations_mock.assert();
-
-        assert!(result.is_ok());
-        let installations = result.unwrap();
-        let installations_json: Value = serde_json::from_value(installations.value).unwrap();
-        assert_eq!(
-            installations_json,
-            json!(
-                [
-                    {
-                        "id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-                        "name": "Edge app cli installation",
-                    },
-                    {
-                        "id": "01H2QZ6Z8WXWNDC0KQ198XCZEC",
-                        "name": "Edge app cli installation 2",
-                    }
-                ]
-            )
-        );
-    }
-
-    #[test]
-    fn test_create_instance_should_create_instance() {
-        let (temp_dir, command, mock_server, manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, false);
-
-        let instance_manifest_path = temp_dir.path().join("instance.yml");
-
-        let create_instance_mock = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4.1/edge-apps/installations")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .json_body(json!({
-                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "name": "Edge app cli installation",
-                }));
-            then.status(201)
-                .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
-        });
-
-        let result = command.create_instance(
-            &instance_manifest_path,
-            &manifest.unwrap().id.unwrap(),
-            "Edge app cli installation",
-        );
-
-        create_instance_mock.assert();
-        assert!(result.is_ok());
-
-        assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
-
-        let instance_manifest =
-            InstanceManifest::new(&temp_dir.path().join("instance.yml")).unwrap();
-        assert_eq!(
-            instance_manifest.id,
-            Some("01H2QZ6Z8WXWNDC0KQ198XCZEB".to_string())
-        );
-    }
-
-    #[test]
-    fn test_create_instance_when_instance_exist_should_fail() {
-        let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, true);
-
-        let instance_manifest_path = temp_dir.path().join("instance.yml");
-        let result = command.create_instance(
-            &instance_manifest_path,
-            &manifest.unwrap().id.unwrap(),
-            "Edge app cli installation",
-        );
-
-        assert!(result.is_err());
-
-        assert_eq!(result.unwrap_err().to_string(), "Instance already exists");
-    }
-
-    #[test]
-    fn test_update_instance_when_name_changed_should_update_instance() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, true);
-
-        let get_instance_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .query_param("select", "name")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(200)
-                .json_body(json!([{"name": "Edge app cli installation"}]));
-        });
-
-        let update_instance_mock = mock_server.mock(|when, then| {
-            when.method(PATCH)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .json_body(json!({
-                    "name": "test",
-                }));
-            then.status(200)
-                .json_body(json!([{"id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"}]));
-        });
-
-        let result = command.update_instance(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        get_instance_mock.assert();
-        update_instance_mock.assert();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_update_instance_when_name_not_changed_should_not_update_instance() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, true);
-
-        let get_instance_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .query_param("select", "name")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(200).json_body(json!([{"name": "test"}]));
-        });
-
-        let result = command.update_instance(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        get_instance_mock.assert();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_update_instance_when_entrypoint_uri_added_should_create_entrypoint_setting_value() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, true);
-
-        let mut manifest = _manifest.unwrap();
-        let mut instance_manifest = _instance_manifest.unwrap();
-
-        manifest.entrypoint = Some(Entrypoint {
-            entrypoint_type: EntrypointType::RemoteLocal,
-            uri: None,
-        });
-        instance_manifest.entrypoint_uri = Some("https://local-entrypoint.com".to_string());
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        InstanceManifest::save_to_file(
-            &instance_manifest,
-            temp_dir.path().join("instance.yml").as_path(),
-        )
-        .unwrap();
-
-        let get_instance_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .query_param("select", "name")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(200).json_body(json!([{"name": "test"}]));
-        });
-
-        let setting_get_is_global_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/settings")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "is_global")
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("name", "eq.screenly_entrypoint");
-
-            then.status(200).json_body(json!([
-                {
-                    "is_global": false,
-                }
-            ]));
-        });
-
-        // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
-        let setting_mock_get = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/settings")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("name", "eq.screenly_entrypoint")
-                .query_param("select", "name,type,edge_app_setting_values(value)")
-                .query_param(
-                    "edge_app_setting_values.installation_id",
-                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
-                )
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
-            then.status(200).json_body(json!([]));
-        });
-
-        let setting_values_mock_post = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4.1/edge-apps/settings/values")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .json_body(json!(
-                    {
-                        "name": "screenly_entrypoint",
-                        "value": "https://local-entrypoint.com",
-                        "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"
-                    }
-                ));
-            then.status(204).json_body(json!({}));
-        });
-
-        let result = command.update_instance(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        get_instance_mock.assert();
-        setting_get_is_global_mock.assert();
-        setting_mock_get.assert();
-        setting_values_mock_post.assert();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_update_instance_when_entrypoint_uri_updated_should_update_entrypoint_setting_value() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, true);
-
-        let mut manifest = _manifest.unwrap();
-        let mut instance_manifest = _instance_manifest.unwrap();
-
-        manifest.entrypoint = Some(Entrypoint {
-            entrypoint_type: EntrypointType::RemoteLocal,
-            uri: None,
-        });
-        instance_manifest.entrypoint_uri = Some("https://local-entrypoint2.com".to_string());
-        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-            .unwrap();
-        InstanceManifest::save_to_file(
-            &instance_manifest,
-            temp_dir.path().join("instance.yml").as_path(),
-        )
-        .unwrap();
-
-        let get_instance_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .query_param("select", "name")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(200).json_body(json!([{"name": "test"}]));
-        });
-
-        let setting_get_is_global_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/settings")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("select", "is_global")
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
-                .query_param("name", "eq.screenly_entrypoint");
-
-            then.status(200).json_body(json!([
-                {
-                    "is_global": false,
-                }
-            ]));
-        });
-
-        // "v4/edge-apps/settings/values?select=title&installation_id=eq.{}&title=eq.{}"
-        let setting_mock_get = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4.1/edge-apps/settings")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("name", "eq.screenly_entrypoint")
-                .query_param("select", "name,type,edge_app_setting_values(value)")
-                .query_param(
-                    "edge_app_setting_values.installation_id",
-                    "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
-                )
-                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
-            then.status(200).json_body(json!([
-                {
-                    "name": "screenly_entrypoint",
-                    "type": "string",
-                    "edge_app_setting_values": [
-                        {
-                            "value": "https://local-entrypoint.com",
-                            "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB"
-                        }
-                    ]
-                }
-            ]));
-        });
-
-        let setting_values_mock_patch = mock_server.mock(|when, then| {
-            when.method(PATCH)
-                .path("/v4.1/edge-apps/settings/values")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .query_param("name", "eq.screenly_entrypoint")
-                .query_param("installation_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .json_body(json!(
-                    {
-                        "value": "https://local-entrypoint2.com",
-                    }
-                ));
-            then.status(200).json_body(json!({}));
-        });
-
-        let result = command.update_instance(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        get_instance_mock.assert();
-        setting_get_is_global_mock.assert();
-        setting_mock_get.assert();
-        setting_values_mock_patch.assert();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_delete_instance_should_delete_instance() {
-        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, true);
-
-        let instance_manifest_path = temp_dir.path().join("instance.yml");
-
-        let delete_instance_mock = mock_server.mock(|when, then| {
-            when.method(DELETE)
-                .path("/v4.1/edge-apps/installations")
-                .query_param("id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                );
-            then.status(204).body("");
-        });
-
-        let result = command.delete_instance(
-            "01H2QZ6Z8WXWNDC0KQ198XCZEB",
-            instance_manifest_path.to_str().unwrap().to_string(),
-        );
-
-        delete_instance_mock.assert();
-        assert!(result.is_ok());
-
-        assert!(!instance_manifest_path.as_path().exists());
     }
 
     #[test]
