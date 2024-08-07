@@ -1,12 +1,12 @@
 pub mod app;
 pub mod instance;
-pub mod test_utils;
+pub mod instance_manifest;
 pub mod manifest;
+pub mod manifest_auth;
 pub(crate) mod server;
 pub(crate) mod setting;
+pub mod test_utils;
 pub mod utils;
-pub mod instance_manifest;
-pub mod manifest_auth;
 
 use crate::authentication::Authentication;
 

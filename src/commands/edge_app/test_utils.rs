@@ -1,17 +1,18 @@
 #[cfg(test)]
-pub mod tests { 
-    use super::*;
+pub mod tests {
     use crate::authentication::Config;
-    use std::env;
     use tempfile::TempDir;
 
-    use crate::commands::edge_app::manifest::{EdgeAppManifest, MANIFEST_VERSION, Entrypoint, EntrypointType};
-    use crate::commands::edge_app::setting::{Setting, SettingType};
-    use crate::commands::edge_app::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
-    use crate::commands::edge_app::EdgeAppCommand;
     use crate::authentication::Authentication;
+    use crate::commands::edge_app::instance_manifest::{
+        InstanceManifest, INSTANCE_MANIFEST_VERSION,
+    };
+    use crate::commands::edge_app::manifest::{
+        EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
+    };
+    use crate::commands::edge_app::setting::Setting;
+    use crate::commands::edge_app::EdgeAppCommand;
 
-    use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
 
     use tempfile::tempdir;
@@ -92,5 +93,4 @@ pub mod tests {
             instance_manifest,
         )
     }
-
 }

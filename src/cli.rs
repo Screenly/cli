@@ -11,13 +11,13 @@ use thiserror::Error;
 
 use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
 use crate::commands;
+use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::server::MOCK_DATA_FILENAME;
 use crate::commands::edge_app::utils::{
     transform_edge_app_path_to_manifest, transform_instance_path_to_instance_manifest,
     validate_manifests_dependacies,
 };
-use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::playlist::PlaylistCommand;
 use crate::commands::{CommandError, Formatter, OutputType, PlaylistFile};
 const DEFAULT_ASSET_DURATION: u32 = 15;

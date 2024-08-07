@@ -1,34 +1,15 @@
-use crate::commands;
 use super::EdgeAppCommand;
+use crate::commands;
 
-use crate::commands::edge_app::setting::{deserialize_settings_from_array, Setting, SettingType};
 use crate::commands::edge_app::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
-use crate::commands::{CommandError, EdgeAppInstances, EdgeAppSettings, EdgeApps};
 use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
-use indicatif::ProgressBar;
-use log::debug;
-use std::collections::HashMap;
-use std::{io, str, thread};
+use crate::commands::{CommandError, EdgeAppInstances};
+use std::str;
 
-use reqwest::header::HeaderMap;
-use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use serde_yaml;
+use serde_json::json;
 use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::time::{Duration, Instant};
-
-use crate::commands::edge_app::utils::{
-    collect_paths_for_upload, detect_changed_files, detect_changed_settings,
-    ensure_edge_app_has_all_necessary_files, generate_file_tree, FileChanges, SettingChanges,
-};
-
+use std::path::Path;
 
 impl EdgeAppCommand {
     fn get_instance_name(&self, installation_id: &str) -> Result<String, CommandError> {
@@ -138,18 +119,54 @@ impl EdgeAppCommand {
 
         Ok(())
     }
+
+    pub fn install_edge_app(
+        &self,
+        app_id: &str,
+        name: &str,
+        entrypoint: Option<String>,
+    ) -> Result<String, CommandError> {
+        let mut payload = json!({
+            "app_id": app_id,
+            "name": name,
+        });
+
+        if let Some(_entrypoint) = entrypoint {
+            payload["entrypoint"] = json!(_entrypoint);
+        }
+
+        let response = commands::post(
+            &self.authentication,
+            "v4.1/edge-apps/installations?select=id",
+            &payload,
+        )?;
+
+        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        struct Installation {
+            id: String,
+        }
+
+        let installation = serde_json::from_value::<Vec<Installation>>(response)?;
+        if installation.is_empty() {
+            return Err(CommandError::MissingField);
+        }
+
+        Ok(installation[0].id.clone())
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use httpmock::Method::{DELETE, GET, PATCH, POST};
-    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
-    use crate::commands::edge_app::manifest::{EntrypointType, Entrypoint};
     use crate::commands::edge_app::instance_manifest::InstanceManifest;
     use crate::commands::edge_app::manifest::EdgeAppManifest;
-    
+    use crate::commands::edge_app::manifest::{Entrypoint, EntrypointType};
+    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
+    use httpmock::Method::{DELETE, GET, PATCH, POST};
+
+    use serde_json::Value;
+
     #[test]
     fn test_instance_list_should_list_instances() {
         let (_temp_dir, command, mock_server, manifest, _instance_manifest) =
@@ -564,5 +581,4 @@ mod tests {
 
         assert!(!instance_manifest_path.as_path().exists());
     }
-
 }
