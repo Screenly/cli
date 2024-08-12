@@ -10,14 +10,6 @@ use strum_macros::{Display, EnumIter, EnumString};
 
 use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
 
-const RESERVED_SETTING_NAMES: &[&str] = &[
-    "basic_auth_username",
-    "basic_auth_password",
-    "bearer_token",
-    "azure_ad_client_id",
-    "azure_ad_client_secret",
-];
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Default, EnumString, Display, EnumIter)]
 pub enum SettingType {
     #[default]
