@@ -11,18 +11,10 @@ use thiserror::Error;
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::StatusCode;
 
-#[allow(unused_imports)]
-pub use edge_app_settings::SettingType;
-
 pub mod asset;
 pub mod edge_app;
-pub mod edge_app_manifest;
-pub(crate) mod edge_app_server;
-pub(crate) mod edge_app_settings;
-pub mod edge_app_utils;
+
 mod ignorer;
-pub mod instance_manifest;
-pub mod manifest_auth;
 pub(crate) mod playlist;
 pub mod screen;
 pub(crate) mod serde_utils;
