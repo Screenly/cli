@@ -1001,7 +1001,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let instance_manifest_path = match transform_instance_path_to_instance_manifest(path) {
                 Ok(path) => path,
                 Err(e) => {
-                    eprintln!("Failed to validate edge app instance file path: {e}.");
+                    eprintln!("Failed to build instance manifest filepath: {e}.");
                     std::process::exit(1);
                 }
             };

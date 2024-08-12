@@ -544,7 +544,6 @@ impl EdgeAppCommand {
                 app_id
             ),
         )?;
-        // TODO: Backend will need to support entrypoint types
 
         let versions: Vec<EdgeAppVersion> =
             serde_json::from_value::<Vec<EdgeAppVersion>>(response)?;
@@ -833,7 +832,6 @@ impl EdgeAppCommand {
         manifest: &EdgeAppManifest,
     ) -> Result<bool, CommandError> {
         let version = self.get_latest_revision(app_id)?;
-        // TODO: implement entrypoint changes on the backend
         match version {
             Some(_version) => Ok(_version
                 != EdgeAppVersion {
