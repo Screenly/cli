@@ -63,7 +63,7 @@ impl FileChanges {
 }
 
 fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
-    let exclusion_list = ["screenly.js", "screenly.yml", ".ignore"];
+    let exclusion_list = ["screenly.js", "screenly.yml", ".ignore", "instance.yml"];
     if exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default()) {
         return false;
     }
@@ -656,6 +656,10 @@ mod tests {
         File::create(dir_path.join(".ignore"))
             .unwrap()
             .write_all(b"file2.txt")
+            .unwrap();
+        File::create(dir_path.join("instance.yml"))
+            .unwrap()
+            .write_all(b"id: 01H2QZ6Z8WXWNDC0KQ198XCZEB\nname: test\n")
             .unwrap();
 
         let result = collect_paths_for_upload(dir_path).unwrap();
