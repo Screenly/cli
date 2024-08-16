@@ -35,16 +35,15 @@ This document contains the help content for the `screenly` command-line program.
 * [`screenly edge-app list`↴](#screenly-edge-app-list)
 * [`screenly edge-app rename`↴](#screenly-edge-app-rename)
 * [`screenly edge-app run`↴](#screenly-edge-app-run)
-* [`screenly edge-app version`↴](#screenly-edge-app-version)
-* [`screenly edge-app version list`↴](#screenly-edge-app-version-list)
-* [`screenly edge-app version promote`↴](#screenly-edge-app-version-promote)
 * [`screenly edge-app setting`↴](#screenly-edge-app-setting)
 * [`screenly edge-app setting list`↴](#screenly-edge-app-setting-list)
 * [`screenly edge-app setting set`↴](#screenly-edge-app-setting-set)
-* [`screenly edge-app secret`↴](#screenly-edge-app-secret)
-* [`screenly edge-app secret list`↴](#screenly-edge-app-secret-list)
-* [`screenly edge-app secret set`↴](#screenly-edge-app-secret-set)
-* [`screenly edge-app upload`↴](#screenly-edge-app-upload)
+* [`screenly edge-app instance`↴](#screenly-edge-app-instance)
+* [`screenly edge-app instance list`↴](#screenly-edge-app-instance-list)
+* [`screenly edge-app instance create`↴](#screenly-edge-app-instance-create)
+* [`screenly edge-app instance delete`↴](#screenly-edge-app-instance-delete)
+* [`screenly edge-app instance update`↴](#screenly-edge-app-instance-update)
+* [`screenly edge-app deploy`↴](#screenly-edge-app-deploy)
 * [`screenly edge-app delete`↴](#screenly-edge-app-delete)
 * [`screenly edge-app validate`↴](#screenly-edge-app-validate)
 
@@ -426,10 +425,9 @@ Edge App related commands
 * `list` — Lists your Edge Apps
 * `rename` — Renames Edge App
 * `run` — Runs Edge App emulator
-* `version` — Version commands
 * `setting` — Settings commands
-* `secret` — Secrets commands
-* `upload` — Uploads assets and settings of the Edge App
+* `instance` — Instance commands
+* `deploy` — Deploys assets and settings of the Edge App and release it
 * `delete` — Deletes an Edge App. This cannot be undone
 * `validate` — Validates Edge App manifest file
 
@@ -470,7 +468,6 @@ Renames Edge App
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-a`, `--app-id <APP_ID>` — Edge App id. If not specified CLI will use the id from the manifest
 * `-n`, `--name <NAME>` — Edge App name
 
 
@@ -486,53 +483,6 @@ Runs Edge App emulator
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
 * `-s`, `--secrets <SECRETS>`
 * `-g`, `--generate-mock-data` — Generates mock data to be used with Edge App run
-
-
-
-## `screenly edge-app version`
-
-Version commands
-
-**Usage:** `screenly edge-app version <COMMAND>`
-
-###### **Subcommands:**
-
-* `list` — Lists Edge App versions
-* `promote` — Promotes Edge App revision to channel
-
-
-
-## `screenly edge-app version list`
-
-Lists Edge App versions
-
-**Usage:** `screenly edge-app version list [OPTIONS]`
-
-###### **Options:**
-
-* `-a`, `--app-id <APP_ID>` — Edge app id. If not specified CLI will use the id from the manifest
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-j`, `--json` — Enables JSON output
-
-
-
-## `screenly edge-app version promote`
-
-Promotes Edge App revision to channel
-
-**Usage:** `screenly edge-app version promote [OPTIONS]`
-
-###### **Options:**
-
-* `-r`, `--revision <REVISION>` — Edge app revision to promote
-* `-c`, `--channel <CHANNEL>` — Channel to promote to. If not specified CLI will use stable channel
-
-  Default value: `stable`
-* `-i`, `--installation-id <INSTALLATION_ID>` — Edge App Installation id. If not specified, CLI will use the installation_id from the manifest
-* `--latest` — Use the latest revision of the Edge App
-
-  Default value: `false`
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
 
 
 
@@ -558,7 +508,6 @@ Lists Edge App settings
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-i`, `--installation-id <INSTALLATION_ID>` — Edge App Installation id. If not specified, CLI will use the installation_id from the manifest
 * `-j`, `--json` — Enables JSON output
 
 
@@ -575,65 +524,84 @@ Sets Edge App setting
 
 ###### **Options:**
 
-* `-i`, `--installation-id <INSTALLATION_ID>` — Edge App Installation id. If not specified, CLI will use the installation_id from the manifest
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
 
 
 
-## `screenly edge-app secret`
+## `screenly edge-app instance`
 
-Secrets commands
+Instance commands
 
-**Usage:** `screenly edge-app secret <COMMAND>`
+**Usage:** `screenly edge-app instance <COMMAND>`
 
 ###### **Subcommands:**
 
-* `list` — Lists Edge App secrets
-* `set` — Sets Edge App secret
+* `list` — Lists Edge App instances
+* `create` — Creates Edge App instance
+* `delete` — Deletes Edge App instance
+* `update` — Update Edge App instance based on changes in the instance.yml
 
 
 
-## `screenly edge-app secret list`
+## `screenly edge-app instance list`
 
-Lists Edge App secrets
+Lists Edge App instances
 
-**Usage:** `screenly edge-app secret list [OPTIONS]`
+**Usage:** `screenly edge-app instance list [OPTIONS]`
 
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-i`, `--installation-id <INSTALLATION_ID>` — Edge App Installation id. If not specified, CLI will use the installation_id from the manifest
 * `-j`, `--json` — Enables JSON output
 
 
 
-## `screenly edge-app secret set`
+## `screenly edge-app instance create`
 
-Sets Edge App secret
+Creates Edge App instance
 
-**Usage:** `screenly edge-app secret set [OPTIONS] <SECRET_PAIR>`
-
-###### **Arguments:**
-
-* `<SECRET_PAIR>` — Key value pair of the secret to be set in the form of `key=value`
+**Usage:** `screenly edge-app instance create [OPTIONS]`
 
 ###### **Options:**
 
-* `-i`, `--installation-id <INSTALLATION_ID>` — Edge App Installation id. If not specified, CLI will use the installation_id from the manifest
+* `-n`, `--name <NAME>` — Name of the Edge App instance
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
 
 
 
-## `screenly edge-app upload`
+## `screenly edge-app instance delete`
 
-Uploads assets and settings of the Edge App
+Deletes Edge App instance
 
-**Usage:** `screenly edge-app upload [OPTIONS]`
+**Usage:** `screenly edge-app instance delete [OPTIONS]`
 
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-a`, `--app-id <APP_ID>` — Edge App id. If not specified CLI will use the id from the manifest
+
+
+
+## `screenly edge-app instance update`
+
+Update Edge App instance based on changes in the instance.yml
+
+**Usage:** `screenly edge-app instance update [OPTIONS]`
+
+###### **Options:**
+
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+
+
+
+## `screenly edge-app deploy`
+
+Deploys assets and settings of the Edge App and release it
+
+**Usage:** `screenly edge-app deploy [OPTIONS]`
+
+###### **Options:**
+
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
 * `-d`, `--delete-missing-settings <DELETE_MISSING_SETTINGS>`
 
   Possible values: `true`, `false`
@@ -650,7 +618,6 @@ Deletes an Edge App. This cannot be undone
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-a`, `--app-id <APP_ID>` — Edge App id. If not specified CLI will use the id from the manifest
 
 
 
