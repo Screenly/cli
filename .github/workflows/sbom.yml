@@ -7,7 +7,6 @@ on:
       - master
     paths:
       - 'Cargo.lock'
-      - 'Cargo.toml'
 
 jobs:
   sbom:
@@ -15,12 +14,19 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: psastras/sbom-rs/actions/install-cargo-sbom@cargo-sbom-latest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
 
-      - name: Run cargo-sbom
+      - name: Install sbom4rust
         run: |
-          cargo-sbom --output-format=spdx_json_2_3 > sbom.spdx.json
-          cargo-sbom --output-format=cyclone_dx_json_1_4 > sbom.cyclonedx.json
+          pip install git+https://github.com/anthonyharrison/sbom4rust.git
+
+      - name: Run sbom4rust
+        run: |
+          sbom4rust -a screenly-cli --sbom spdx --format json -o sbom.spdx.json
+          sbom4rust -a screenly-cli --sbom cyclonedx --format json -o sbom.cyclonedx.json
 
       - name: Upload SPDX SBOM
         uses: actions/upload-artifact@v3

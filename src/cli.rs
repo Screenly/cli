@@ -67,6 +67,9 @@ pub enum Commands {
     /// Edge App related commands.
     #[command(subcommand)]
     EdgeApp(EdgeAppCommands),
+    /// For generating `docs/CommandLineHelp.md`.
+    #[clap(hide = true)]
+    PrintHelpMarkdown {},
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -521,6 +524,9 @@ pub fn handle_cli(cli: &Cli) {
             Authentication::remove_token().expect("Failed to remove token.");
             info!("Logout successful.");
             std::process::exit(0);
+        }
+        Commands::PrintHelpMarkdown {} => {
+            clap_markdown::print_help_markdown::<Cli>();
         }
     }
 }

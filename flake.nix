@@ -52,7 +52,7 @@
 
             meta = {
               description = "Command Line Interface (CLI) for Screenly.";
-              homepage = "https://github.com/Screenly/cli";
+              homepage = "https://www.screenly.io/developers/cli/";
               license = lib.licenses.mit;
               mainProgram = "screenly";
               platforms = lib.platforms.unix;
