@@ -19,32 +19,32 @@ jobs:
       - name: Generate SBOM
         run: |
           cargo cyclonedx \
-            --describe binaries \
-            --no-build-deps \
             --spec-version 1.5 \
             -f json
 
       - name: Enrich and clean up SBOM
         run: |
 
-        # Grab the version
-        export VERSION_TAG="${GITHUB_REF#refs/*/}"
-        export VERION=$(echo $VERSION_TAG | sed 's/^v//g')
+          # Grab the version
+          export VERSION_TAG="${GITHUB_REF#refs/*/}"
+          export VERION=$(echo $VERSION_TAG | sed 's/^v//g')
 
-        # Delete unnecessary metadata.component.components
-        jq 'del(.metadata.component.components)' \
-          screenly_bin.cdx.json \
-          > screenly_bin.cdx.json
+          # Delete unnecessary metadata.component.components and
+          # set GITHUB_RUN_NUMBER as the version of the SBOM
+          jq 'del(.metadata.component.components) | .version = (env.GITHUB_RUN_NUMBER | tonumber)' \
+            screenly.cdx.json \
+            > screenly.cdx.json.tmp
+          mv screenly.cdx.json.tmp screenly.cdx.json
 
-        # Render SBOM metadata template
-        cat sbom/metadata.cdx.json.tmpl | \
-          envsubst > metadata.cdx.json
+          # Render SBOM metadata template
+          cat sbom/metadata.cdx.json.tmpl | jq | \
+            envsubst > metadata.cdx.json
 
-        # Merge in CycloneDX Metadata
-        jq --slurp '.[0] * .[1]' \
-          screenly_bin.cdx.json \
-          metadata.cdx.json \
-          > screenly-cli.cdx.json
+          # Merge in CycloneDX Metadata
+          jq --slurp '.[0] * .[1]' \
+            screenly.cdx.json \
+            metadata.cdx.json \
+            > screenly-cli.cdx.json
 
       - name: Upload CycloneDX SBOM
         uses: actions/upload-artifact@v3

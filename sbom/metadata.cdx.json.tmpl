@@ -1,18 +1,24 @@
 {
-    "version": "${GITHUB_RUN_NUMBER}",
     "metadata": {
-        "lifecycles": {
-            "stage": "build"
-        },
         "manufacture": {
             "name": "Screenly, Inc",
-            "url": "https://www.screenly.io"
+            "url": [
+                "https://www.screenly.io"
+            ]
         },
-        "licenses": "MIT",
+        "licenses": [
+            {
+                "license": {
+                    "id": "MIT",
+                    "name": "MIT License",
+                    "url": "https://opensource.org/licenses/MIT"
+                }
+            }
+        ],
         "component": {
             "bom-ref": "screenly-cli-${VERSION}",
             "purl": "pkg:github/screenly/cli@$${VERSION_TAG}",
-            "version": "${VERSION}",
+            "version": "${VERSION}"
         }
-    },
+    }
 }
