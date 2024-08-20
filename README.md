@@ -1,4 +1,4 @@
-[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/sboms/component/1/CLI)
+[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/sboms/component/3/screenly-cli)
 
 
 # Screenly Command Line Interface (CLI)
