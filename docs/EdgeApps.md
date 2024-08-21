@@ -35,6 +35,7 @@ Here's a content section for the document:
      - [Using Settings in Your Edge App](#using-settings-in-your-edge-app)
      - [Global Settings](#global-settings)
      - [Secret Settings](#secret-settings)
+     - [Reserved Setting Names](#reserved-setting-names)
 3. [Global Branding Settings](#global-branding-settings)
    - [Branding Settings List](#branding-settings-list)
      - [screenly_color_accent](#screenly_color_accent)
@@ -393,6 +394,10 @@ settings:
     optional: false
     help_text: An example of an API key
 ```
+
+#### Reserved setting names
+
+Settings starting with `screenly_` are reserved and cannot be used in the manifest file.
 
 ---
 ## Global Branding Settings
