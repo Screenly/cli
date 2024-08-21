@@ -1,3 +1,6 @@
+[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/sboms/component/3/screenly-cli)
+
+
 # Screenly Command Line Interface (CLI)
 
 The Screenly CLI simplifies interactions with Screenly through your terminal, designed for both manual use and task automation.

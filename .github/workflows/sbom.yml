@@ -3,10 +3,8 @@ name: Generate SBOMs
 
 on:
   push:
-    branches:
-      - master
-    paths:
-      - 'Cargo.lock'
+    tags:
+      - 'v*'
 
 jobs:
   sbom:
@@ -14,28 +12,48 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-
-      - name: Install sbom4rust
+      - name: Install cyclonedx-rust-cargo
         run: |
-          pip install git+https://github.com/anthonyharrison/sbom4rust.git
+          cargo install cargo-cyclonedx
 
-      - name: Run sbom4rust
+      - name: Generate SBOM
         run: |
-          sbom4rust -a screenly-cli --sbom spdx --format json -o sbom.spdx.json
-          sbom4rust -a screenly-cli --sbom cyclonedx --format json -o sbom.cyclonedx.json
+          cargo cyclonedx \
+            --spec-version 1.5 \
+            -f json
 
-      - name: Upload SPDX SBOM
-        uses: actions/upload-artifact@v3
-        with:
-          name: cli-SPDX
-          path: sbom.spdx.json
+      - name: Enrich and clean up SBOM
+        run: |
+
+          # Grab the version
+          export VERSION_TAG="${GITHUB_REF#refs/*/}"
+          export VERION=$(echo $VERSION_TAG | sed 's/^v//g')
+
+          # Delete unnecessary metadata.component.components and
+          # set GITHUB_RUN_NUMBER as the version of the SBOM
+          jq 'del(.metadata.component.components) | .version = (env.GITHUB_RUN_NUMBER | tonumber)' \
+            screenly.cdx.json \
+            > screenly.cdx.json.tmp
+          mv screenly.cdx.json.tmp screenly.cdx.json
+
+          # Render SBOM metadata template
+          cat sbom/metadata.cdx.json.tmpl | jq | \
+            envsubst > metadata.cdx.json
+
+          # Merge in CycloneDX Metadata
+          jq --slurp '.[0] * .[1]' \
+            screenly.cdx.json \
+            metadata.cdx.json \
+            > screenly-cli.cdx.json
 
       - name: Upload CycloneDX SBOM
         uses: actions/upload-artifact@v3
         with:
           name: cli-CycloneDX
-          path: sbom.cyclonedx.json
+          path: screenly-cli.cdx.json
+
+      - name: Upload SBOM
+        uses: sbomify/github-action@master
+        with:
+          token: ${{ secrets.SBOMIFY_TOKEN }}
+          sbom-file: 'screenly-cli.cdx.json'
