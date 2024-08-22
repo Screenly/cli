@@ -185,7 +185,7 @@ impl EdgeAppCommand {
         path: Option<String>,
         delete_missing_settings: Option<bool>,
     ) -> Result<u32, CommandError> {
-        let manifest_path = transform_edge_app_path_to_manifest(&path);
+        let manifest_path = transform_edge_app_path_to_manifest(&path)?;
 
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
         let manifest = EdgeAppManifest::new(&manifest_path)?;
@@ -367,7 +367,7 @@ impl EdgeAppCommand {
     }
 
     pub fn update_entrypoint_value(&self, path: Option<String>) -> Result<(), CommandError> {
-        let manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path))?;
+        let manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
         let setting_key = "screenly_entrypoint";
 
         if let Some(entrypoint) = &manifest.entrypoint {
@@ -857,7 +857,7 @@ impl EdgeAppCommand {
     }
 
     pub fn get_app_id(&self, path: Option<String>) -> Result<String, CommandError> {
-        let edge_app_manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path))?;
+        let edge_app_manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
         match edge_app_manifest.id {
             Some(id) if !id.is_empty() => Ok(id),
             _ => Err(CommandError::MissingAppId),

@@ -120,8 +120,10 @@ pub enum CommandError {
     OpenBrowserError(String),
     #[error("Instance already exists")]
     InstanceAlreadyExists,
-    #[error("Env var INSTANCE_FILENAME must hold only file name, not a path. {0}")]
+    #[error("Env var INSTANCE_FILE_NAME must hold only file name, not a path. {0}")]
     InstanceFilenameError(String),
+    #[error("Env var MANIFEST_FILE_NAME must hold only file name, not a path. {0}")]
+    ManifestFilenameError(String),
     #[error("Path is not a directory: {0}")]
     PathIsNotDirError(String),
     #[error("Missing installation id in the instance file")]
