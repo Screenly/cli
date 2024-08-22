@@ -7,6 +7,9 @@ branding:
   icon: 'code'
   color: 'purple'
 inputs:
+  manifest_file_name:
+    description: "The name of the Screenly manifest file."
+    required: false
   screenly_api_token:
     description: "Your Screenly API token."
     required: true
@@ -43,6 +46,9 @@ runs:
       id: run-cli
       run: |
         set -o pipefail
+        if [ -n "${{ inputs.manifest_file_name }}" ]; then
+          export MANIFEST_FILE_NAME="${{ inputs.manifest_file_name }}"
+        fi
         output=$(API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ')
         exit_code=$?
         echo "response=$output" >> "$GITHUB_OUTPUT"
