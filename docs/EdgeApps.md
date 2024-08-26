@@ -282,7 +282,29 @@ These settings must be configured using the `screenly edge-app setting set` comm
 
 #### Ready Signal
 
-The `ready_signal` field is an optional boolean. When set to `true`, the Edge App must send a signal to the Screenly Player indicating it is ready to be displayed.
+The `ready_signal` field is an optional boolean parameter in the Edge App configuration.
+
+##### Purpose
+
+When set to `true`, it enables a mechanism for the Edge App to control when it's displayed on the Screenly Player.
+
+##### Use Case
+
+This feature is particularly useful for apps that require initial loading or data preparation before they're ready to be shown. For example, an app might need to fetch data or complete some initialization process.
+
+##### Implementation
+
+When the Edge App is prepared and ready to be displayed, it must call the `screenly.signalReadyForRendering()` function. This signals to the Screenly Player that the app is now ready for rendering.
+
+##### Important Notes
+
+1. If `ready_signal` is `true` and the function is never called, the content will not be displayed.
+2. Once the function has been called successfully, any subsequent calls will be ignored.
+3. If `ready_signal` is `false`, the content will be displayed as soon as possible, and any calls to `screenly.signalReadyForRendering()` will have no effect.
+
+##### Benefit
+
+This mechanism allows for a smoother user experience by ensuring that the Edge App is fully prepared before it becomes visible on the display.
 
 #### Settings
 
