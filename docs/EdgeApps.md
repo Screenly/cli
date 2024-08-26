@@ -65,8 +65,8 @@ With the CLI installed and logged in (`screenly login`), we can create our "Hell
 To do this, first create a new directory where the Edge App will reside. For production applications, this would likely be a source-controlled folder (e.g., `git`), but for now, let's create a temporary folder with:
 
 ```shell
-$ mkdir -p ~/tmp/edge-app
-$ cd ~/tmp/edge-app
+mkdir -p ~/tmp/edge-app
+cd ~/tmp/edge-app
 ```
 
 ### Create an Edge App
@@ -74,7 +74,7 @@ $ cd ~/tmp/edge-app
 > To create an Edge App, simply run:
 
 ```shell
-$ screenly edge-app create --name hello-world
+screenly edge-app create --name hello-world
 ```
 
 When you run the screenly edge-app create command, two files will be created in the current directory:
@@ -88,10 +88,10 @@ When you run the screenly edge-app create command, two files will be created in 
 
 Once you have initiated your Edge App, you can start adding content. We make a few assumptions about your Edge App:
 
-* No files below the current can be references (just like you can't use the `COPY` in a `Dockerfile` outside the current working directory)
-* The following file names are **reserved** by the system:
-  * `screenly.yml` - Reserved for the manifest file.
-  * `screenly.js` - Reserved for on-device usage to interact with the system.
+- No files below the current can be references (just like you can't use the `COPY` in a `Dockerfile` outside the current working directory)
+- The following file names are **reserved** by the system:
+  - `screenly.yml` - Reserved for the manifest file.
+  - `screenly.js` - Reserved for on-device usage to interact with the system.
 
 Other than that, you can develop your Edge App just like you would do with a regular static HTML site. You can break out JavaScript, CSS, images, etc., into separate files and include them as you normally would.
 
@@ -99,12 +99,12 @@ Other than that, you can develop your Edge App just like you would do with a reg
 
 #### Playground Edge Apps
 
-Getting started with our existing Playground Edge Apps can help ease your introduction to Edge Apps development. To test your skills, first clone our Playground GitHub Repository (https://github.com/Screenly/Playground). After cloning, navigate to one of the example Playground Edge App folders and execute the following command:
+Getting started with our existing Playground Edge Apps can help ease your introduction to Edge Apps development. To test your skills, first clone our Playground GitHub Repository (<https://github.com/Screenly/Playground>). After cloning, navigate to one of the example Playground Edge App folders and execute the following command:
 
 For instance, if our target is the Clock App, enter the directory (`Playground/edge-apps/clock`) and execute:
 
 ```shell
-$ screenly edge-app create --name "My Groundbreaking Clock App" --in-place
+screenly edge-app create --name "My Groundbreaking Clock App" --in-place
 ```
 
 Note the `--in-place` parameter. This is necessary when creating an app with existing `screenly.yml` and `index.html` files, as our Playground Edge Apps do. Otherwise, you'll encounter errors about conflicting files. This parameter is not mandatory if you are creating a brand new Edge App; it’s just here to make your developer life a little bit easier.
@@ -116,24 +116,21 @@ Note the `--in-place` parameter. This is necessary when creating an app with exi
 To deploy an Edge App, use the following command:
 
 ```shell
-$ screenly edge-app deploy
+screenly edge-app deploy
 ```
 
 The deployment process includes the following steps:
 
 **Upload:** The Edge App is uploaded to the server.
 
-
 **Replacement:** If the Edge App has been previously uploaded, the existing files are replaced with the new ones.
-
 
 **Sync Settings:** The deployment synchronizes the settings from the manifest file with the server.
 
-
 **Automatic Update:** All instances of the Edge App will automatically update to the latest deployed version, ensuring consistency across all devices.
 
-
 ---
+
 ### Instances
 
 An instance is a unique installation of an Edge App. Each instance can have its own settings and secrets, allowing you to run multiple instances of the same Edge App with different configurations. While the CLI currently supports managing a single instance via the `instance.yml` file, the Screenly Web Dashboard can manage multiple instances simultaneously.
@@ -143,23 +140,19 @@ Each instance produces an asset that can be scheduled on a screen. This is the o
 To manage instances, you can use the following commands:
 
 ```shell
-$ screenly edge-app instance list
-$ screenly edge-app instance create
-$ screenly edge-app instance update
-$ screenly edge-app instance delete
+screenly edge-app instance list
+screenly edge-app instance create
+screenly edge-app instance update
+screenly edge-app instance delete
 ```
 
 - **Create**: The `create` command generates a new instance and creates an `instance.yml` file in the current directory.
 
-
 - **List**: The `list` command displays all instances associated with your account.
-
 
 - **Update**: The `update` command modifies an existing instance based on the changes made in the `instance.yml` file.
 
-
 - **Delete**: The `delete` command removes an instance from your account.
-
 
 After creating an instance, navigate to your Screenly web console. You should see the new instance of your Edge App listed in the content section, where you can schedule it as you would with a regular asset.
 
@@ -222,12 +215,13 @@ settings:
 
 Edge Apps can have settings, which are key-value pairs that users installing the app must provide at install time and can later edit. The values in these settings are exposed to the app via environment variables or secrets. There are two types of settings:
 
-* String
-* Secret
+- String
+- Secret
 
 Each setting may have a default value, an optional flag indicating if it's required, a human-readable title, and help text to assist users in configuring the app.
 
 ---
+
 ### Reference
 
 #### Syntax
@@ -241,6 +235,7 @@ The `id` field is a unique identifier for the Edge App. This ID is generated by 
 #### Entrypoint
 
 The `entrypoint` field specifies the entry point for the Edge App. It is optional and defaults to the file type. The `entrypoint` field contains the following subfields:
+
 - **type:** Defines the type of entry point. Possible values are:
   - `file`: The entry point is the `index.html` file in the Edge App directory.
   - `remote_global`: The entry point is a URL that is consistent across all instances of the Edge App.
@@ -266,16 +261,19 @@ The `homepage_url` field is a URL directing to the homepage of the Edge App.
 #### Auth
 
 The `auth` field is optional and is used to configure Edge App authentication. It includes the following subfields:
+
 - **auth_type:** Specifies the type of authentication. Possible values are:
   - `basic`: Basic authentication.
   - `bearer`: Bearer token authentication.
 - **global:** A boolean value that determines whether the authentication is global (`true`) or local (`false`).
 
 For Basic authentication, the following settings are generated:
+
 - `screenly_basic_auth_username`
 - `screenly_basic_auth_password`
 
 For Bearer authentication, the following setting is generated:
+
 - `screenly_bearer_token`
 
 These settings must be configured using the `screenly edge-app setting set` command.
@@ -286,7 +284,7 @@ The `ready_signal` field is an optional boolean parameter in the Edge App config
 
 ##### Purpose
 
-When set to `true`, it enables a mechanism for the Edge App to control when it's displayed on the Screenly Player.
+When set to `true`, it enables a mechanism for the Edge App to control when it gets rendered on the Screenly Player.
 
 ##### Use Case
 
@@ -308,7 +306,7 @@ This mechanism allows for a smoother user experience by ensuring that the Edge A
 
 #### Settings
 
-The `settings` field is a dictionary of key-value pairs that define the configurable settings for the Edge App. For more details, refer to the [Settings](#settings) section.
+The `settings` field is a dictionary of key-value pairs that define the configurable settings for the Edge App. For more details, refer to the [Settings](#settings) section
 ---
 
 ### Settings
@@ -335,7 +333,7 @@ settings:
 With the asset scheduled on your screen, you should see the headline "Hello Stranger!". This is actually a setting configured in `screenly.yml`. You can override this using the `edge-app setting` command to change it.
 
 ```shell
-$ screenly edge-app setting set greeting='Cowboy Neil'
+screenly edge-app setting set greeting='Cowboy Neil'
 ```
 
 This will output:
@@ -346,14 +344,12 @@ Edge app setting successfully set.
 
 It might take a few minutes for your screen to pick up the change, but once it does, the headline should change from "Hello Stranger!" to "Hello Cowboy Neil!".
 
-
-
 #### Getting Settings
 
 To list the current settings, use the following command:
 
 ```shell
-$ screenly edge-app setting list
+screenly edge-app setting list
 ```
 
 This will output:
@@ -422,14 +418,16 @@ settings:
 Settings starting with `screenly_` are reserved and cannot be used in the manifest file.
 
 ---
+
 ## Global Branding Settings
 
 The Global Branding Settings feature automatically provides relevant visual identity information by fetching it from the public sources based on their email domain. This functionality is available by default for every Edge App, requiring no special actions from the developer to access the following settings:
 
 ### Branding Settings List
-* screenly_color_accent
-* screenly_color_light
-* screenly_logo_light
+
+- screenly_color_accent
+- screenly_color_light
+- screenly_logo_light
 
 #### screenly_color_accent
 
@@ -469,9 +467,9 @@ Secrets are defined in `screenly.yml`, but their values are not set within the m
 
 #### Transmission and Storage Security
 
-  * **Screenly Player Max**: Each device has a unique pair of public/private keys stored in a Trusted Platform Module (TPM), allowing the use of x509 cryptography. Payloads sent to a Screenly Player are encrypted with the device's public key, ensuring only the intended device can decrypt it. Secrets are encrypted on disk using the TPM, making them inaccessible even if the hard drive is compromised.
+- **Screenly Player Max**: Each device has a unique pair of public/private keys stored in a Trusted Platform Module (TPM), allowing the use of x509 cryptography. Payloads sent to a Screenly Player are encrypted with the device's public key, ensuring only the intended device can decrypt it. Secrets are encrypted on disk using the TPM, making them inaccessible even if the hard drive is compromised.
 
-  * **Standard Screenly Player**: While these devices do not have a TPM, they still use x509 cryptography with certificates securely stored on disk. This provides a high level of protection for stored secrets, even without hardware-level security.
+- **Standard Screenly Player**: While these devices do not have a TPM, they still use x509 cryptography with certificates securely stored on disk. This provides a high level of protection for stored secrets, even without hardware-level security.
 
 Secrets ensure that sensitive data is securely managed and transmitted, providing robust security for your applications.
 
@@ -504,15 +502,15 @@ Since each screen inherently possesses a wealth of information about itself, inc
 
 This metadata includes:
 
-* **name:** The human-readable name assigned to the screen.
-* **hostname:** The unique hostname (which also serves as the identifier) assigned to the screen.
-* **coordinates:** The latitude and longitude coordinates of the screen's location, which can be edited via the web interface.
-  * Returned as a dictionary.
-* **location:** The human-readable location as displayed in the web interface.
-* **hardware:** Details about the hardware of the device.
-* **version:** The software version running on the Screenly device.
-* **tags:** The tags or labels assigned to the screen.
-  * Returned as a dictionary.
+- **name:** The human-readable name assigned to the screen.
+- **hostname:** The unique hostname (which also serves as the identifier) assigned to the screen.
+- **coordinates:** The latitude and longitude coordinates of the screen's location, which can be edited via the web interface.
+  - Returned as a dictionary.
+- **location:** The human-readable location as displayed in the web interface.
+- **hardware:** Details about the hardware of the device.
+- **version:** The software version running on the Screenly device.
+- **tags:** The tags or labels assigned to the screen.
+  - Returned as a dictionary.
 
 ---
 
@@ -520,13 +518,13 @@ This metadata includes:
 
 After creating your Edge App, you can use the Edge App emulator to test it in your web browser.
 
-* To do this, open your terminal and navigate to the Edge App directory.
-* Run this command:
+- To do this, open your terminal and navigate to the Edge App directory.
+- Run this command:
 
 > Run Edge App emulator
 
 ```shell
-$ screenly edge-app run
+screenly edge-app run
 ```
 
 This command will provide you with a URL to access your Edge App in your browser.
@@ -536,7 +534,7 @@ If you don't have sample data in your Edge App directory, you can create it by r
 > Add mock data to run Edge App emulator
 
 ```shell
-$ screenly edge-app run --generate-mock-data
+screenly edge-app run --generate-mock-data
 ```
 
 After generating the mock data, run the Edge App emulator again to see your app in action.
@@ -590,7 +588,7 @@ When monitoring is enabled, the device exposes Prometheus metrics at port `9100`
 
 ## Gotchas
 
-* You need to use **relative** paths to assets (e.g., static/image.svg rather than absolute paths (e.g., /static/image.svg).
+- You need to use **relative** paths to assets (e.g., static/image.svg rather than absolute paths (e.g., /static/image.svg).
 
 ---
 
