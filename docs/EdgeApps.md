@@ -291,7 +291,7 @@ When set to `true`, it enables a mechanism for the Edge App to control when it g
 ##### Use Case
 This feature is particularly useful for apps that require initial loading or data preparation before they're ready to be shown. For example, an app might need to fetch data or complete some initialization process.
 
-A practical example is our [PowerBI Edge App](https://github.com/Screenly/Playground/tree/master/edge-apps/powerbi), which uses this feature to delay showing the dashboard until all data is loaded. This ensures that users see a fully populated dashboard instead of a loading screen.
+A practical example is our [PowerBI Edge App](https://github.com/Screenly/Playground/tree/master/edge-apps/powerbi), which uses this feature to delay showing the dashboard until all data is loaded and rendered. This ensures that users see a fully populated dashboard instead of a loading screen.
 
 ##### Implementation
 
