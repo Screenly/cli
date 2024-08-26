@@ -306,6 +306,7 @@ When the Edge App is prepared and ready to be displayed, it must call the `scree
 #### Settings
 
 The `settings` field is a dictionary of key-value pairs that define the configurable settings for the Edge App. For more details, refer to the [Settings](#settings) section.
+
 ---
 
 ### Settings
@@ -364,6 +365,7 @@ This will output:
 ```
 
 #### Using Settings in Your Edge App
+
 
 To use the settings in your Edge App, include them in your HTML or JavaScript files as follows:
 
