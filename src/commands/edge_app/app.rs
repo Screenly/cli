@@ -176,7 +176,7 @@ impl EdgeAppCommand {
     pub fn list(&self) -> Result<EdgeApps, CommandError> {
         Ok(EdgeApps::new(commands::get(
             &self.authentication,
-            "v4/edge-apps?select=id,name",
+            "v4/edge-apps?select=id,name&deleted=eq.false",
         )?))
     }
 
@@ -1094,6 +1094,8 @@ mod tests {
         let edge_apps_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/edge-apps")
+                .query_param("select", "id,name")
+                .query_param("deleted", "eq.false")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
