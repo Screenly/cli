@@ -1,5 +1,6 @@
 use crate::{Authentication, AuthenticationError};
 use prettytable::{cell, Cell, Row};
+use crate::api::edge_app::EdgeApps;
 
 use log::debug;
 use std::time::Duration;
@@ -267,11 +268,6 @@ impl PlaylistFile {
             items: serde_json::from_value(items)?,
         })
     }
-}
-
-#[derive(Debug)]
-pub struct EdgeApps {
-    pub value: serde_json::Value,
 }
 
 impl EdgeApps {

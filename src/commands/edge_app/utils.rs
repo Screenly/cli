@@ -1,4 +1,4 @@
-use crate::commands::edge_app::app::AssetSignature;
+use crate::api::asset::AssetSignature;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::setting::{Setting, SettingType};

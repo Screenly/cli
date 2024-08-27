@@ -206,7 +206,7 @@ impl EdgeAppCommand {
     pub fn list_settings(&self, installation_id: &str) -> Result<EdgeAppSettings, CommandError> {
         let app_id = self.get_app_id_by_installation(installation_id)?;
 
-        let app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
+        let app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.api.authentication,
                                                                                                              &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text,edge_app_setting_values(value)&app_id=eq.{}&order=name.asc",
                                                                                                                       app_id,
                                                                                                              ))?)?;
@@ -282,12 +282,12 @@ impl EdgeAppCommand {
             );
         }
 
-        let response = commands::get(&self.authentication, &setting_url)?;
+        let response = commands::get(&self.api.authentication, &setting_url)?;
         let setting_values = serde_json::from_value::<Vec<SettingValue>>(response)?;
 
         if setting_values.is_empty() {
             commands::post(
-                &self.authentication,
+                &self.api.authentication,
                 "v4.1/edge-apps/settings/values",
                 &settings_values_payload,
             )?;
@@ -298,7 +298,7 @@ impl EdgeAppCommand {
 
         if setting.type_field == "secret" {
             commands::post(
-                &self.authentication,
+                &self.api.authentication,
                 "v4.1/edge-apps/secrets/values",
                 &settings_values_payload,
             )?;
@@ -307,7 +307,7 @@ impl EdgeAppCommand {
 
         if setting.edge_app_setting_values.is_empty() {
             commands::post(
-                &self.authentication,
+                &self.api.authentication,
                 "v4.1/edge-apps/settings/values",
                 &settings_values_payload,
             )?;
@@ -322,7 +322,7 @@ impl EdgeAppCommand {
             return Ok(());
         }
         commands::patch(
-            &self.authentication,
+            &self.api.authentication,
             &settings_values_patch_url,
             &json!(
                 {
@@ -342,10 +342,10 @@ impl EdgeAppCommand {
 
         debug!("Creating setting: {:?}", &payload);
 
-        let response = commands::post(&self.authentication, "v4.1/edge-apps/settings", &payload);
+        let response = commands::post(&self.api.authentication, "v4.1/edge-apps/settings", &payload);
         if response.is_err() {
             let c = commands::get(
-                &self.authentication,
+                &self.api.authentication,
                 &format!("v4.1/edge-apps/settings?app_id=eq.{}", app_id),
             )?;
             debug!("Existing settings: {:?}", c);
@@ -363,7 +363,7 @@ impl EdgeAppCommand {
         debug!("Updating setting: {:?}", &payload);
 
         let response = commands::patch(
-            &self.authentication,
+            &self.api.authentication,
             &format!(
                 "v4.1/edge-apps/settings?app_id=eq.{id}&name=eq.{name}",
                 id = app_id,
@@ -382,7 +382,7 @@ impl EdgeAppCommand {
 
     pub fn delete_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
         let response = commands::delete(
-            &self.authentication,
+            &self.api.authentication,
             &format!(
                 "v4.1/edge-apps/settings?app_id=eq.{id}&name=eq.{name}",
                 id = app_id,

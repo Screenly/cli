@@ -14,7 +14,7 @@ use std::path::Path;
 impl EdgeAppCommand {
     fn get_instance_name(&self, installation_id: &str) -> Result<String, CommandError> {
         let response = commands::get(
-            &self.authentication,
+            &self.api.authentication,
             &format!(
                 "v4.1/edge-apps/installations?select=name&id=eq.{}",
                 installation_id
@@ -35,7 +35,7 @@ impl EdgeAppCommand {
     }
     pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
         let response = commands::get(
-            &self.authentication,
+            &self.api.authentication,
             &format!(
                 "v4/edge-apps/installations?select=id,name&app_id=eq.{}",
                 app_id
@@ -80,7 +80,7 @@ impl EdgeAppCommand {
         manifest_path: String,
     ) -> Result<(), CommandError> {
         commands::delete(
-            &self.authentication,
+            &self.api.authentication,
             &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
         )?;
         match fs::remove_file(manifest_path) {
@@ -109,7 +109,7 @@ impl EdgeAppCommand {
                 "name": instance_manifest.name,
             });
             commands::patch(
-                &self.authentication,
+                &self.api.authentication,
                 &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
                 &payload,
             )?;
@@ -136,7 +136,7 @@ impl EdgeAppCommand {
         }
 
         let response = commands::post(
-            &self.authentication,
+            &self.api.authentication,
             "v4.1/edge-apps/installations?select=id",
             &payload,
         )?;

@@ -3,6 +3,7 @@ mod cli;
 mod commands;
 mod pb_signature;
 mod signature;
+mod api;
 
 extern crate prettytable;
 

@@ -9,13 +9,16 @@ pub mod test_utils;
 pub mod utils;
 
 use crate::authentication::Authentication;
+use crate::api::Api;
+
+use serde::{Deserialize, Serialize};
 
 pub struct EdgeAppCommand {
-    authentication: Authentication,
+    api: Api,
 }
 
 impl EdgeAppCommand {
     pub fn new(authentication: Authentication) -> Self {
-        Self { authentication }
+        Self { api: Api{ authentication: authentication } }
     }
 }
