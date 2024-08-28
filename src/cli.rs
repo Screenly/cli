@@ -67,6 +67,9 @@ pub enum Commands {
     /// Edge App related commands.
     #[command(subcommand)]
     EdgeApp(EdgeAppCommands),
+    /// For generating `docs/CommandLineHelp.md`.
+    #[clap(hide = true)]
+    PrintHelpMarkdown {},
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -522,6 +525,9 @@ pub fn handle_cli(cli: &Cli) {
             info!("Logout successful.");
             std::process::exit(0);
         }
+        Commands::PrintHelpMarkdown {} => {
+            clap_markdown::print_help_markdown::<Cli>();
+        }
     }
 }
 
@@ -829,11 +835,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 commands::edge_app::EdgeAppCommand::create
             };
 
-            match create_func(
-                &edge_app_command,
-                name,
-                transform_edge_app_path_to_manifest(path).as_path(),
-            ) {
+            let manifest_path = match transform_edge_app_path_to_manifest(path) {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Failed to create edge app: {e}.");
+                    std::process::exit(1);
+                }
+            };
+
+            match create_func(&edge_app_command, name, manifest_path.as_path()) {
                 Ok(()) => {
                     println!("Edge app successfully created.");
                 }
@@ -915,10 +925,17 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             match edge_app_command.delete_app(&actual_app_id) {
                 Ok(()) => {
                     println!("Edge App Deletion in Progress.\nRequest to delete the Edge App has been received and is now being processed. The deletion is marked for asynchronous handling, so it won't happen instantly.");
+
+                    let manifest_path = match transform_edge_app_path_to_manifest(path) {
+                        Ok(path) => path,
+                        Err(e) => {
+                            eprintln!("Failed to delete edge app: {e}.");
+                            std::process::exit(1);
+                        }
+                    };
+
                     // If the user didn't specify an app id, we need to clear it from the manifest
-                    match edge_app_command
-                        .clear_app_id(transform_edge_app_path_to_manifest(path).as_path())
-                    {
+                    match edge_app_command.clear_app_id(manifest_path.as_path()) {
                         Ok(()) => {
                             println!("App id cleared from manifest.");
                         }
@@ -965,7 +982,14 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             };
 
             if generate_mock_data.unwrap_or(false) {
-                let manifest_path = transform_edge_app_path_to_manifest(path);
+                let manifest_path = match transform_edge_app_path_to_manifest(path) {
+                    Ok(path) => path,
+                    Err(e) => {
+                        eprintln!("Failed to generate mock data: {e}.");
+                        std::process::exit(1);
+                    }
+                };
+
                 match edge_app_command.generate_mock_data(&manifest_path) {
                     Ok(_) => std::process::exit(0),
                     Err(e) => {
@@ -988,7 +1012,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             edge_app_command.run(path.as_path(), secrets).unwrap();
         }
         EdgeAppCommands::Validate { path } => {
-            let manifest_path = transform_edge_app_path_to_manifest(path);
+            let manifest_path = match transform_edge_app_path_to_manifest(path) {
+                Ok(path) => path,
+                Err(e) => {
+                    eprintln!("Failed to validate manifest file: {e}.");
+                    std::process::exit(1);
+                }
+            };
             match EdgeAppManifest::ensure_manifest_is_valid(&manifest_path) {
                 Ok(()) => {
                     println!("Manifest file is valid.");
@@ -1001,7 +1031,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let instance_manifest_path = match transform_instance_path_to_instance_manifest(path) {
                 Ok(path) => path,
                 Err(e) => {
-                    eprintln!("Failed to validate edge app instance file path: {e}.");
+                    eprintln!("Failed to build instance manifest filepath: {e}.");
                     std::process::exit(1);
                 }
             };
@@ -1106,14 +1136,17 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         }
                     };
 
-                let instance_manifest_path: String =
-                    match transform_edge_app_path_to_manifest(path).to_str() {
-                        Some(path) => path.to_string(),
-                        None => {
-                            eprintln!(
-                                "Failed to create edge app instance. Path is not valid. {:?}",
-                                path
-                            );
+                let instance_manifest_path =
+                    match transform_instance_path_to_instance_manifest(path) {
+                        Ok(path) => match path.to_str() {
+                            Some(path) => path.to_string(),
+                            None => {
+                                eprintln!("Failed to delete edge app instance. Invalid path.");
+                                std::process::exit(1);
+                            }
+                        },
+                        Err(e) => {
+                            eprintln!("Failed to delete edge app instance. {:?}", e);
                             std::process::exit(1);
                         }
                     };
@@ -1185,7 +1218,7 @@ mod tests {
         let dir_path = dir.path().to_str().unwrap().to_string();
         let path = Some(dir_path.clone());
 
-        let new_path = transform_edge_app_path_to_manifest(&path);
+        let new_path = transform_edge_app_path_to_manifest(&path).unwrap();
 
         assert_eq!(
             new_path,
@@ -1201,7 +1234,7 @@ mod tests {
         // Change current directory to tempdir
         assert!(env::set_current_dir(dir_path).is_ok());
 
-        let new_path = transform_edge_app_path_to_manifest(&None);
+        let new_path = transform_edge_app_path_to_manifest(&None).unwrap();
 
         assert_eq!(new_path, dir_path.join("screenly.yml"));
     }

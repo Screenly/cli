@@ -256,7 +256,7 @@ impl EdgeAppCommand {
                 }
             );
             settings_values_patch_url = format!(
-                "v4.1/edge-apps/settings/values?app_id=eq.{}&name=eq.{}",
+                "v4.1/edge-apps/settings/values?app_id=eq.{}&name=eq.{}&installation_id=is.null",
                 app_id, setting_key,
             );
         } else {
@@ -769,6 +769,7 @@ mod tests {
                 )
                 .query_param("name", "eq.best_setting")
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("installation_id", "is.null")
                 .json_body(json!(
                     {
                         "value": "best_value1",

@@ -15,6 +15,7 @@ use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
 const INSTANCE_FILE_NAME_ENV: &str = "INSTANCE_FILE_NAME";
+const MANIFEST_FILE_NAME_ENV: &str = "MANIFEST_FILE_NAME";
 
 #[derive(Debug, Clone)]
 pub struct EdgeAppFile {
@@ -64,7 +65,7 @@ impl FileChanges {
 }
 
 fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
-    let exclusion_list = ["screenly.js", "screenly.yml", ".ignore"];
+    let exclusion_list = ["screenly.js", "screenly.yml", ".ignore", "instance.yml"];
     if exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default()) {
         return false;
     }
@@ -72,14 +73,33 @@ fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
     return !ignore.is_ignored(entry.path());
 }
 
-pub fn transform_edge_app_path_to_manifest(path: &Option<String>) -> PathBuf {
+pub fn transform_edge_app_path_to_manifest(path: &Option<String>) -> Result<PathBuf, CommandError> {
+    let manifest_path = env::var(MANIFEST_FILE_NAME_ENV);
+
+    let filename = match manifest_path {
+        Ok(path) => {
+            let path_obj = Path::new(&path);
+            if path_obj.components().count() != 1 {
+                return Err(CommandError::ManifestFilenameError(path));
+            }
+            path
+        }
+        Err(_) => "screenly.yml".to_string(),
+    };
+
     let mut result = match path {
-        Some(path) => PathBuf::from(path),
+        Some(path) => {
+            let path_buf_obj = PathBuf::from(path);
+            if !path_buf_obj.is_dir() {
+                return Err(CommandError::PathIsNotDirError(path.clone()));
+            }
+            path_buf_obj
+        }
         None => env::current_dir().unwrap(),
     };
 
-    result.push("screenly.yml");
-    result
+    result.push(filename);
+    Ok(result)
 }
 
 pub fn transform_instance_path_to_instance_manifest(
@@ -689,6 +709,10 @@ mod tests {
             .unwrap()
             .write_all(b"file2.txt")
             .unwrap();
+        File::create(dir_path.join("instance.yml"))
+            .unwrap()
+            .write_all(b"id: 01H2QZ6Z8WXWNDC0KQ198XCZEB\nname: test\n")
+            .unwrap();
 
         let result = collect_paths_for_upload(dir_path).unwrap();
         assert_eq!(result.len(), 1);
@@ -1022,7 +1046,74 @@ mod tests {
         temp_env::with_var(INSTANCE_FILE_NAME_ENV, Some("folder/instance2.yml"), || {
             let result = transform_instance_path_to_instance_manifest(&None);
             assert!(result.is_err());
-            assert_eq!(result.unwrap_err().to_string(), "Env var INSTANCE_FILENAME must hold only file name, not a path. folder/instance2.yml");
+            assert_eq!(result.unwrap_err().to_string(), "Env var INSTANCE_FILE_NAME must hold only file name, not a path. folder/instance2.yml");
+        });
+    }
+
+    #[test]
+    fn test_transform_edge_app_path_to_manifest_should_return_current_dir_with_() {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let result = transform_edge_app_path_to_manifest(&None);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir_path.join("screenly.yml"));
+    }
+
+    #[test]
+    fn test_transform_edge_app_path_to_manifest_when_path_provided_should_return_path_with_instance_manifest(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let dir2 = tempdir().unwrap();
+        let dir_path2 = dir2.path();
+
+        let result =
+            transform_edge_app_path_to_manifest(&Some(dir_path2.to_str().unwrap().to_string()));
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir_path2.join("screenly.yml"));
+    }
+
+    #[test]
+    fn test_transform_edge_app_path_to_manifest_when_path_provided_is_not_a_dir_should_fail() {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        let result = transform_edge_app_path_to_manifest(&Some("screenly2.yml".to_string()));
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Path is not a directory: screenly2.yml"
+        );
+    }
+
+    #[test]
+    fn test_transform_edge_app_path_to_manifest_with_env_instance_override_should_return_overrided_manifest_path(
+    ) {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+        temp_env::with_var(MANIFEST_FILE_NAME_ENV, Some("screenly2.yml"), || {
+            let result = transform_edge_app_path_to_manifest(&None);
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), dir_path.join("screenly2.yml"));
+        });
+    }
+
+    #[test]
+    fn test_transform_edge_app_path_to_manifest_with_env_path_instead_of_file_should_fail() {
+        let dir = tempdir().unwrap();
+        let dir_path = dir.path();
+        assert!(env::set_current_dir(dir_path).is_ok());
+
+        temp_env::with_var(MANIFEST_FILE_NAME_ENV, Some("folder/screenly2.yml"), || {
+            let result = transform_edge_app_path_to_manifest(&None);
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().to_string(), "Env var MANIFEST_FILE_NAME must hold only file name, not a path. folder/screenly2.yml");
         });
     }
 
