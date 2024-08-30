@@ -1,6 +1,6 @@
 use crate::api::Api;
-use crate::commands::CommandError;
 use crate::commands;
+use crate::commands::CommandError;
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +21,6 @@ pub struct EdgeAppVersion {
     #[serde(default)]
     pub revision: u32,
 }
-
 
 impl Api {
     pub fn get_latest_revision(

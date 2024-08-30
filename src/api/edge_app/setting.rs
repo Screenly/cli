@@ -1,12 +1,12 @@
-use crate::{api::Api, commands::EdgeAppSettings};
-use crate::commands::CommandError;
 use crate::commands;
+use crate::commands::CommandError;
+use crate::{api::Api, commands::EdgeAppSettings};
 
+use log::debug;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::ops::Not;
 use std::str::FromStr;
-use log::debug;
-use serde_json::{json, Value};
 
 use serde::Deserializer;
 use strum::IntoEnumIterator;
@@ -207,7 +207,6 @@ impl Setting {
     }
 }
 
-
 impl Api {
     pub fn get_settings(&self, app_id: &str) -> Result<Vec<Setting>, CommandError> {
         Ok(deserialize_settings_from_array(commands::get(
@@ -255,7 +254,11 @@ impl Api {
         Ok(EdgeAppSettings::new(serde_json::to_value(app_settings)?))
     }
 
-    pub fn get_global_setting(&self, app_id: &str, setting_key: &str) -> Result<Option<SettingValue>, CommandError> {
+    pub fn get_global_setting(
+        &self,
+        app_id: &str,
+        setting_key: &str,
+    ) -> Result<Option<SettingValue>, CommandError> {
         let response = commands::get(
             &self.authentication,
             &format!(
@@ -270,7 +273,12 @@ impl Api {
         Ok(Some(settings[0].clone()))
     }
 
-    pub fn get_local_setting(&self, app_id: &str, installation_id: &str, setting_key: &str) -> Result<Option<SettingValue>, CommandError> {
+    pub fn get_local_setting(
+        &self,
+        app_id: &str,
+        installation_id: &str,
+        setting_key: &str,
+    ) -> Result<Option<SettingValue>, CommandError> {
         let response = commands::get(
             &self.authentication,
             &format!(
@@ -294,7 +302,7 @@ impl Api {
         payload.insert("name".to_owned(), json!(setting.name));
 
         debug!("Creating setting: {:?}", &payload);
-        Ok(commands::post(&self.authentication, "v4.1/edge-apps/settings", &payload)?)
+        commands::post(&self.authentication, "v4.1/edge-apps/settings", &payload)
     }
 
     pub fn update_setting(&self, app_id: &str, setting: &Setting) -> Result<Value, CommandError> {
@@ -304,7 +312,7 @@ impl Api {
 
         debug!("Updating setting: {:?}", &payload);
 
-        Ok(commands::patch(
+        commands::patch(
             &self.authentication,
             &format!(
                 "v4.1/edge-apps/settings?app_id=eq.{id}&name=eq.{name}",
@@ -312,7 +320,7 @@ impl Api {
                 name = setting.name
             ),
             &payload,
-        )?)
+        )
     }
 
     pub fn delete_setting(&self, app_id: &str, setting: &Setting) -> Result<(), CommandError> {
@@ -327,7 +335,12 @@ impl Api {
         Ok(())
     }
 
-    pub fn create_global_setting_value(&self, app_id: &str, setting_key: &str, setting_value: &str) -> Result<(), CommandError> {
+    pub fn create_global_setting_value(
+        &self,
+        app_id: &str,
+        setting_key: &str,
+        setting_value: &str,
+    ) -> Result<(), CommandError> {
         let settings_values_payload = json!(
             {
                 "app_id": app_id,
@@ -337,14 +350,19 @@ impl Api {
         );
         commands::post(
             &self.authentication,
-            &format!("v4.1/edge-apps/settings/values"),
+            "v4.1/edge-apps/settings/values",
             &settings_values_payload,
         )?;
 
         Ok(())
     }
 
-    pub fn create_local_setting_value(&self, app_id: &str, installation_id: &str, setting_key: &str, setting_value: &str) -> Result<(), CommandError> {
+    pub fn create_local_setting_value(
+        &self,
+        installation_id: &str,
+        setting_key: &str,
+        setting_value: &str,
+    ) -> Result<(), CommandError> {
         let settings_values_payload = json!(
             {
                 "installation_id": installation_id,
@@ -354,17 +372,25 @@ impl Api {
         );
         commands::post(
             &self.authentication,
-            &format!("v4.1/edge-apps/settings/values"),
+            "v4.1/edge-apps/settings/values",
             &settings_values_payload,
         )?;
 
         Ok(())
     }
 
-    pub fn update_global_setting_value(&self, app_id: &str, setting_key: &str, setting_value: &str) -> Result<(), CommandError> {
+    pub fn update_global_setting_value(
+        &self,
+        app_id: &str,
+        setting_key: &str,
+        setting_value: &str,
+    ) -> Result<(), CommandError> {
         commands::patch(
             &self.authentication,
-            &format!("v4.1/edge-apps/settings/values?app_id=eq.{}&name=eq.{}&installation_id=is.null", app_id, setting_key),
+            &format!(
+                "v4.1/edge-apps/settings/values?app_id=eq.{}&name=eq.{}&installation_id=is.null",
+                app_id, setting_key
+            ),
             &json!({
                 "value": setting_value,
             }),
@@ -373,10 +399,18 @@ impl Api {
         Ok(())
     }
 
-    pub fn update_local_setting_value(&self, installation_id: &str, setting_key: &str, setting_value: &str) -> Result<(), CommandError> {
+    pub fn update_local_setting_value(
+        &self,
+        installation_id: &str,
+        setting_key: &str,
+        setting_value: &str,
+    ) -> Result<(), CommandError> {
         commands::patch(
             &self.authentication,
-            &format!("v4.1/edge-apps/settings/values?installation_id=eq.{}&name=eq.{}", installation_id, setting_key),
+            &format!(
+                "v4.1/edge-apps/settings/values?installation_id=eq.{}&name=eq.{}",
+                installation_id, setting_key
+            ),
             &json!({
                 "value": setting_value,
             }),
@@ -385,7 +419,12 @@ impl Api {
         Ok(())
     }
 
-    pub fn create_global_secret_value(&self, app_id: &str, setting_key: &str, setting_value: &str) -> Result<(), CommandError> {
+    pub fn create_global_secret_value(
+        &self,
+        app_id: &str,
+        setting_key: &str,
+        setting_value: &str,
+    ) -> Result<(), CommandError> {
         let payload = json!(
             {
                 "app_id": app_id,
@@ -395,14 +434,19 @@ impl Api {
         );
         commands::post(
             &self.authentication,
-            &format!("v4.1/edge-apps/secrets/values"),
+            "v4.1/edge-apps/secrets/values",
             &payload,
         )?;
 
         Ok(())
     }
 
-    pub fn create_local_secret_value(&self, installation_id: &str, setting_key: &str, setting_value: &str) -> Result<(), CommandError> {
+    pub fn create_local_secret_value(
+        &self,
+        installation_id: &str,
+        setting_key: &str,
+        setting_value: &str,
+    ) -> Result<(), CommandError> {
         let payload = json!(
             {
                 "installation_id": installation_id,
@@ -412,7 +456,7 @@ impl Api {
         );
         commands::post(
             &self.authentication,
-            &format!("v4.1/edge-apps/secrets/values"),
+            "v4.1/edge-apps/secrets/values",
             &payload,
         )?;
 

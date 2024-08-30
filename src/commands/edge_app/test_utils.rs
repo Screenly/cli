@@ -3,6 +3,7 @@ pub mod tests {
     use crate::authentication::Config;
     use tempfile::TempDir;
 
+    use crate::api::edge_app::setting::Setting;
     use crate::authentication::Authentication;
     use crate::commands::edge_app::instance_manifest::{
         InstanceManifest, INSTANCE_MANIFEST_VERSION,
@@ -10,7 +11,6 @@ pub mod tests {
     use crate::commands::edge_app::manifest::{
         EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
     };
-    use crate::api::edge_app::setting::Setting;
     use crate::commands::edge_app::EdgeAppCommand;
 
     use httpmock::MockServer;

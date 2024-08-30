@@ -1,12 +1,11 @@
 use log::debug;
 
 use crate::api::Api;
-use crate::commands::CommandError;
 use crate::commands;
+use crate::commands::CommandError;
 
-use serde_json::{json, Value};
 use serde::{Deserialize, Serialize};
-
+use serde_json::{json, Value};
 
 #[derive(Debug)]
 pub struct EdgeApps {

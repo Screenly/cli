@@ -1,18 +1,7 @@
 use crate::api::Api;
-use crate::commands::CommandError;
 use crate::commands;
+use crate::commands::CommandError;
 
-use std::collections::HashMap;
-use std::ops::Not;
-use std::str::FromStr;
-use serde_json::Value;
-use log::debug;
-
-use serde::Deserializer;
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter, EnumString};
-
-use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -72,7 +61,11 @@ impl Api {
         Ok(())
     }
 
-    pub fn update_installation_name(&self, installation_id: &str, name: &str) -> Result<(), CommandError> {
+    pub fn update_installation_name(
+        &self,
+        installation_id: &str,
+        name: &str,
+    ) -> Result<(), CommandError> {
         let payload = json!({
             "name": name,
         });

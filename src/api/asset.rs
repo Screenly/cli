@@ -1,9 +1,8 @@
 use crate::api::Api;
-use crate::commands::CommandError;
 use crate::commands;
+use crate::commands::CommandError;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct AssetSignature {
@@ -44,6 +43,8 @@ impl Api {
             ),
         )?;
 
-        Ok(serde_json::from_value::<Vec<AssetProcessingStatus>>(response)?)
+        Ok(serde_json::from_value::<Vec<AssetProcessingStatus>>(
+            response,
+        )?)
     }
 }

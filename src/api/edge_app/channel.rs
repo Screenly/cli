@@ -1,13 +1,18 @@
 use crate::api::Api;
-use crate::commands::CommandError;
 use crate::commands;
+use crate::commands::CommandError;
 
 use serde_json::json;
 
 use serde::Deserialize;
 
 impl Api {
-    pub fn update_channel(&self, channel: &str, app_id: &str, revision: u32) -> Result<(), CommandError> {
+    pub fn update_channel(
+        &self,
+        channel: &str,
+        app_id: &str,
+        revision: u32,
+    ) -> Result<(), CommandError> {
         let response = commands::patch(
             &self.authentication,
             &format!(

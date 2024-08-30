@@ -1,10 +1,9 @@
-use crate::commands;
+use crate::api::edge_app::setting::{Setting, SettingType};
+use crate::api::version::EdgeAppVersion;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::{EdgeAppManifest, Entrypoint};
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
-use crate::api::version::EdgeAppVersion;
-use crate::api::edge_app::setting::{Setting, SettingType};
 
 use indicatif::ProgressBar;
 use log::debug;
@@ -13,7 +12,6 @@ use std::{io, str, thread};
 
 use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_yaml;
 use std::fs;
@@ -34,7 +32,6 @@ use crate::commands::edge_app::utils::transform_edge_app_path_to_manifest;
 
 use crate::commands::edge_app::manifest::{EntrypointType, MANIFEST_VERSION};
 use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
-
 
 // Edge apps commands
 impl EdgeAppCommand {
@@ -125,7 +122,7 @@ impl EdgeAppCommand {
     }
 
     pub fn list(&self) -> Result<EdgeApps, CommandError> {
-        Ok(self.api.list_apps()?)
+        self.api.list_apps()
     }
 
     pub fn deploy(
@@ -156,7 +153,9 @@ impl EdgeAppCommand {
             None => 0,
         };
 
-        let remote_files = self.api.get_version_asset_signatures(&actual_app_id, revision)?;
+        let remote_files = self
+            .api
+            .get_version_asset_signatures(&actual_app_id, revision)?;
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
@@ -322,7 +321,10 @@ impl EdgeAppCommand {
                 }
                 break;
             }
-            debug!("ensure_assets_processing_finished: {:?}", &asset_processing_statuses);
+            debug!(
+                "ensure_assets_processing_finished: {:?}",
+                &asset_processing_statuses
+            );
 
             for asset_processing_status in &asset_processing_statuses {
                 if asset_processing_status.status == "error" {
@@ -332,7 +334,7 @@ impl EdgeAppCommand {
                     )));
                 }
             }
-            
+
             let unprocessed_asset_count = asset_processing_statuses.len() as u64;
 
             match &mut pb {
@@ -382,7 +384,7 @@ impl EdgeAppCommand {
         let mut json = EdgeAppManifest::prepare_payload(manifest);
         json.insert("file_tree", json!(file_tree));
 
-        Ok(self.api.create_version(json)?)
+        self.api.create_version(json)
     }
 
     fn upload_changed_settings(
@@ -548,7 +550,8 @@ impl EdgeAppCommand {
             .file("file", path)?;
 
         let response = self
-            .api.authentication
+            .api
+            .authentication
             .build_client()?
             .post(url)
             .multipart(form)
@@ -610,7 +613,7 @@ mod tests {
     use super::*;
     use std::env;
 
-    use commands::edge_app::manifest::MANIFEST_VERSION;
+    use crate::commands::edge_app::manifest::MANIFEST_VERSION;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
 
     use crate::commands::edge_app::test_utils::tests::{

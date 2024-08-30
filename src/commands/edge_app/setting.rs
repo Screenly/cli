@@ -1,20 +1,17 @@
-use crate::commands;
+use crate::api::edge_app::setting::Setting;
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeAppSettings};
-use crate::api::edge_app::setting::Setting;
 
 use log::debug;
 use std::collections::HashMap;
 use std::str;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-
 
 impl EdgeAppCommand {
     pub fn list_settings(&self, path: Option<String>) -> Result<EdgeAppSettings, CommandError> {
         let app_id = self.get_app_id(path)?;
-        Ok(self.api.list_settings(&app_id)?)
+        self.api.list_settings(&app_id)
     }
 
     pub fn set_setting(
@@ -46,35 +43,18 @@ impl EdgeAppCommand {
             edge_app_setting_values: Vec<HashMap<String, String>>,
         }
 
-        let setting_url: String;
-        let settings_values_payload: Value;
-        let settings_values_patch_url: String;
-        let server_setting_value;
-
-        if _is_setting_global {
-            settings_values_payload = json!(
-                {
-                    "app_id": app_id,
-                    "name": setting_key,
-                    "value": setting_value,
+        let server_setting_value = {
+            if _is_setting_global {
+                self.api.get_global_setting(&app_id, setting_key)?
+            } else {
+                if actual_installation_id.is_empty() {
+                    return Err(CommandError::MissingInstallationId);
                 }
-            );
-            server_setting_value = self.api.get_global_setting(&app_id, setting_key)?;
-        } else {
-            if actual_installation_id == "" {
-                return Err(CommandError::MissingInstallationId);
+                self.api
+                    .get_local_setting(&app_id, &actual_installation_id, setting_key)?
             }
+        };
 
-            settings_values_payload = json!(
-                {
-                    "installation_id": actual_installation_id,
-                    "name": setting_key,
-                    "value": setting_value,
-                }
-            );
-            server_setting_value = self.api.get_local_setting(&app_id, &actual_installation_id, setting_key)?;
-        }
-       
         if server_setting_value.is_none() {
             return Err(CommandError::SettingDoesNotExist(setting_key.to_string()));
         }
@@ -84,27 +64,35 @@ impl EdgeAppCommand {
 
         if setting.type_field == "secret" {
             if _is_setting_global {
-                self.api.create_global_secret_value(&app_id, setting_key, setting_value)?;
-            }
-            else {
-                if actual_installation_id == "" {
+                self.api
+                    .create_global_secret_value(&app_id, setting_key, setting_value)?;
+            } else {
+                if actual_installation_id.is_empty() {
                     return Err(CommandError::MissingInstallationId);
                 }
-                self.api.create_local_secret_value(&actual_installation_id, setting_key, setting_value)?;
+                self.api.create_local_secret_value(
+                    &actual_installation_id,
+                    setting_key,
+                    setting_value,
+                )?;
             }
-            
+
             return Ok(());
         }
 
         if setting.edge_app_setting_values.is_empty() {
             if _is_setting_global {
-                self.api.create_global_setting_value(&app_id, setting_key, setting_value)?;
-            }
-            else {
-                if actual_installation_id == "" {
+                self.api
+                    .create_global_setting_value(&app_id, setting_key, setting_value)?;
+            } else {
+                if actual_installation_id.is_empty() {
                     return Err(CommandError::MissingInstallationId);
                 }
-                self.api.create_local_setting_value(&app_id, &actual_installation_id, setting_key, setting_value)?;
+                self.api.create_local_setting_value(
+                    &actual_installation_id,
+                    setting_key,
+                    setting_value,
+                )?;
             }
 
             return Ok(());
@@ -116,15 +104,19 @@ impl EdgeAppCommand {
             println!("Setting value is already set to {}", setting_value);
             return Ok(());
         }
-        
+
         if _is_setting_global {
-            self.api.update_global_setting_value(&app_id, setting_key, setting_value)?;
-        }
-        else {
-            if actual_installation_id == "" {
+            self.api
+                .update_global_setting_value(&app_id, setting_key, setting_value)?;
+        } else {
+            if actual_installation_id.is_empty() {
                 return Err(CommandError::MissingInstallationId);
             }
-            self.api.update_local_setting_value( &actual_installation_id, setting_key, setting_value)?;
+            self.api.update_local_setting_value(
+                &actual_installation_id,
+                setting_key,
+                setting_value,
+            )?;
         }
 
         Ok(())
@@ -167,6 +159,7 @@ impl EdgeAppCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::{json, Value};
     use std::env;
 
     use crate::api::edge_app::setting::SettingType;

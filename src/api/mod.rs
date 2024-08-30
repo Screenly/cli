@@ -1,9 +1,9 @@
 use crate::authentication::Authentication;
 
+pub mod asset;
 pub mod edge_app;
 pub mod version;
-pub mod asset;
 
 pub struct Api {
-    pub authentication: Authentication
+    pub authentication: Authentication,
 }

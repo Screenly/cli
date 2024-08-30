@@ -10,7 +10,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::api::edge_app::setting::{Setting, serialize_settings, deserialize_settings};
+use crate::api::edge_app::setting::{deserialize_settings, serialize_settings, Setting};
 use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };

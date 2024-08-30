@@ -1,7 +1,7 @@
 use crate::api::asset::AssetSignature;
+use crate::api::edge_app::setting::{Setting, SettingType};
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
-use crate::api::edge_app::setting::{Setting, SettingType};
 use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
 use log::debug;
@@ -312,10 +312,10 @@ pub fn validate_manifests_dependacies(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::edge_app::setting::{Setting, SettingType};
     use crate::commands::edge_app::instance_manifest::INSTANCE_MANIFEST_VERSION;
     use crate::commands::edge_app::manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
     use crate::commands::edge_app::manifest_auth::AuthType;
-    use crate::api::edge_app::setting::{Setting, SettingType};
     use std::fs::File;
     use std::io::Write;
     use temp_env;

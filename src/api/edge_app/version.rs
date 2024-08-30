@@ -1,21 +1,13 @@
 use crate::api::Api;
-use crate::commands::CommandError;
 use crate::commands;
+use crate::commands::CommandError;
 
-use std::collections::HashMap;
-use std::ops::Not;
-use std::str::FromStr;
-use serde_json::Value;
 use log::debug;
+use serde_json::Value;
+use std::collections::HashMap;
 
-use serde::Deserializer;
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter, EnumString};
-
-use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
-
 
 impl Api {
     pub fn version_exists(&self, app_id: &str, revision: u32) -> Result<bool, CommandError> {
@@ -54,7 +46,11 @@ impl Api {
         Err(CommandError::MissingField)
     }
 
-    pub fn get_file_tree(&self, app_id: &str, revision: u32) -> Result<HashMap<String, String>, CommandError> {
+    pub fn get_file_tree(
+        &self,
+        app_id: &str,
+        revision: u32,
+    ) -> Result<HashMap<String, String>, CommandError> {
         let response = commands::get(
             &self.authentication,
             &format!(
