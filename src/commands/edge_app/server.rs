@@ -1,5 +1,5 @@
 use crate::commands::edge_app::manifest::EdgeAppManifest;
-use crate::commands::edge_app::setting::SettingType;
+use crate::api::edge_app::setting::SettingType;
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::ignorer::Ignorer;
 use crate::commands::CommandError;
@@ -333,7 +333,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::authentication::{Authentication, Config};
-    use crate::commands::edge_app::setting::{Setting, SettingType};
+    use crate::api::edge_app::setting::{Setting, SettingType};
     use crate::commands::edge_app::test_utils::tests::{
         create_edge_app_manifest_for_test, prepare_edge_apps_test,
     };

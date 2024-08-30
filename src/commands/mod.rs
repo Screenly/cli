@@ -1,6 +1,7 @@
 use crate::{Authentication, AuthenticationError};
 use prettytable::{cell, Cell, Row};
-use crate::api::edge_app::EdgeApps;
+use crate::api::edge_app::app::EdgeApps;
+use crate::api::edge_app::installation::EdgeAppInstances;
 
 use log::debug;
 use std::time::Duration;
@@ -357,16 +358,7 @@ impl Formatter for EdgeAppSettings {
     }
 }
 
-#[derive(Debug)]
-pub struct EdgeAppInstances {
-    pub value: serde_json::Value,
-}
 
-impl EdgeAppInstances {
-    pub fn new(value: serde_json::Value) -> Self {
-        Self { value }
-    }
-}
 
 impl FormatterValue for EdgeAppInstances {
     fn value(&self) -> &serde_json::Value {

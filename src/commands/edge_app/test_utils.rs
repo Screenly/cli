@@ -10,7 +10,7 @@ pub mod tests {
     use crate::commands::edge_app::manifest::{
         EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
     };
-    use crate::commands::edge_app::setting::Setting;
+    use crate::api::edge_app::setting::Setting;
     use crate::commands::edge_app::EdgeAppCommand;
 
     use httpmock::MockServer;
