@@ -428,9 +428,7 @@ The Global Branding Settings feature automatically provides relevant visual iden
 ### Branding Settings List
 * screenly_color_accent
 * screenly_color_light
-* screenly_color_dark
 * screenly_logo_light
-* screenly_logo_dark
 
 #### screenly_color_accent
 
@@ -438,39 +436,23 @@ This is the accent color of the customer's brand.
 
 | Setting               | Example Value |
 |-----------------------|----------------|
-| screenly_color_accent | #7E2CD2         |
+| screenly_color_accent | #972eff         |
 
 #### screenly_color_light
 
-The lighter color of the brand. This color should be used on a dark background.
+This is the base color for the light theme.
 
 | Setting              | Example Value |
 |----------------------|----------------|
-| screenly_color_light | #454BD2        |
-
-#### screenly_color_dark
-
-The darker color of the brand. This color should be used on a light background.
-
-| Setting             | Example Value |
-|---------------------|----------------|
-| screenly_color_dark | #000212        |
+| screenly_color_light | #adafbe        |
 
 #### screenly_logo_light
 
-The light version of the logo. A light logo should be displayed on a dark background.
+This is the company logo for the light theme.
 
 | Setting             | Example Value                                                        |
 |---------------------|----------------------------------------------------------------------|
-| screenly_logo_light | [screenly_logo_light](https://us-assets-dev.screenlyapp.com/1NxDvtvs6yFortoAH40.Qw) |
-
-#### screenly_color_dark
-
-The dark version of the logo. A dark logo should be displayed on a light background.
-
-| Setting             | Example Value                                                                       |
-|---------------------|-------------------------------------------------------------------------------------|
-| screenly_dark_light | [screenly_logo_light](https://us-assets-dev.screenlyapp.com/1NxDvtvs6yFortoAH40.Qw) |
+| screenly_logo_light | [screenly_logo_light](https://us-assets.screenlyapp.com/1dp2TKWzR0BCB38bI170Xf) |
 
 ### Notes on Branding Settings
 
