@@ -1,9 +1,10 @@
-use crate::commands;
+use crate::api::edge_app::setting::{Setting, SettingType};
+use crate::api::version::EdgeAppVersion;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::{EdgeAppManifest, Entrypoint};
-use crate::commands::edge_app::setting::{deserialize_settings_from_array, Setting, SettingType};
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
+
 use indicatif::ProgressBar;
 use log::debug;
 use std::collections::HashMap;
@@ -11,7 +12,6 @@ use std::{io, str, thread};
 
 use reqwest::header::HeaderMap;
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_yaml;
 use std::fs;
@@ -33,37 +33,6 @@ use crate::commands::edge_app::utils::transform_edge_app_path_to_manifest;
 use crate::commands::edge_app::manifest::{EntrypointType, MANIFEST_VERSION};
 use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct AssetSignature {
-    pub(crate) signature: String,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct EdgeAppCreationResponse {
-    #[serde(default)]
-    pub id: String,
-    #[serde(default)]
-    pub name: String,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct EdgeAppVersion {
-    #[serde(default)]
-    pub user_version: Option<String>,
-    #[serde(default)]
-    pub description: Option<String>,
-    #[serde(default)]
-    pub icon: Option<String>,
-    #[serde(default)]
-    pub author: Option<String>,
-    #[serde(default)]
-    pub homepage_url: Option<String>,
-    #[serde(default)]
-    pub ready_signal: bool,
-    #[serde(default)]
-    pub revision: u32,
-}
-
 // Edge apps commands
 impl EdgeAppCommand {
     pub fn create(&self, name: &str, path: &Path) -> Result<(), CommandError> {
@@ -79,18 +48,7 @@ impl EdgeAppCommand {
             )));
         }
 
-        let response = commands::post(
-            &self.authentication,
-            "v4/edge-apps?select=id,name",
-            &json!({ "name": name }),
-        )?;
-
-        let json_response = serde_json::from_value::<Vec<EdgeAppCreationResponse>>(response)?;
-        let app_id = json_response[0].id.clone();
-
-        if app_id.is_empty() {
-            return Err(CommandError::MissingField);
-        }
+        let app_id = self.api.create_app(name.to_string())?;
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
@@ -154,17 +112,7 @@ impl EdgeAppCommand {
             return Err(CommandError::InitializationError("The operation can only proceed when 'id' is not set in the 'screenly.yml' configuration file".to_string()));
         }
 
-        let response = commands::post(
-            &self.authentication,
-            "v4/edge-apps?select=id,name",
-            &json!({ "name": name }),
-        )?;
-
-        let json_response = serde_json::from_value::<Vec<EdgeAppCreationResponse>>(response)?;
-        let app_id = json_response[0].id.clone();
-        if app_id.is_empty() {
-            return Err(CommandError::MissingField);
-        }
+        let app_id = self.api.create_app(name.to_string())?;
 
         manifest.id = Some(app_id);
 
@@ -174,10 +122,7 @@ impl EdgeAppCommand {
     }
 
     pub fn list(&self) -> Result<EdgeApps, CommandError> {
-        Ok(EdgeApps::new(commands::get(
-            &self.authentication,
-            "v4/edge-apps?select=id,name&deleted=eq.false",
-        )?))
+        self.api.list_apps()
     }
 
     pub fn deploy(
@@ -203,22 +148,18 @@ impl EdgeAppCommand {
         let local_files = collect_paths_for_upload(edge_app_dir)?;
         ensure_edge_app_has_all_necessary_files(&local_files)?;
 
-        let revision = match self.get_latest_revision(&actual_app_id)? {
+        let revision = match self.api.get_latest_revision(&actual_app_id)? {
             Some(revision) => revision.revision,
             None => 0,
         };
 
-        let remote_files = self.get_version_asset_signatures(&actual_app_id, revision)?;
+        let remote_files = self
+            .api
+            .get_version_asset_signatures(&actual_app_id, revision)?;
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
         debug!("Changed files: {:?}", &changed_files);
 
-        let remote_settings = deserialize_settings_from_array(commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{}&order=name.asc",
-                actual_app_id,
-            ),
-        )?)?;
+        let remote_settings = self.api.get_settings(&actual_app_id)?;
 
         let changed_settings = detect_changed_settings(&manifest, &remote_settings)?;
         self.upload_changed_settings(actual_app_id.clone(), &changed_settings)?;
@@ -233,7 +174,7 @@ impl EdgeAppCommand {
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
-        let old_file_tree = self.get_file_tree(&actual_app_id, revision);
+        let old_file_tree = self.api.get_file_tree(&actual_app_id, revision);
 
         let file_tree_changed = match old_file_tree {
             Ok(tree) => file_tree != tree,
@@ -257,7 +198,7 @@ impl EdgeAppCommand {
 
         self.ensure_assets_processing_finished(&actual_app_id, revision)?;
         // now we freeze it by publishing it
-        self.publish(&actual_app_id, revision)?;
+        self.api.publish_version(&actual_app_id, revision)?;
         debug!("Edge app published.");
 
         self.promote_version(&actual_app_id, revision, "stable")?;
@@ -271,66 +212,24 @@ impl EdgeAppCommand {
         revision: u32,
         channel: &str,
     ) -> Result<(), CommandError> {
-        let get_response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/versions?select=revision&app_id=eq.{}&revision=eq.{}",
-                app_id, revision
-            ),
-        )?;
-        let version =
-            serde_json::from_value::<Vec<HashMap<String, serde_json::Value>>>(get_response)?;
-        if version.is_empty() {
+        let version_exists = self.api.version_exists(app_id, revision)?;
+        if !version_exists {
             return Err(CommandError::RevisionNotFound(revision.to_string()));
         }
 
-        let response = commands::patch(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
-                channel, app_id
-            ),
-            &json!(
-            {
-                "app_revision": revision,
-            }),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
-        struct Channel {
-            app_revision: u32,
-            channel: String,
-        }
-
-        let channels = serde_json::from_value::<Vec<Channel>>(response)?;
-        if channels.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-        if channels[0].channel != channel || channels[0].app_revision != revision {
-            return Err(CommandError::MissingField);
-        }
+        self.api.update_channel(channel, app_id, revision)?;
 
         Ok(())
     }
 
     pub fn delete_app(&self, app_id: &str) -> Result<(), CommandError> {
-        commands::delete(
-            &self.authentication,
-            &format!("v4/edge-apps?id=eq.{}", app_id),
-        )?;
+        self.api.delete_app(app_id)?;
 
         Ok(())
     }
 
     pub fn update_name(&self, app_id: &str, name: &str) -> Result<(), CommandError> {
-        commands::patch(
-            &self.authentication,
-            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
-            &json!(
-            {
-                "name": name,
-            }),
-        )?;
+        self.api.update_app(app_id, name)?;
 
         Ok(())
     }
@@ -396,20 +295,6 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn get_version_asset_signatures(
-        &self,
-        app_id: &str,
-        revision: u32,
-    ) -> Result<Vec<AssetSignature>, CommandError> {
-        Ok(serde_json::from_value(commands::get(
-            &self.authentication,
-            &format!(
-                "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
-                app_id, revision
-            ),
-        )?)?)
-    }
-
     fn ensure_assets_processing_finished(
         &self,
         app_id: &str,
@@ -429,44 +314,40 @@ impl EdgeAppCommand {
                 return Err(CommandError::AssetProcessingTimeout);
             }
 
-            let value = commands::get(
-                &self.authentication,
-                &format!(
-                    "v4/assets?select=status,processing_error,title&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
-                    app_id, revision
-                ),
-            )?;
-            debug!("ensure_assets_processing_finished: {:?}", &value);
-
-            if let Some(array) = value.as_array() {
-                for item in array {
-                    if let Some(status) = item["status"].as_str() {
-                        if status == "error" {
-                            return Err(CommandError::AssetProcessingError(format!(
-                                "Asset {}. Error: {}",
-                                item["title"], item["processing_error"]
-                            )));
-                        }
-                    }
+            let asset_processing_statuses = self.api.get_processing_statuses(app_id, revision)?;
+            if asset_processing_statuses.is_empty() {
+                if let Some(progress_bar) = pb.as_ref() {
+                    progress_bar.finish_with_message("Assets processed");
                 }
+                break;
+            }
+            debug!(
+                "ensure_assets_processing_finished: {:?}",
+                &asset_processing_statuses
+            );
 
-                if array.is_empty() {
-                    if let Some(progress_bar) = pb.as_ref() {
-                        progress_bar.finish_with_message("Assets processed");
-                    }
-                    break;
-                }
-                match &mut pb {
-                    Some(ref mut progress_bar) => {
-                        progress_bar.set_position(assets_to_process - (array.len() as u64));
-                        progress_bar.set_message("Processing Items:");
-                    }
-                    None => {
-                        pb = Some(ProgressBar::new(array.len() as u64));
-                        assets_to_process = array.len() as u64;
-                    }
+            for asset_processing_status in &asset_processing_statuses {
+                if asset_processing_status.status == "error" {
+                    return Err(CommandError::AssetProcessingError(format!(
+                        "Asset {}. Error: {}",
+                        asset_processing_status.title, asset_processing_status.processing_error
+                    )));
                 }
             }
+
+            let unprocessed_asset_count = asset_processing_statuses.len() as u64;
+
+            match &mut pb {
+                Some(ref mut progress_bar) => {
+                    progress_bar.set_position(assets_to_process - unprocessed_asset_count);
+                    progress_bar.set_message("Processing Items:");
+                }
+                None => {
+                    pb = Some(ProgressBar::new(unprocessed_asset_count));
+                    assets_to_process = unprocessed_asset_count;
+                }
+            }
+
             thread::sleep(Duration::from_secs(SLEEP_TIME));
         }
         Ok(())
@@ -480,22 +361,9 @@ impl EdgeAppCommand {
 
 impl EdgeAppCommand {
     pub fn get_app_name(&self, app_id: &str) -> Result<String, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
-        )?;
+        let app = self.api.get_app(app_id)?;
 
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct App {
-            name: String,
-        }
-
-        let apps = serde_json::from_value::<Vec<App>>(response)?;
-        if apps.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-
-        Ok(apps[0].name.clone())
+        Ok(app.name.clone())
     }
 
     pub fn clear_app_id(&self, path: &Path) -> Result<(), CommandError> {
@@ -516,68 +384,7 @@ impl EdgeAppCommand {
         let mut json = EdgeAppManifest::prepare_payload(manifest);
         json.insert("file_tree", json!(file_tree));
 
-        let response = commands::post(
-            &self.authentication,
-            "v4/edge-apps/versions?select=revision",
-            &json,
-        )?;
-        if let Some(arr) = response.as_array() {
-            if let Some(obj) = arr.first() {
-                if let Some(revision) = obj["revision"].as_u64() {
-                    debug!("New version revision: {}", revision);
-                    return Ok(revision as u32);
-                }
-            }
-        }
-
-        Err(CommandError::MissingField)
-    }
-
-    pub fn get_latest_revision(
-        &self,
-        app_id: &str,
-    ) -> Result<Option<EdgeAppVersion>, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/versions?select=user_version,description,icon,author,homepage_url,revision,ready_signal&app_id=eq.{}&order=revision.desc&limit=1",
-                app_id
-            ),
-        )?;
-
-        let versions: Vec<EdgeAppVersion> =
-            serde_json::from_value::<Vec<EdgeAppVersion>>(response)?;
-
-        if versions.is_empty() {
-            return Ok(None);
-        }
-        Ok(versions.first().cloned())
-    }
-
-    fn get_file_tree(
-        &self,
-        app_id: &str,
-        revision: u32,
-    ) -> Result<HashMap<String, String>, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/versions?select=file_tree&app_id=eq.{}&revision=eq.{}",
-                app_id, revision
-            ),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
-        struct FileTree {
-            file_tree: HashMap<String, String>,
-        }
-
-        let file_tree = serde_json::from_value::<Vec<FileTree>>(response)?;
-        if file_tree.is_empty() {
-            return Ok(HashMap::new());
-        }
-
-        Ok(file_tree[0].file_tree.clone())
+        self.api.create_version(json)
     }
 
     fn upload_changed_settings(
@@ -691,10 +498,7 @@ impl EdgeAppCommand {
             "signatures": asset_signatures,
         });
 
-        let response = commands::post(&self.authentication, "v4/edge-apps/copy-assets", &payload)?;
-        let copied_assets = serde_json::from_value::<Vec<String>>(response)?;
-
-        debug!("Copied assets: {:?}", copied_assets);
+        let copied_assets = self.api.copy_assets(payload)?;
         Ok(copied_assets)
     }
 
@@ -725,7 +529,7 @@ impl EdgeAppCommand {
         path: &Path,
         _pb: &Arc<Mutex<ProgressBar>>,
     ) -> Result<(), CommandError> {
-        let url = format!("{}/v4/assets", &self.authentication.config.url);
+        let url = format!("{}/v4/assets", &self.api.authentication.config.url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
@@ -746,6 +550,7 @@ impl EdgeAppCommand {
             .file("file", path)?;
 
         let response = self
+            .api
             .authentication
             .build_client()?
             .post(url)
@@ -763,75 +568,13 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn publish(&self, app_id: &str, revision: u32) -> Result<(), CommandError> {
-        commands::patch(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/versions?app_id=eq.{}&revision=eq.{}",
-                app_id, revision
-            ),
-            &json!({"published": true}),
-        )?;
-
-        Ok(())
-    }
-
-    pub fn is_setting_global(&self, app_id: &str, setting_key: &str) -> Result<bool, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/settings?select=is_global&app_id=eq.{}&name=eq.{}",
-                app_id, setting_key,
-            ),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct SettingIsGlobal {
-            is_global: bool,
-        }
-
-        let setting_list = serde_json::from_value::<Vec<SettingIsGlobal>>(response)?;
-
-        if setting_list.is_empty() {
-            return Err(CommandError::SettingDoesNotExist(setting_key.to_string()));
-        }
-
-        let setting = &setting_list[0];
-
-        Ok(setting.is_global)
-    }
-
-    pub fn get_app_id_by_installation(
-        &self,
-        installation_id: &str,
-    ) -> Result<String, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/installations?select=app_id&id=eq.{}",
-                installation_id
-            ),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct Installation {
-            app_id: String,
-        }
-
-        let installations = serde_json::from_value::<Vec<Installation>>(response)?;
-        if installations.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-
-        Ok(installations[0].app_id.clone())
-    }
-
     pub fn detect_version_metadata_changes(
         &self,
         app_id: &str,
         manifest: &EdgeAppManifest,
     ) -> Result<bool, CommandError> {
-        let version = self.get_latest_revision(app_id)?;
+        let version = self.api.get_latest_revision(app_id)?;
+        // TODO: implement entrypoint changes on the backend
         match version {
             Some(_version) => Ok(_version
                 != EdgeAppVersion {
@@ -870,7 +613,7 @@ mod tests {
     use super::*;
     use std::env;
 
-    use commands::edge_app::manifest::MANIFEST_VERSION;
+    use crate::commands::edge_app::manifest::MANIFEST_VERSION;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
 
     use crate::commands::edge_app::test_utils::tests::{
@@ -1697,7 +1440,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Asset processing error: Asset \"wrong_file.ext\". Error: \"File type not supported.\""
+            "Asset processing error: Asset wrong_file.ext. Error: File type not supported."
                 .to_string()
         );
     }
@@ -2135,7 +1878,13 @@ mod tests {
                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
-            then.status(200).json_body(json!([]));
+            then.status(200).json_body(json!([
+                {
+                    "name": "screenly_entrypoint",
+                    "type": "string",
+                    "edge_app_setting_values": [],
+                }
+            ]));
         });
 
         let setting_values_mock_post = mock_server.mock(|when, then| {
@@ -2307,7 +2056,13 @@ mod tests {
                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
-            then.status(200).json_body(json!([]));
+            then.status(200).json_body(json!([
+                {
+                    "name": "screenly_entrypoint",
+                    "type": "string",
+                    "edge_app_setting_values": [],
+                }
+            ]));
         });
 
         let setting_values_mock_post = mock_server.mock(|when, then| {

@@ -874,18 +874,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         },
         EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List { path, json } => {
-                let actual_installation_id =
-                    match edge_app_command.get_installation_id(path.clone()) {
-                        Ok(_installation_id) => _installation_id,
-                        Err(e) => {
-                            error!("Error calling list settings: {}", e);
-                            std::process::exit(1);
-                        }
-                    };
-                handle_command_execution_result(
-                    edge_app_command.list_settings(&actual_installation_id),
-                    json,
-                );
+                handle_command_execution_result(edge_app_command.list_settings(path.clone()), json);
             }
             EdgeAppSettingsCommands::Set { setting_pair, path } => {
                 match edge_app_command.set_setting(path.clone(), &setting_pair.0, &setting_pair.1) {

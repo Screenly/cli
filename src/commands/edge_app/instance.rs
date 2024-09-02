@@ -1,50 +1,16 @@
 use super::EdgeAppCommand;
-use crate::commands;
 
 use crate::commands::edge_app::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
 use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
 use crate::commands::{CommandError, EdgeAppInstances};
 use std::str;
 
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::fs;
 use std::path::Path;
 
 impl EdgeAppCommand {
-    fn get_instance_name(&self, installation_id: &str) -> Result<String, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/installations?select=name&id=eq.{}",
-                installation_id
-            ),
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct Instance {
-            name: String,
-        }
-
-        let instances = serde_json::from_value::<Vec<Instance>>(response)?;
-        if instances.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-
-        Ok(instances[0].name.clone())
-    }
     pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/edge-apps/installations?select=id,name&app_id=eq.{}",
-                app_id
-            ),
-        )?;
-
-        let instances = EdgeAppInstances::new(response);
-
-        Ok(instances)
+        self.api.list_installations(app_id)
     }
 
     pub fn create_instance(
@@ -60,7 +26,7 @@ impl EdgeAppCommand {
             }
         }
 
-        let installation_id = self.install_edge_app(app_id, name, None)?;
+        let installation_id = self.api.create_installation(app_id, name)?;
 
         let instance_manifest = InstanceManifest {
             id: Some(installation_id.clone()),
@@ -79,10 +45,7 @@ impl EdgeAppCommand {
         installation_id: &str,
         manifest_path: String,
     ) -> Result<(), CommandError> {
-        commands::delete(
-            &self.authentication,
-            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
-        )?;
+        self.api.delete_installation(installation_id)?;
         match fs::remove_file(manifest_path) {
             Ok(_) => {
                 println!("Instance manifest file removed.")
@@ -102,69 +65,28 @@ impl EdgeAppCommand {
             None => return Err(CommandError::MissingInstallationId),
         };
 
-        let server_instance_name = self.get_instance_name(&installation_id)?;
+        let server_instance_name = self.api.get_instance_name(&installation_id)?;
 
         if instance_manifest.name != server_instance_name {
-            let payload = json!({
-                "name": instance_manifest.name,
-            });
-            commands::patch(
-                &self.authentication,
-                &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
-                &payload,
-            )?;
+            self.api
+                .update_installation_name(&installation_id, &instance_manifest.name)?;
         }
 
         self.update_entrypoint_value(path)?;
 
         Ok(())
     }
-
-    pub fn install_edge_app(
-        &self,
-        app_id: &str,
-        name: &str,
-        entrypoint: Option<String>,
-    ) -> Result<String, CommandError> {
-        let mut payload = json!({
-            "app_id": app_id,
-            "name": name,
-        });
-
-        if let Some(_entrypoint) = entrypoint {
-            payload["entrypoint"] = json!(_entrypoint);
-        }
-
-        let response = commands::post(
-            &self.authentication,
-            "v4.1/edge-apps/installations?select=id",
-            &payload,
-        )?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct Installation {
-            id: String,
-        }
-
-        let installation = serde_json::from_value::<Vec<Installation>>(response)?;
-        if installation.is_empty() {
-            return Err(CommandError::MissingField);
-        }
-
-        Ok(installation[0].id.clone())
-    }
 }
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
     use crate::commands::edge_app::instance_manifest::InstanceManifest;
     use crate::commands::edge_app::manifest::EdgeAppManifest;
     use crate::commands::edge_app::manifest::{Entrypoint, EntrypointType};
     use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
 
+    use serde_json::json;
     use serde_json::Value;
 
     #[test]
@@ -412,7 +334,13 @@ mod tests {
                     "eq.01H2QZ6Z8WXWNDC0KQ198XCZEB",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW");
-            then.status(200).json_body(json!([]));
+            then.status(200).json_body(json!([
+                {
+                    "name": "screenly_entrypoint",
+                    "type": "string",
+                    "edge_app_setting_values": []
+                }
+            ]));
         });
 
         let setting_values_mock_post = mock_server.mock(|when, then| {

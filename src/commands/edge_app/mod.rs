@@ -8,14 +8,17 @@ pub(crate) mod setting;
 pub mod test_utils;
 pub mod utils;
 
+use crate::api::Api;
 use crate::authentication::Authentication;
 
 pub struct EdgeAppCommand {
-    authentication: Authentication,
+    api: Api,
 }
 
 impl EdgeAppCommand {
     pub fn new(authentication: Authentication) -> Self {
-        Self { authentication }
+        Self {
+            api: Api { authentication },
+        }
     }
 }

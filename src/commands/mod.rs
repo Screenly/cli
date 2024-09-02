@@ -1,3 +1,5 @@
+use crate::api::edge_app::app::EdgeApps;
+use crate::api::edge_app::installation::EdgeAppInstances;
 use crate::{Authentication, AuthenticationError};
 use prettytable::{cell, Cell, Row};
 
@@ -271,11 +273,6 @@ impl PlaylistFile {
     }
 }
 
-#[derive(Debug)]
-pub struct EdgeApps {
-    pub value: serde_json::Value,
-}
-
 impl EdgeApps {
     pub fn new(value: serde_json::Value) -> Self {
         Self { value }
@@ -358,17 +355,6 @@ impl Formatter for EdgeAppSettings {
                 },
             ),
         )
-    }
-}
-
-#[derive(Debug)]
-pub struct EdgeAppInstances {
-    pub value: serde_json::Value,
-}
-
-impl EdgeAppInstances {
-    pub fn new(value: serde_json::Value) -> Self {
-        Self { value }
     }
 }
 
