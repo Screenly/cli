@@ -29,9 +29,8 @@ jobs:
           export VERSION_TAG="${GITHUB_REF#refs/*/}"
           export VERION=$(echo $VERSION_TAG | sed 's/^v//g')
 
-          # Delete unnecessary metadata.component.components and
-          # set GITHUB_RUN_NUMBER as the version of the SBOM
-          jq 'del(.metadata.component.components) | .version = (env.GITHUB_RUN_NUMBER | tonumber)' \
+          # Delete unnecessary metadata.component.components.
+          jq 'del(.metadata.component.components)' \
             screenly.cdx.json \
             > screenly.cdx.json.tmp
           mv screenly.cdx.json.tmp screenly.cdx.json
