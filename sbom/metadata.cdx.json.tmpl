@@ -1,13 +1,19 @@
 {
+    "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
     "metadata": {
         "manufacture": {
             "name": "Screenly, Inc",
-            "url": [
-                "https://www.screenly.io"
-            ]
+            "url": "https://www.screenly.io"
         },
-        "copyright": "Screenly, Inc",
-        "description": "Screenly CLI is a command line interface for inteacting with Screenly's API and building Edge Apps.",
+        "lifecycles": [
+            {
+                "phase": "build"
+            }
+        ],
+        "supplier": {
+            "name": "Screenly, Inc",
+            "url": "https://www.screenly.io/"
+        },
         "externalReferences": [
             {
                 "type": "documentation",
@@ -22,15 +28,12 @@
                 "url": "https://support.screenly.io"
             }
         ],
-        "lifecycles": [
+        "authors": [
             {
-                "phase": "build"
+                "name": "Screenly Dev Team",
+                "email": "support@screenly.io"
             }
         ],
-        "supplier": {
-            "name": "Screenly, Inc",
-            "url": ["https://www.screenly.io/developers/cli/"]
-        },
         "licenses": [
             {
                 "license": {
@@ -46,5 +49,19 @@
             "purl": "pkg:github/${GITHUB_REPOSITORY}@${VERSION_TAG}",
             "version": "${VERSION}"
         }
+        "externalReferences": [
+            {
+                "type": "documentation",
+                "url": "https://developer.screenly.io/"
+            },
+            {
+                "type": "vcs",
+                "url": "https://github.com/${GITHUB_REPOSITORY}.git"
+            },
+            {
+                "type": "support",
+                "url": "https://support.screenly.io"
+            }
+        ]
     }
 }

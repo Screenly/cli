@@ -19,7 +19,7 @@ jobs:
       - name: Generate SBOM
         run: |
           cargo cyclonedx \
-            --spec-version 1.5 \
+            --spec-version 1.6 \
             -f json
 
       - name: Enrich and clean up SBOM
@@ -57,3 +57,4 @@ jobs:
         with:
           token: ${{ secrets.SBOMIFY_TOKEN }}
           sbom-file: 'screenly-cli.cdx.json'
+          component-id: 'UUzAdk8ixV'
