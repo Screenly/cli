@@ -272,11 +272,11 @@ The `auth` field is optional and is used to configure Edge App authentication. I
 - **global:** A boolean value that determines whether the authentication is global (`true`) or local (`false`).
 
 For Basic authentication, the following settings are generated:
-- `screenly_basic_auth_username`
-- `screenly_basic_auth_password`
+- `screenly_http_basic_auth_username`
+- `screenly_http_basic_auth_password`
 
 For Bearer authentication, the following setting is generated:
-- `screenly_bearer_token`
+- `screenly_http_bearer_token`
 
 These settings must be configured using the `screenly edge-app setting set` command.
 

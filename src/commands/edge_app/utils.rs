@@ -740,11 +740,11 @@ mod tests {
         assert!(changes
             .creates
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_username" && !s.is_global));
+            .any(|s| s.name == "screenly_http_basic_auth_username" && !s.is_global));
         assert!(changes
             .creates
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_password" && !s.is_global));
+            .any(|s| s.name == "screenly_http_basic_auth_password" && !s.is_global));
     }
 
     #[test]
@@ -765,7 +765,7 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.creates.len(), 1);
-        assert_eq!(changes.creates[0].name, "screenly_bearer_token");
+        assert_eq!(changes.creates[0].name, "screenly_http_bearer_token");
         assert!(!changes.creates[0].is_global);
     }
 
@@ -783,14 +783,14 @@ mod tests {
             Setting::new(
                 SettingType::String,
                 "Username",
-                "screenly_basic_auth_username",
+                "screenly_http_basic_auth_username",
                 "Basic auth username",
                 false,
             ),
             Setting::new(
                 SettingType::Secret,
                 "Password",
-                "screenly_basic_auth_password",
+                "screenly_http_basic_auth_password",
                 "Basic auth password",
                 false,
             ),
@@ -803,17 +803,17 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.creates.len(), 1);
-        assert_eq!(changes.creates[0].name, "screenly_bearer_token");
+        assert_eq!(changes.creates[0].name, "screenly_http_bearer_token");
         assert!(!changes.creates[0].is_global);
         assert_eq!(changes.deleted.len(), 2);
         assert!(changes
             .deleted
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_username"));
+            .any(|s| s.name == "screenly_http_basic_auth_username"));
         assert!(changes
             .deleted
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_password"));
+            .any(|s| s.name == "screenly_http_basic_auth_password"));
     }
 
     #[test]
@@ -829,7 +829,7 @@ mod tests {
         remote_settings.push(Setting::new(
             SettingType::String,
             "Token",
-            "screenly_bearer_token",
+            "screenly_http_bearer_token",
             "Bearer token",
             false,
         ));
@@ -844,13 +844,13 @@ mod tests {
         assert!(changes
             .creates
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_username" && !s.is_global));
+            .any(|s| s.name == "screenly_http_basic_auth_username" && !s.is_global));
         assert!(changes
             .creates
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_password" && !s.is_global));
+            .any(|s| s.name == "screenly_http_basic_auth_password" && !s.is_global));
         assert_eq!(changes.deleted.len(), 1);
-        assert_eq!(changes.deleted[0].name, "screenly_bearer_token");
+        assert_eq!(changes.deleted[0].name, "screenly_http_bearer_token");
     }
 
     #[test]
@@ -874,11 +874,11 @@ mod tests {
         assert!(changes
             .creates
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_username" && s.is_global));
+            .any(|s| s.name == "screenly_http_basic_auth_username" && s.is_global));
         assert!(changes
             .creates
             .iter()
-            .any(|s| s.name == "screenly_basic_auth_password" && s.is_global));
+            .any(|s| s.name == "screenly_http_basic_auth_password" && s.is_global));
     }
 
     #[test]

@@ -16,14 +16,14 @@ impl AuthType {
                 Setting::new(
                     SettingType::String,
                     "Username",
-                    "screenly_basic_auth_username",
+                    "screenly_http_basic_auth_username",
                     "The username for Basic Authentication.",
                     global,
                 ),
                 Setting::new(
                     SettingType::Secret,
                     "Password",
-                    "screenly_basic_auth_password",
+                    "screenly_http_basic_auth_password",
                     "The password for Basic Authentication.",
                     global,
                 ),
@@ -31,7 +31,7 @@ impl AuthType {
             AuthType::Bearer => vec![Setting::new(
                 SettingType::String,
                 "Token",
-                "screenly_bearer_token",
+                "screenly_http_bearer_token",
                 "The Bearer token for authentication.",
                 global,
             )],
@@ -52,7 +52,7 @@ mod tests {
 
         let username_setting = &settings[0];
         assert_eq!(username_setting.type_, SettingType::String);
-        assert_eq!(username_setting.name, "screenly_basic_auth_username");
+        assert_eq!(username_setting.name, "screenly_http_basic_auth_username");
         assert_eq!(username_setting.title, Some("Username".to_string()));
         assert!(!username_setting.optional);
         assert!(username_setting
@@ -61,7 +61,7 @@ mod tests {
 
         let password_setting = &settings[1];
         assert_eq!(password_setting.type_, SettingType::Secret);
-        assert_eq!(password_setting.name, "screenly_basic_auth_password");
+        assert_eq!(password_setting.name, "screenly_http_basic_auth_password");
         assert_eq!(password_setting.title, Some("Password".to_string()));
         assert!(!password_setting.optional);
         assert!(password_setting
@@ -78,7 +78,7 @@ mod tests {
 
         let token_setting = &settings[0];
         assert_eq!(token_setting.type_, SettingType::String);
-        assert_eq!(token_setting.name, "screenly_bearer_token");
+        assert_eq!(token_setting.name, "screenly_http_bearer_token");
         assert_eq!(token_setting.title, Some("Token".to_string()));
         assert!(!token_setting.optional);
         assert!(token_setting
