@@ -1,3 +1,4 @@
+mod api;
 mod authentication;
 mod cli;
 mod commands;

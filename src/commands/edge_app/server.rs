@@ -1,13 +1,17 @@
+use crate::api::edge_app::setting::SettingType;
+use crate::commands::edge_app::manifest::EdgeAppManifest;
+use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::ignorer::Ignorer;
+use crate::commands::CommandError;
 use anyhow::Result;
 use futures::future::{self, BoxFuture, FutureExt};
 use std::collections::HashMap;
-use std::fs;
+use std::sync::{Arc, Mutex};
+use std::{fs, str};
 
 use serde::{Deserialize, Serialize};
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use warp::reject::Reject;
 use warp::{Filter, Rejection, Reply};
 
@@ -213,11 +217,127 @@ fn format_section(name: &str, items: &[(String, Value)]) -> String {
     format!("    {}: {{\n{}\n    }}", name, content)
 }
 
+impl EdgeAppCommand {
+    pub fn run(&self, path: &Path, secrets: Vec<(String, String)>) -> Result<(), anyhow::Error> {
+        let address_shared = Arc::new(Mutex::new(None));
+        let address_clone = address_shared.clone();
+
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let path = path.to_path_buf();
+        runtime.block_on(async {
+            tokio::spawn(async move {
+                let address = run_server(path.as_path(), secrets).await.unwrap();
+                let mut locked_address = address_clone.lock().unwrap();
+                *locked_address = Some(address);
+            })
+            .await
+            .unwrap();
+
+            while address_shared.lock().unwrap().is_none() {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            }
+
+            println!(
+                "Edge App emulator is running at {}/index.html",
+                address_shared.lock().unwrap().as_ref().unwrap()
+            );
+
+            if let Err(e) = self.open_browser(&format!(
+                "{}/index.html",
+                address_shared.lock().unwrap().as_ref().unwrap()
+            )) {
+                eprintln!("{}", e);
+            }
+
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+            }
+        });
+
+        Ok(())
+    }
+
+    fn open_browser(&self, address: &str) -> Result<(), CommandError> {
+        let command = match std::env::consts::OS {
+            "macos" => "open",
+            "windows" => "start",
+            "linux" => "xdg-open",
+            _ => {
+                return Err(CommandError::OpenBrowserError(
+                    "Unsupported OS to open browser".to_string(),
+                ))
+            }
+        };
+
+        let output = std::process::Command::new(command)
+            .arg(address)
+            .output()
+            .expect("Failed to open browser");
+
+        if !output.status.success() {
+            return Err(CommandError::OpenBrowserError(format!(
+                "Failed to open browser: {}",
+                str::from_utf8(&output.stderr).unwrap()
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub fn generate_mock_data(&self, path: &Path) -> Result<(), CommandError> {
+        let data = fs::read_to_string(path)?;
+        let manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
+        let edge_app_dir = path.parent().ok_or(CommandError::MissingField)?;
+
+        if edge_app_dir.join(MOCK_DATA_FILENAME).exists() {
+            println!("Mock data for Edge App emulator already exists.");
+            return Ok(());
+        }
+
+        let default_metadata = Metadata::default();
+
+        let mut settings: HashMap<String, serde_yaml::Value> = HashMap::new();
+        for setting in &manifest.settings {
+            if setting.type_ != SettingType::Secret {
+                let settings_default_value = match setting.default_value {
+                    Some(ref default_value) => default_value.clone(),
+                    None => "".to_owned(),
+                };
+                settings.insert(
+                    setting.name.clone(),
+                    serde_yaml::Value::String(settings_default_value),
+                );
+            }
+        }
+
+        let mut mock_data: HashMap<String, serde_yaml::Value> = HashMap::new();
+        mock_data.insert(
+            "metadata".to_string(),
+            serde_yaml::to_value(default_metadata)?,
+        );
+        mock_data.insert("settings".to_string(), serde_yaml::to_value(settings)?);
+
+        let mock_data_yaml = serde_yaml::to_string(&mock_data)?;
+
+        fs::write(edge_app_dir.join(MOCK_DATA_FILENAME), mock_data_yaml)?;
+
+        println!("Mock data for Edge App emulator was generated.");
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::tempdir;
+
+    use crate::api::edge_app::setting::{Setting, SettingType};
+    use crate::authentication::{Authentication, Config};
+    use crate::commands::edge_app::test_utils::tests::{
+        create_edge_app_manifest_for_test, prepare_edge_apps_test,
+    };
+    use crate::commands::edge_app::EdgeAppCommand;
 
     fn setup_temp_dir_with_mock_data() -> tempfile::TempDir {
         let dir = tempdir().unwrap();
@@ -309,5 +429,95 @@ settings:
             .unwrap();
 
         assert_eq!(resp.status(), 404);
+    }
+
+    #[test]
+    fn test_generate_mock_data_creates_file_with_expected_content() {
+        let (_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_manifest.yml");
+
+        // The EdgeAppManifest structure from your example
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                name: "asetting".to_string(),
+                type_: SettingType::String,
+                title: Some("atitle".to_string()),
+                optional: false,
+                default_value: Some("yes".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                name: "nsetting".to_string(),
+                type_: SettingType::String,
+                title: Some("ntitle".to_string()),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+        ]);
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+        command.generate_mock_data(&file_path).unwrap();
+
+        let mock_data_path = dir.path().join(MOCK_DATA_FILENAME);
+        assert!(mock_data_path.exists());
+
+        let _generated_content = fs::read_to_string(&mock_data_path).unwrap();
+        let _expected_content = r#"metadata:
+      coordinates:
+        - "37.3861"
+        - "-122.0839"
+      hostname: "srly-t6kb0ta1jrd9o0w"
+      location: "Code Cafe, Mountain View, California"
+      screen_name: "Code Cafe Display"
+      tags:
+        - "All Screens"
+    settings:
+      asetting: "yes"
+      nsetting: ""
+    "#;
+    }
+
+    #[test]
+    fn test_generate_mock_data_excludes_secret_settings() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("test_manifest_with_varied_settings.yml");
+
+        let manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                name: "excluded_setting".to_string(),
+                type_: SettingType::Secret,
+                title: Some("excluded title".to_string()),
+                optional: false,
+                default_value: None,
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                name: "included_setting".to_string(),
+                type_: SettingType::String,
+                title: Some("included title".to_string()),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+        ]);
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+        let config = Config::new("".to_owned());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = EdgeAppCommand::new(authentication);
+        command.generate_mock_data(&file_path).unwrap();
+
+        let mock_data_path = dir.path().join(MOCK_DATA_FILENAME);
+        let content = fs::read_to_string(mock_data_path).unwrap();
+
+        assert!(!content.contains("excluded_setting"));
+        assert!(content.contains("included_setting"));
     }
 }

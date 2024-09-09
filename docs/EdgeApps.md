@@ -6,21 +6,55 @@ If you're familiar with Heroku, Cloudflare Workers, or any similar technology, y
 
 ## Table of Contents
 
-* [Getting Started](#getting-started)
-* [Creating](#creating-an-edge-app)
-* [Uploading](#uploading-an-edge-app)
-* [Versions](#edge-apps-versions)
-* [Manifest](#manifest-file)
-* [Settings](#settings)
-* [Secrets](#secrets)
-* [Metadata](#metadata)
-* [Emulator](#edge-app-emulator)
-* [Debugging](#debugging)
-* [CORS](#cross-origin-resource-sharing-cors)
-* [Monitoring](#monitoring)
-* [Gotchas](#gotchas)
-* [Runtime Environment](#runtime-environment)
+Here's a content section for the document:
 
+1. [Getting Started](#getting-started)
+   - [Create an Edge App](#create-an-edge-app)
+   - [Playground Edge Apps](#playground-edge-apps)
+   - [Deploy the Edge App](#deploy-the-edge-app)
+   - [Instances](#instances)
+     - [Instance Manifest](#instance-manifest)
+     - [Instance Manifest Reference](#instance-manifest-reference)
+2. [Manifest File](#manifest-file)
+   - [Reference](#reference)
+     - [Syntax](#syntax)
+     - [ID](#id)
+     - [Entrypoint](#entrypoint)
+     - [Description](#description)
+     - [Icon](#icon)
+     - [Author](#author)
+     - [Homepage URL](#homepage-url)
+     - [Auth](#auth)
+     - [Ready Signal](#ready-signal)
+     - [Settings](#settings)
+   - [Settings](#settings)
+     - [Defining a Setting](#defining-a-setting)
+     - [Setting a Setting](#setting-a-setting)
+     - [Modify the Greeting](#modify-the-greeting)
+     - [Getting Settings](#getting-settings)
+     - [Using Settings in Your Edge App](#using-settings-in-your-edge-app)
+     - [Global Settings](#global-settings)
+     - [Secret Settings](#secret-settings)
+     - [Reserved Setting Names](#reserved-setting-names)
+3. [Global Branding Settings](#global-branding-settings)
+   - [Branding Settings List](#branding-settings-list)
+     - [screenly_color_accent](#screenly_color_accent)
+     - [screenly_color_light](#screenly_color_light)
+     - [screenly_logo_light](#screenly_logo_light)
+   - [Notes on Branding Settings](#notes-on-branding-settings)
+4. [Security Model](#security-model)
+   - [Transmission and Storage Security](#transmission-and-storage-security)
+5. [Metadata](#metadata)
+6. [Edge App Emulator](#edge-app-emulator)
+   - [Run Edge App Emulator](#run-edge-app-emulator)
+   - [Add Mock Data to Run Edge App Emulator](#add-mock-data-to-run-edge-app-emulator)
+7. [Debugging](#debugging)
+8. [Cross-Origin Resource Sharing (CORS)](#cross-origin-resource-sharing-cors)
+9. [Monitoring](#monitoring)
+10. [Gotchas](#gotchas)
+11. [Runtime Environment](#runtime-environment)
+12. [Browser Sandboxing](#browser-sandboxing)
+13. [Isolated Runtime Environment](#isolated-runtime-environment)
 
 ## Getting Started
 
@@ -37,6 +71,8 @@ $ cd ~/tmp/edge-app
 
 ### Create an Edge App
 
+> To create an Edge App, simply run:
+
 ```shell
 $ screenly edge-app create --name hello-world
 ```
@@ -50,6 +86,17 @@ When you run the screenly edge-app create command, two files will be created in 
 
 `index.html` is our entry point. It is what the client (i.e., the player) will load. This particular file is very simple and just includes some styling and various metadata examples.
 
+Once you have initiated your Edge App, you can start adding content. We make a few assumptions about your Edge App:
+
+* No files below the current can be references (just like you can't use the `COPY` in a `Dockerfile` outside the current working directory)
+* The following file names are **reserved** by the system:
+  * `screenly.yml` - Reserved for the manifest file.
+  * `screenly.js` - Reserved for on-device usage to interact with the system.
+
+Other than that, you can develop your Edge App just like you would do with a regular static HTML site. You can break out JavaScript, CSS, images, etc., into separate files and include them as you normally would.
+
+---
+
 #### Playground Edge Apps
 
 Getting started with our existing Playground Edge Apps can help ease your introduction to Edge Apps development. To test your skills, first clone our Playground GitHub Repository (https://github.com/Screenly/Playground). After cloning, navigate to one of the example Playground Edge App folders and execute the following command:
@@ -62,127 +109,83 @@ $ screenly edge-app create --name "My Groundbreaking Clock App" --in-place
 
 Note the `--in-place` parameter. This is necessary when creating an app with existing `screenly.yml` and `index.html` files, as our Playground Edge Apps do. Otherwise, you'll encounter errors about conflicting files. This parameter is not mandatory if you are creating a brand new Edge App; it’s just here to make your developer life a little bit easier.
 
-### Upload the Edge App
+---
+
+### Deploy the Edge App
+
+To deploy an Edge App, use the following command:
 
 ```shell
-$ screenly edge-app upload
+$ screenly edge-app deploy
 ```
 
-To use this Edge App, first upload it using the upload command. This will automatically create a new version (you can see your versions using screenly edge-app version list). After the Edge App is successfully uploaded, promote it to a channel (stable or candidate) to use it on the player.
+The deployment process includes the following steps:
 
-### Promote the Edge App
+**Upload:** The Edge App is uploaded to the server.
 
-The `upload` command only uploads the Edge App and its assets to the server. To make it available for screens, you need to promote it. This way, it will be available for further processing.
+
+**Replacement:** If the Edge App has been previously uploaded, the existing files are replaced with the new ones.
+
+
+**Sync Settings:** The deployment synchronizes the settings from the manifest file with the server.
+
+
+**Automatic Update:** All instances of the Edge App will automatically update to the latest deployed version, ensuring consistency across all devices.
+
+
+---
+### Instances
+
+An instance is a unique installation of an Edge App. Each instance can have its own settings and secrets, allowing you to run multiple instances of the same Edge App with different configurations. While the CLI currently supports managing a single instance via the `instance.yml` file, the Screenly Web Dashboard can manage multiple instances simultaneously.
+
+Each instance produces an asset that can be scheduled on a screen. This is the only method for scheduling an Edge App on a screen.
+
+To manage instances, you can use the following commands:
+
 ```shell
-$ screenly edge-app version promote --latest
+$ screenly edge-app instance list
+$ screenly edge-app instance create
+$ screenly edge-app instance update
+$ screenly edge-app instance delete
 ```
 
-```
-Edge app version successfully promoted.
-```
+- **Create**: The `create` command generates a new instance and creates an `instance.yml` file in the current directory.
 
-Once you have promoted a release, you can start using it. If you head over to your Screenly web console, you should see your Edge App listed. Schedule it as you would with a regular asset.
 
-With the asset scheduled on your screen, you should see the headline "Hello Stranger!". This is actually a setting configured in `screenly.yml`. You can override this using the `edge-app setting` command to change it.
+- **List**: The `list` command displays all instances associated with your account.
 
-### Modify the Greeting
 
-```shell
-$ screenly edge-app setting set greeting='Cowboy Neil'
-```
+- **Update**: The `update` command modifies an existing instance based on the changes made in the `instance.yml` file.
 
-It might take a few minutes for your screen to pick up the change, but once it does, the headline should change from "Hello Stranger!" to "Hello Cowboy Neil!".
+
+- **Delete**: The `delete` command removes an instance from your account.
+
+
+After creating an instance, navigate to your Screenly web console. You should see the new instance of your Edge App listed in the content section, where you can schedule it as you would with a regular asset.
 
 ---
 
-## Creating an Edge App
+#### Instance Manifest
 
-To create an Edge App, you need to use the CLI and invoke it using `edge-app create <name>`. This will fire off a number of API calls and create a file called `screenly.yml` in the current directory, as well as a sample `index.html` file.
+The `instance.yml` file is used to manage the instance of an Edge App. Currently, the CLI supports managing only one instance at a time.
 
-> To create an Edge App, simply run:
+#### Instance Manifest Reference
 
-```shell
-$ screenly edge-app create --name <name>
-```
+##### Syntax
 
-Once you have initiated your Edge App, you can start adding content. We make a few assumptions about your Edge App:
+The `syntax` field specifies the version of the instance manifest file. The current version is `instance_v1`.
 
-* No files below the current can be references (just like you can't use the `COPY` in a `Dockerfile` outside the current working directory)
-* The following file names are **reserved** by the system:
-  * `screenly.yml` - Reserved for the manifest file.
-  * `screenly.js` - Reserved for on-device usage to interact with the system.
+##### ID
 
-Other than that, you can develop your Edge App just like you would do with a regular static HTML site. You can break out JavaScript, CSS, images, etc., into separate files and include them as you normally would.
+The `id` field is a unique identifier for the instance. This ID is generated by the system and is used to identify the instance across the platform.
 
----
+##### Name
 
-## Uploading an Edge App
+The `name` field specifies the name of the instance. It can be updated by modifying the value in the `instance.yml` file and executing the `screenly edge-app instance update` command.
 
-To upload your Edge App to Screenly, you use the `edge-app upload` command. This will copy all files in the current directory and generate a release.
+##### Entrypoint URI
 
-When you upload subsequent releases, you'll notice a few more things:
-
-* The `revision` key in `screenly.yaml` will be bumped to a newer version.
-* The new asset will automatically be added to the system as a new version.
-* If you try to upload a new revision without any local changes, the upload will fail with `Failed to upload edge app: Cannot upload a new version: No changes detected.`
-
-
-> Upload an edge app from the current directory:
-
-```shell
-$ screenly edge-app upload
-```
-
----
-
-## Edge Apps Versions
-
-You can list all Edge Apps in a given account, along with their versions with the `edge-app version list` command. This will also tell you what version is the current version.
-
-> List Edge Apps (and versions)
-
-```shell
-$ screenly edge-app version list
-```
-```
-+----------+-------------+-----------+
-| Revision | Description | Published |
-+----------+-------------+-----------+
-| 1        |             | ✅        |
-+----------+-------------+-----------+
-```
-
-Using `version list`, you can determine what the 'Active Revision' is. This is the version that corresponds to the asset that is currently showing on your screen(s).
-
-To promote a new release, you can use the `version promote` command. This will automatically deploy the version you've specified. To roll back, you can promote the previous version.
-
-You also have the option to use `--latest` to employ the most recent version of the app.
-
-> Promote a version
-
-```shell
-$ screenly edge-app version promote \
-    --revision=1 \
-    --channel=candidate
-```
-```
-Promote 1 of Edge App 'Weather App' (XXXXXXXXXXXXXXXXXXXXXXXXX)? (y/n)
-```
-
-> Promote to latest version
-
-```shell
-$ edge-app version promote --latest
-```
-
-> Delete a version
-
-```shell
-$ screenly edge-app version delete v2
-```
-```
-Delete v2 of Edge App 'Weather App' (XXXXXXXXXXXXXXXXXXXXXXXXX)? (y/n)
-```
+The `entrypoint_uri` field specifies the entry point for the Edge App. This field is only required when the Edge App entry point is a remote URL. It can be updated by modifying the value in the `instance.yml` file and executing the `screenly edge-app instance update` command.
 
 ---
 
@@ -195,14 +198,16 @@ When you create a new Edge App using the CLI (`screenly edge-app create --name <
 > Manifest Reference
 
 ```yaml
-app_id: 01H7DD8SV32F9FKWXXXXXXXXXX
-entrypoint: index.html
+syntax: manifest_v1
+id: 01H7DD8SV32F9FKWXXXXXXXXXX
+entrypoint:
+  type: file
 description: 'Displays the current weather and time'
 icon: 'https://example.com/some-logo.svg'
 author: 'Screenly, Inc'
 homepage_url: 'https://www.screenly.io'
 settings:
-   google_maps_api_key:
+  google_maps_api_key:
     type: secret
     title: API Key
     optional: false
@@ -223,10 +228,90 @@ Edge Apps can have settings, which are key-value pairs that users installing the
 Each setting may have a default value, an optional flag indicating if it's required, a human-readable title, and help text to assist users in configuring the app.
 
 ---
+### Reference
 
-## Settings
+#### Syntax
 
-### Defining a Setting
+The `syntax` field specifies the version of the manifest file. The current version is `manifest_v1`.
+
+#### ID
+
+The `id` field is a unique identifier for the Edge App. This ID is generated by the system and is used to identify the Edge App across the platform.
+
+#### Entrypoint
+
+The `entrypoint` field specifies the entry point for the Edge App. It is optional and defaults to the file type. The `entrypoint` field contains the following subfields:
+- **type:** Defines the type of entry point. Possible values are:
+  - `file`: The entry point is the `index.html` file in the Edge App directory.
+  - `remote-global`: The entry point is a URL that is consistent across all instances of the Edge App.
+  - `remote-local`: The entry point is a URL unique to each instance of the Edge App.
+- **uri:** The URL of the entry point. This field is required if the type is `remote-global`.
+
+#### Description
+
+The `description` field provides a brief overview of the Edge App, which will be visible in the Screenly web dashboard.
+
+#### Icon
+
+The `icon` field is a URL pointing to an image that represents the Edge App. This image will be displayed in the Screenly web dashboard.
+
+#### Author
+
+The `author` field specifies the name of the Edge App's creator.
+
+#### Homepage URL
+
+The `homepage_url` field is a URL directing to the homepage of the Edge App.
+
+#### Auth
+
+The `auth` field is optional and is used to configure Edge App authentication. It includes the following subfields:
+- **auth_type:** Specifies the type of authentication. Possible values are:
+  - `basic`: Basic authentication.
+  - `bearer`: Bearer token authentication.
+- **global:** A boolean value that determines whether the authentication is global (`true`) or local (`false`).
+
+For Basic authentication, the following settings are generated:
+- `screenly_http_basic_auth_username`
+- `screenly_http_basic_auth_password`
+
+For Bearer authentication, the following setting is generated:
+- `screenly_http_bearer_token`
+
+These settings must be configured using the `screenly edge-app setting set` command.
+
+#### Ready Signal
+
+The `ready_signal` field is an optional boolean parameter in the Edge App configuration.
+
+##### Purpose
+
+When set to `true`, it enables a mechanism for the Edge App to control when it gets rendered on the Screenly Player.
+
+##### Use Case
+This feature is particularly useful for apps that require initial loading or data preparation before they're ready to be shown. For example, an app might need to fetch data or complete some initialization process.
+
+A practical example is our [PowerBI Edge App](https://github.com/Screenly/Playground/tree/master/edge-apps/powerbi), which uses this feature to delay showing the dashboard until all data is loaded and rendered. This ensures that users see a fully populated dashboard instead of a loading screen.
+
+##### Implementation
+
+When the Edge App is prepared and ready to be displayed, it must call the `screenly.signalReadyForRendering()` function. This signals to the Screenly Player that the app is now ready for rendering.
+
+##### Important Notes
+
+1. If `ready_signal` is `true` and the function is never called, the content will not be displayed.
+2. Once the function has been called successfully, any subsequent calls will be ignored.
+3. If `ready_signal` is `false`, the content will be displayed as soon as possible, and any calls to `screenly.signalReadyForRendering()` will have no effect.
+
+#### Settings
+
+The `settings` field is a dictionary of key-value pairs that define the configurable settings for the Edge App. For more details, refer to the [Settings](#settings) section.
+
+---
+
+### Settings
+
+#### Defining a Setting
 
 To define a setting, you can use the following structure in your manifest file:
 
@@ -243,10 +328,12 @@ settings:
 
 ### Setting a Setting
 
-You can set a setting using the following command:
+### Modify the Greeting
+
+With the asset scheduled on your screen, you should see the headline "Hello Stranger!". This is actually a setting configured in `screenly.yml`. You can override this using the `edge-app setting` command to change it.
 
 ```shell
-$ screenly edge-app setting set greeting='Cowboy John'
+$ screenly edge-app setting set greeting='Cowboy Neil'
 ```
 
 This will output:
@@ -255,7 +342,11 @@ This will output:
 Edge app setting successfully set.
 ```
 
-### Getting Settings
+It might take a few minutes for your screen to pick up the change, but once it does, the headline should change from "Hello Stranger!" to "Hello Cowboy Neil!".
+
+
+
+#### Getting Settings
 
 To list the current settings, use the following command:
 
@@ -273,7 +364,8 @@ This will output:
 +----------+-------------+---------------+----------+--------+-----------------------------------------------------------+
 ```
 
-### Using Settings in Your Edge App
+#### Using Settings in Your Edge App
+
 
 To use the settings in your Edge App, include them in your HTML or JavaScript files as follows:
 
@@ -292,49 +384,27 @@ To use the settings in your Edge App, include them in your HTML or JavaScript fi
 Settings are key-value pairs that users installing the app must provide at install time and can later edit.
 
 ---
-## Global Branding Settings
 
-The Global Branding Settings feature automatically provides relevant visual identity information by fetching it from the public sources based on their email domain. This functionality is available by default for every Edge App, requiring no special actions from the developer to access the following settings:
+#### Global Settings
 
-### Branding Settings List
-* screenly_color_accent
-* screenly_color_light
-* screenly_logo_light
+Global settings are secrets defined for the instances of an Edge App. These settings are shared across all instances of the app and are specified in the manifest file.
 
-#### screenly_color_accent
+```yaml
+settings:
+  [...]
+  global_greeting:
+    type: string
+    default_value: "Cowboy Neil"
+    title: greeting
+    optional: true
+    help_text: An example of a string setting that is used in index.html
+    global: true
+```
 
-This is the accent color of the customer's brand.
+#### Secret settings
 
-| Setting               | Example Value |
-|-----------------------|----------------|
-| screenly_color_accent | #972eff         |
-
-#### screenly_color_light
-
-This is the base color for the light theme.
-
-| Setting              | Example Value |
-|----------------------|----------------|
-| screenly_color_light | #adafbe        |
-
-#### screenly_logo_light
-
-This is the company logo for the light theme.
-
-| Setting             | Example Value                                                        |
-|---------------------|----------------------------------------------------------------------|
-| screenly_logo_light | [screenly_logo_light](https://us-assets.screenlyapp.com/1dp2TKWzR0BCB38bI170Xf) |
-
-### Notes on Branding Settings
-
-These settings are available to the Edge App like the usual settings but cannot be listed, fetched, or changed with CLI.
-
----
-## Secrets
-
-### Defining a Secret
-
-To define a secret, use the following structure in your configuration file:
+Secret settings are similar to regular settings but are used for sensitive data that should not be exposed to the user. These settings are stored securely and are not visible to the user.
+Secrets settings must not have a default_value.
 
 ```yaml
 settings:
@@ -346,53 +416,67 @@ settings:
     help_text: An example of an API key
 ```
 
-### Setting a Secret
+#### Reserved setting names
 
-You can set a secret using the following command:
+Settings starting with `screenly_` are reserved and cannot be used in the manifest file.
 
-```shell
-$ screenly edge-app secret set api_key='ABC123'
-```
+---
+## Global Branding Settings
 
-This will output:
+The Global Branding Settings feature automatically provides relevant visual identity information by fetching it from the public sources based on their email domain. This functionality is available by default for every Edge App, requiring no special actions from the developer to access the following settings:
 
-```
-Edge app secret successfully set.
-```
+### Branding Settings List
+* screenly_color_accent
+* screenly_color_light
+* screenly_color_dark
+* screenly_logo_light
+* screenly_logo_dark
 
-### Getting Secrets
+#### screenly_color_accent
 
-To list the current secrets, use the following command:
+This is the accent color of the customer's brand.
 
-```shell
-$ screenly edge-app secret list
-```
+| Setting               | Example Value |
+|-----------------------|----------------|
+| screenly_color_accent | #7E2CD2         |
 
-This will output:
+#### screenly_color_light
 
-```
-+---------+----------+--------------------------+
-| Title   | Optional | Help text                |
-+---------+----------+--------------------------+
-| api_key | No       | An example of an API key |
-+---------+----------+--------------------------+
-```
+The lighter color of the brand. This color should be used on a dark background.
 
-### Using Secrets in Your Edge App
+| Setting              | Example Value |
+|----------------------|----------------|
+| screenly_color_light | #454BD2        |
 
-Secrets can be used in your HTML or JavaScript files in a similar way to settings:
+#### screenly_color_dark
 
-```html
-[...]
-<head>
-<script src="screenly.js?version=1"></script>
-</head>
-[...]
-<script>
-    document.getElementById("api-key").innerText = screenly.settings.api_key;
-</script>
-[...]
-```
+The darker color of the brand. This color should be used on a light background.
+
+| Setting             | Example Value |
+|---------------------|----------------|
+| screenly_color_dark | #000212        |
+
+#### screenly_logo_light
+
+The light version of the logo. A light logo should be displayed on a dark background.
+
+| Setting             | Example Value                                                        |
+|---------------------|----------------------------------------------------------------------|
+| screenly_logo_light | [screenly_logo_light](https://us-assets-dev.screenlyapp.com/1NxDvtvs6yFortoAH40.Qw) |
+
+#### screenly_color_dark
+
+The dark version of the logo. A dark logo should be displayed on a light background.
+
+| Setting             | Example Value                                                                       |
+|---------------------|-------------------------------------------------------------------------------------|
+| screenly_dark_light | [screenly_logo_light](https://us-assets-dev.screenlyapp.com/1NxDvtvs6yFortoAH40.Qw) |
+
+### Notes on Branding Settings
+
+These settings are available to the Edge App like the usual settings but cannot be listed, fetched, or changed with CLI.
+
+---
 
 ### Security Model
 

@@ -1,3 +1,5 @@
+use crate::api::edge_app::app::EdgeApps;
+use crate::api::edge_app::installation::EdgeAppInstances;
 use crate::{Authentication, AuthenticationError};
 use prettytable::{cell, Cell, Row};
 
@@ -11,15 +13,9 @@ use thiserror::Error;
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::StatusCode;
 
-#[allow(unused_imports)]
-pub use edge_app_settings::SettingType;
-
 pub mod asset;
 pub mod edge_app;
-pub mod edge_app_manifest;
-pub(crate) mod edge_app_server;
-pub(crate) mod edge_app_settings;
-pub mod edge_app_utils;
+
 mod ignorer;
 pub(crate) mod playlist;
 pub mod screen;
@@ -110,12 +106,8 @@ pub enum CommandError {
     InitializationError(String),
     #[error("Asset processing error: {0}")]
     AssetProcessingError(String),
-    #[error("Warning: these settings are required to be defined: {0}.")]
-    UndefinedSettings(String),
-    #[error("App id is required. Either in manifest or with --app-id.")]
+    #[error("App id is required in manifest.")]
     MissingAppId,
-    #[error("App id cannot be empty. Provide it either in manifest or with --app-id.")]
-    EmptyAppId,
     #[error("Edge App Revision {0} not found")]
     RevisionNotFound(String),
     #[error("Manifest file validation failed with error: {0}")]
@@ -128,6 +120,16 @@ pub enum CommandError {
     WrongSettingName(String),
     #[error("Failed to open browser")]
     OpenBrowserError(String),
+    #[error("Instance already exists")]
+    InstanceAlreadyExists,
+    #[error("Env var INSTANCE_FILE_NAME must hold only file name, not a path. {0}")]
+    InstanceFilenameError(String),
+    #[error("Env var MANIFEST_FILE_NAME must hold only file name, not a path. {0}")]
+    ManifestFilenameError(String),
+    #[error("Path is not a directory: {0}")]
+    PathIsNotDirError(String),
+    #[error("Missing installation id in the instance file")]
+    MissingInstallationId,
 }
 
 pub fn get(
@@ -271,11 +273,6 @@ impl PlaylistFile {
     }
 }
 
-#[derive(Debug)]
-pub struct EdgeApps {
-    pub value: serde_json::Value,
-}
-
 impl EdgeApps {
     pub fn new(value: serde_json::Value) -> Self {
         Self { value }
@@ -295,56 +292,6 @@ impl Formatter for EdgeApps {
             vec!["id", "name"],
             self,
             None::<fn(&str, &serde_json::Value) -> Cell>,
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct EdgeAppVersions {
-    pub value: serde_json::Value,
-}
-
-impl EdgeAppVersions {
-    pub fn new(value: serde_json::Value) -> Self {
-        Self { value }
-    }
-}
-
-impl FormatterValue for EdgeAppVersions {
-    fn value(&self) -> &serde_json::Value {
-        &self.value
-    }
-}
-impl Formatter for EdgeAppVersions {
-    fn format(&self, output_type: OutputType) -> String {
-        format_value(
-            output_type,
-            vec!["Revision", "Description", "Published", "Channels"],
-            vec!["revision", "description", "published", "edge_app_channels"],
-            self,
-            Some(|field_name: &str, field_value: &serde_json::Value| {
-                if field_name.eq("revision") {
-                    let version = field_value.as_u64().unwrap_or(0);
-                    let str_version = version.to_string();
-                    Cell::new(if version > 0 { &str_version } else { "N/A" })
-                } else if field_name.eq("published") {
-                    let published = field_value.as_bool().unwrap_or(false);
-                    Cell::new(if published { "✅" } else { "❌" })
-                } else if field_name.eq("edge_app_channels") {
-                    // list of maps to string with comma separator
-                    // [{"channel":"stable"},{"channel":"beta"}] -> "stable, beta"
-                    let channels = field_value
-                        .as_array()
-                        .unwrap_or(&vec![])
-                        .iter()
-                        .map(|channel| channel["channel"].as_str().unwrap_or(""))
-                        .collect::<Vec<&str>>()
-                        .join(", ");
-                    Cell::new(channels.as_str())
-                } else {
-                    Cell::new(field_value.as_str().unwrap_or("N/A"))
-                }
-            }),
         )
     }
 }
@@ -382,7 +329,7 @@ impl Formatter for EdgeAppSettings {
             vec![
                 "name",
                 "title",
-                "value",
+                "edge_app_setting_values",
                 "default_value",
                 "optional",
                 "type",
@@ -395,6 +342,15 @@ impl Formatter for EdgeAppSettings {
                         let value = field_value.as_bool().unwrap_or(false);
                         return Cell::new(if value { "Yes" } else { "No" });
                     }
+                    if field_name.eq("edge_app_setting_values") {
+                        let default_array = &vec![];
+                        let value = field_value.as_array().unwrap_or(default_array);
+                        if value.len() == 1 {
+                            return Cell::new(value[0]["value"].as_str().unwrap_or_default());
+                        }
+                        return Cell::new("");
+                    }
+                    debug!("field_name: {}, field_value: {:?}", field_name, field_value);
                     Cell::new(field_value.as_str().unwrap_or_default())
                 },
             ),
@@ -402,36 +358,21 @@ impl Formatter for EdgeAppSettings {
     }
 }
 
-#[derive(Debug)]
-pub struct EdgeAppSecrets {
-    pub value: serde_json::Value,
-}
-
-impl EdgeAppSecrets {
-    pub fn new(value: serde_json::Value) -> Self {
-        Self { value }
-    }
-}
-
-impl FormatterValue for EdgeAppSecrets {
+impl FormatterValue for EdgeAppInstances {
     fn value(&self) -> &serde_json::Value {
         &self.value
     }
 }
 
-impl Formatter for EdgeAppSecrets {
+impl Formatter for EdgeAppInstances {
     fn format(&self, output_type: OutputType) -> String {
         format_value(
             output_type,
-            vec!["Name", "Title", "Optional", "Help text"],
-            vec!["name", "title", "optional", "help_text"],
+            vec!["Id", "Name"],
+            vec!["id", "name"],
             self,
             Some(
-                |field_name: &str, field_value: &serde_json::Value| -> Cell {
-                    if field_name.eq("optional") {
-                        let value = field_value.as_bool().unwrap_or(false);
-                        return Cell::new(if value { "Yes" } else { "No" });
-                    }
+                |_field_name: &str, field_value: &serde_json::Value| -> Cell {
                     Cell::new(field_value.as_str().unwrap_or_default())
                 },
             ),
@@ -600,40 +541,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_edge_app_versions_formatter_format_output_properly() {
+    fn test_edge_app_instance_formatter_format_output_properly() {
         let data = r#"[{
-            "edge_app_channels": [
-                {
-                    "channel": "stable"
-                },
-                {
-                    "channel": "candidate"
-                }
-            ],
-            "revision": 1,
-            "user_version": "1.0.0",
-            "description": "Initial release",
-            "published": true
+            "id": "01J1SNE1GMGG8R0ZXZ183ZGN6T",
+            "name": "Test App"
         },
         {
-            "edge_app_channels": [],
-            "revision": 2,
-            "user_version": "1.0.1",
-            "description": "Bug fixes",
-            "published": true
+            "id": "01J1SNE1GMGG8R0ZXZ183ZGN7T",
+            "name": "Test App 2"
         }]"#;
-        let edge_app_versions = EdgeAppVersions::new(serde_json::from_str(data).unwrap());
+        let edge_app_instances = EdgeAppInstances::new(serde_json::from_str(data).unwrap());
 
-        let output = edge_app_versions.format(OutputType::HumanReadable);
+        let output = edge_app_instances.format(OutputType::HumanReadable);
         assert_eq!(
             output,
-            r#"+----------+-----------------+-----------+-------------------+
-| Revision | Description     | Published | Channels          |
-+----------+-----------------+-----------+-------------------+
-| 1        | Initial release | ✅        | stable, candidate |
-+----------+-----------------+-----------+-------------------+
-| 2        | Bug fixes       | ✅        |                   |
-+----------+-----------------+-----------+-------------------+
+            r#"+----------------------------+------------+
+| Id                         | Name       |
++----------------------------+------------+
+| 01J1SNE1GMGG8R0ZXZ183ZGN6T | Test App   |
++----------------------------+------------+
+| 01J1SNE1GMGG8R0ZXZ183ZGN7T | Test App 2 |
++----------------------------+------------+
 "#
         );
     }
