@@ -19,7 +19,7 @@ glob = "0.3.1"
 hex = "0.4.3"
 http-auth-basic = "0.3.3"
 indicatif = "0.17.2"
-log = { version = "0.4.17", features = ["release_max_level_info", "max_level_debug"] }
+log = { version = "0.4.17", features = ["release_max_level_debug", "max_level_debug"] }
 openssl = { version = '0.10', features = ["vendored"] }
 prettytable-rs = "0.10.0"
 protobuf = "3.3.0"
