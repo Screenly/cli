@@ -155,7 +155,7 @@ fn format_js(data: MockData, secrets: &[(String, Value)]) -> String {
     settings.sort_by_key(|a| a.0.clone());
 
     format!(
-        "var screenly = {{\n{metadata},\n{settings},\n{cors_proxy}\n}};",
+        "var screenly = {{\n{metadata},\n{settings},\n{cors_proxy},\n    signalReadyForRendering: function() {{}}\n}};",
         metadata = format_section("metadata", &hashmap_from_metadata(&data.metadata)),
         settings = format_section("settings", &settings),
         cors_proxy = "    cors_proxy_url: \"http://127.0.0.1:8080\""
@@ -395,7 +395,8 @@ settings:
         "override_timezone": "",
         "tag_manager_id": ""
     },
-    cors_proxy_url: "http://127.0.0.1:8080"
+    cors_proxy_url: "http://127.0.0.1:8080",
+    signalReadyForRendering: function() {}
 };"#;
         assert_eq!(content, expected_content);
     }
