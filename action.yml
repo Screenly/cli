@@ -27,6 +27,8 @@ outputs:
 
 runs:
   using: 'composite'
+  env:
+    CLI_OUTPUT_FILENAME: '/tmp/screenly_cli_command_output.txt'
   steps:
     - name: Download CLI
       id: download-cli
@@ -41,16 +43,23 @@ runs:
 
     - name: Run CLI
       id: run-cli
+      continue-on-error: true
       run: |
         set -o pipefail
-        output=$(API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ')
-        exit_code=$?
-        echo "response=$output" >> "$GITHUB_OUTPUT"
-
-        if [ "${{ inputs.print_cli_commands_output }}" = "true" ]; then
-          echo "Screenly CLI command(s) output:"
-          echo "$output"
-        fi
-
-        exit $exit_code
+        API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ' >> $CLI_OUTPUT_FILENAME
+        echo "response=$(cat /tmp/screenly_cli_command_output.txt)" >> "$GITHUB_OUTPUT"
+        cat $CLI_OUTPUT_FILENAME
       shell: bash
+
+    - name: Upload artifacts of failed screenly cli command
+      if: ${{ steps.run-cli.outcome != 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: run-cli-output
+        path: |
+          $CLI_OUTPUT_FILENAME
+
+    - name: Fail if cli command failed
+      if: ${{ steps.run-cli.outcome != 'success' }}
+      run: |
+        exit 1
