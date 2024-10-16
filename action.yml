@@ -20,6 +20,7 @@ inputs:
   cli_version:
     description: "Screenly CLI version."
     default: "v1.0.1"
+
 outputs:
   cli_commands_response:
     description: "The response from the Screenly CLI command(s)."
@@ -44,13 +45,16 @@ runs:
       continue-on-error: true
       run: |
         set -o pipefail
-        API_TOKEN=${{ inputs.screenly_api_token }} /tmp/screenly ${{ inputs.cli_commands }} | tr '\n' ' ' >> /tmp/screenly_cli_command_output.txt
-        echo "response=$(cat /tmp/screenly_cli_command_output.txt)" >> "$GITHUB_OUTPUT"
-        cat /tmp/screenly_cli_command_output.txt
+
+        API_TOKEN=${{ inputs.screenly_api_token }} RUST_LOG=debug /tmp/screenly ${{ inputs.cli_commands }}  >> /tmp/screenly_cli_command_output.txt
+  
+        # Filter logs from github output, while still saving them as artifact. Filtered lines are like: 2024-10-16T13:16:13.974Z DEBUG [reqwest::connect] ...
+        grep -Ev '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z[[:space:]](DEBUG|INFO|WARNING|ERROR)' /tmp/screenly_cli_command_output.txt | tr '\n' ' ' > /tmp/command_cleaned_output.txt
+        echo "response=$(cat /tmp/command_cleaned_output.txt)" >> "$GITHUB_OUTPUT"
+        cat /tmp/command_cleaned_output.txt
       shell: bash
 
     - name: Upload artifacts of failed screenly cli command
-      if: ${{ steps.run-cli.outcome != 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: run-cli-output
