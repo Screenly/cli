@@ -58,6 +58,7 @@ runs:
           /tmp/screenly_cli_command_output.txt
 
     - name: Fail if cli command failed
+      shell: bash
       if: ${{ steps.run-cli.outcome != 'success' }}
       run: |
         exit 1
