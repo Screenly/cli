@@ -10,6 +10,8 @@ jobs:
     name: deploy
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     runs-on: ${{ matrix.os }}
     env:
       # For some builds, we use cross to test on 32-bit and big-endian
@@ -102,6 +104,11 @@ jobs:
           files: 'screenly*'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: '${{ github.workspace }}/screenly*'
 
   build-docker-image:
     name: docker
