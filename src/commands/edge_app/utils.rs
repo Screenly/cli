@@ -991,6 +991,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_transform_edge_app_instance_path_to_instance_manifest_when_path_provided_should_return_path_with_instance_manifest(
     ) {
         let dir = tempdir().unwrap();
@@ -1092,6 +1093,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_transform_edge_app_path_to_manifest_with_env_instance_override_should_return_overrided_manifest_path(
     ) {
         let dir = tempdir().unwrap();

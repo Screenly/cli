@@ -1,11 +1,11 @@
 ---
 # action.yml
-name: 'Screenly'
-description: 'GitHub Actions for Screenly.'
-author: 'Screenly, Inc'
+name: "Screenly"
+description: "GitHub Actions for Screenly."
+author: "Screenly, Inc"
 branding:
-  icon: 'code'
-  color: 'purple'
+  icon: "code"
+  color: "purple"
 inputs:
   screenly_api_token:
     description: "Your Screenly API token."
@@ -19,7 +19,7 @@ inputs:
     required: false
   cli_version:
     description: "Screenly CLI version."
-    default: "v1.0.1"
+    default: "v1.0.2"
 
 outputs:
   cli_commands_response:
@@ -27,7 +27,7 @@ outputs:
     value: ${{ steps.run-cli.outputs.response }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Download CLI
       id: download-cli
@@ -47,7 +47,7 @@ runs:
         set -o pipefail
 
         API_TOKEN=${{ inputs.screenly_api_token }} RUST_LOG=debug /tmp/screenly ${{ inputs.cli_commands }}  >> /tmp/screenly_cli_command_output.txt
-  
+
         # Filter logs from github output, while still saving them as artifact. Filtered lines are like: 2024-10-16T13:16:13.974Z DEBUG [reqwest::connect] ...
         grep -Ev '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z[[:space:]](DEBUG|INFO|WARNING|ERROR)' /tmp/screenly_cli_command_output.txt | tr '\n' ' ' > /tmp/command_cleaned_output.txt
         echo "response=$(cat /tmp/command_cleaned_output.txt)" >> "$GITHUB_OUTPUT"
