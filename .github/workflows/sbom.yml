@@ -24,6 +24,7 @@ jobs:
           LOCK_FILE: 'Cargo.lock'
           SBOM_VERSION: ${{ github.ref_name }}
           OUTPUT_FILE: 'cli.cdx.json'
+          OVERRIDE_NAME: true
           AUGMENT: true
           ENRICH: true
 
