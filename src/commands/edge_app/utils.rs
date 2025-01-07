@@ -70,7 +70,7 @@ fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
         return false;
     }
 
-    return !ignore.is_ignored(entry.path());
+    !ignore.is_ignored(entry.path())
 }
 
 pub fn transform_edge_app_path_to_manifest(path: &Option<String>) -> Result<PathBuf, CommandError> {
