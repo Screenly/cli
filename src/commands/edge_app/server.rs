@@ -258,10 +258,10 @@ impl EdgeAppCommand {
     }
 
     fn open_browser(&self, address: &str) -> Result<(), CommandError> {
-        let command = match std::env::consts::OS {
-            "macos" => "open",
-            "windows" => "start",
-            "linux" => "xdg-open",
+        let (command, args) = match std::env::consts::OS {
+            "macos" => ("open", vec![address]),
+            "windows" => ("cmd", vec!["/C", "start", "", address]),
+            "linux" => ("xdg-open", vec![address]),
             _ => {
                 return Err(CommandError::OpenBrowserError(
                     "Unsupported OS to open browser".to_string(),
@@ -270,14 +270,14 @@ impl EdgeAppCommand {
         };
 
         let output = std::process::Command::new(command)
-            .arg(address)
+            .args(&args)
             .output()
             .expect("Failed to open browser");
 
         if !output.status.success() {
             return Err(CommandError::OpenBrowserError(format!(
                 "Failed to open browser: {}",
-                str::from_utf8(&output.stderr).unwrap()
+                std::str::from_utf8(&output.stderr).unwrap()
             )));
         }
 
