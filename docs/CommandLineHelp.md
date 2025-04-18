@@ -481,7 +481,7 @@ Runs Edge App emulator
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-s`, `--secrets <SECRETS>`
+* `-s`, `--secrets <SECRETS>` — Secrets to be passed to the Edge App in the form KEY=VALUE. Can be specified multiple times
 * `-g`, `--generate-mock-data` — Generates mock data to be used with Edge App run
 
 
