@@ -320,6 +320,7 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         path: Option<String>,
 
+        /// Secrets to be passed to the Edge App in the form KEY=VALUE. Can be specified multiple times.
         #[arg(short, long, value_parser = parse_key_values::<Secrets>)]
         secrets: Option<Secrets>,
 
