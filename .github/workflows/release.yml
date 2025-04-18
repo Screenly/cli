@@ -3,7 +3,7 @@
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build-release:
@@ -39,11 +39,11 @@ jobs:
             rust: stable
             target: x86_64-unknown-linux-musl
           - build: macos
-            os: macos-12
+            os: macos-15
             rust: stable
             target: x86_64-apple-darwin
           - build: macos-aarch64
-            os: macos-12
+            os: macos-15
             rust: stable
             target: aarch64-apple-darwin
           - build: windows
@@ -101,14 +101,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         # TODO: if any of the build step fails, the release should be deleted.
         with:
-          files: 'screenly*'
+          files: "screenly*"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Attest
         uses: actions/attest-build-provenance@v1
         with:
-          subject-path: '${{ github.workspace }}/screenly*'
+          subject-path: "${{ github.workspace }}/screenly*"
 
   build-docker-image:
     name: docker
