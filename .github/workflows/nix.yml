@@ -24,6 +24,9 @@ on:
 
 jobs:
   build:
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
