@@ -73,7 +73,15 @@ impl Api {
             &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
         )?;
 
-        Ok(serde_json::from_value::<Vec<EdgeApp>>(response)?[0].clone())
+        let apps = serde_json::from_value::<Vec<EdgeApp>>(response)?;
+        if apps.is_empty() {
+            Err(CommandError::ResourceNotFound(format!(
+                "Edge app with ID '{}' not found.",
+                app_id
+            )))
+        } else {
+            Ok(apps[0].clone())
+        }
     }
 
     pub fn copy_assets(&self, payload: Value) -> Result<Vec<String>, CommandError> {

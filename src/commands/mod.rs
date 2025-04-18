@@ -130,6 +130,8 @@ pub enum CommandError {
     PathIsNotDirError(String),
     #[error("Missing installation id in the instance file")]
     MissingInstallationId,
+    #[error("Resource not found: {0}")]
+    ResourceNotFound(String),
 }
 
 pub fn get(
