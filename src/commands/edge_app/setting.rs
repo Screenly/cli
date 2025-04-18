@@ -20,10 +20,7 @@ impl EdgeAppCommand {
         setting_key: &str,
         setting_value: &str,
     ) -> Result<(), CommandError> {
-        let installation_id = match self.get_installation_id(path.clone()) {
-            Ok(id) => Some(id),
-            Err(_) => None,
-        };
+        let installation_id = self.get_installation_id(path.clone()).ok();
         let actual_installation_id = match installation_id {
             Some(id) => id.clone(),
             None => "".to_string(),
