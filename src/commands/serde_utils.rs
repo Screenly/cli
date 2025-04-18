@@ -65,5 +65,8 @@ where
 }
 
 pub fn string_field_is_none_or_empty(opt: &Option<String>) -> bool {
-    opt.as_ref().map_or(true, |s| s.is_empty())
+    match opt.as_ref() {
+        None => true,
+        Some(s) => s.is_empty(),
+    }
 }
