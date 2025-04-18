@@ -1066,7 +1066,7 @@ mod tests {
     }
 
     #[test]
-    fn test_transform_edge_app_path_to_manifest_when_path_provided_should_return_path_with_instance_manifest(
+    fn test_transform_edge_app_path_to_manifest_when_path_provided_should_return_path_with_manifest(
     ) {
         let dir = tempdir().unwrap();
         let dir_path = dir.path();
