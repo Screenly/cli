@@ -7,24 +7,39 @@ on:
     paths:
       - 'src/**'
       - 'Cargo.toml'
+      - '.github/workflows/rust.yml'
   pull_request:
     branches:
       - master
     paths:
       - 'src/**'
       - 'Cargo.toml'
+      - '.github/workflows/rust.yml'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  build_and_test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, 1.86.0, nightly, 1.77.2]
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+
       - name: Build
-        run: cargo build --verbose --release
+        run: cargo +${{ matrix.rust }} build --verbose --release
+
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo +${{ matrix.rust }} test --verbose
