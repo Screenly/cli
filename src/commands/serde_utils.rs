@@ -67,6 +67,6 @@ where
 pub fn string_field_is_none_or_empty(opt: &Option<String>) -> bool {
     match opt.as_ref() {
         None => true,
-        Some(s) => s.is_empty()
+        Some(s) => s.is_empty(),
     }
 }
