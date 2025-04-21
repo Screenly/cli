@@ -7,24 +7,57 @@ on:
     paths:
       - 'src/**'
       - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/rust.yml'
   pull_request:
     branches:
       - master
     paths:
       - 'src/**'
       - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/rust.yml'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  build_and_test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [latest, 1.86.0, 1.77.2]
 
     steps:
-      - uses: actions/checkout@v3
-      - name: Build
-        run: cargo build --verbose --release
-      - name: Run tests
-        run: cargo test --verbose
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Cargo & target directories
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.rust }}-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.rust }}-${{ runner.os }}-
+
+      - name: Build (${{ matrix.rust }})
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${HOME}/.cargo":/usr/local/cargo \
+            -v "$(pwd)":/work -w /work \
+            rust:${{ matrix.rust }} \
+            cargo build --verbose --release
+
+      - name: Run tests (${{ matrix.rust }})
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "${HOME}/.cargo":/usr/local/cargo \
+            -v "$(pwd)":/work -w /work \
+            rust:${{ matrix.rust }} \
+            cargo test --verbose

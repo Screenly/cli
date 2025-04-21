@@ -320,6 +320,7 @@ pub enum EdgeAppCommands {
         #[arg(short, long)]
         path: Option<String>,
 
+        /// Secrets to be passed to the Edge App in the form KEY=VALUE. Can be specified multiple times.
         #[arg(short, long, value_parser = parse_key_values::<Secrets>)]
         secrets: Option<Secrets>,
 
@@ -1216,6 +1217,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_os = "macos", ignore)]
     fn test_transform_edge_app_path_to_manifest_without_path_should_return_correct_path() {
         let dir = tempdir().unwrap();
         let dir_path = dir.path();
