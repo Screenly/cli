@@ -55,6 +55,7 @@ runs:
       shell: bash
 
     - name: Upload artifacts of failed screenly cli command
+      if: ${{ steps.run-cli.outcome != 'success' }}
       uses: actions/upload-artifact@v4
       with:
         name: run-cli-output
