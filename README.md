@@ -44,6 +44,17 @@ To build the Screenly CLI from source, ensure you have [Rust](https://www.rust-l
 $ cargo build --release
 ```
 
+> [!NOTE]
+> If you're building from source in Ubuntu, make sure to install `build-essential`:
+> ```bash
+> sudo apt-get install -y build-essential
+> ```
+>
+> Otherwise, you'll get the following error:
+> ```
+> error: linker `cc` not found
+> ```
+
 The `screenly` binary will be located in `target/release`.
 
 To configure a non-production API server, set the `API_SERVER_NAME` environment variable:
