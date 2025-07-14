@@ -430,11 +430,21 @@ impl FormatterValue for Screens {
 
 impl Formatter for Screens {
     fn format(&self, output_type: OutputType) -> String {
+        fn format_boolean_field(value: &serde_json::Value) -> Cell {
+            if value.as_bool().unwrap_or(false) {
+                cell!(c -> "✅")
+            } else {
+                cell!(c -> "❌")
+            }
+        }
+
         format_value(
             output_type,
             vec![
                 "Id",
                 "Name",
+                "Enabled",
+                "Priority",
                 "Hardware Version",
                 "In Sync",
                 "Last Ping",
@@ -443,6 +453,8 @@ impl Formatter for Screens {
             vec![
                 "id",
                 "name",
+                "is_enabled",
+                "priority",
                 "hardware_version",
                 "in_sync",
                 "last_ping",
@@ -450,12 +462,8 @@ impl Formatter for Screens {
             ],
             self,
             Some(|field: &str, value: &serde_json::Value| {
-                if field.eq("in_sync") {
-                    if value.as_bool().unwrap_or(false) {
-                        cell!(c -> "✅")
-                    } else {
-                        cell!(c -> "❌")
-                    }
+                if field.eq("is_enabled") || field.eq("priority") || field.eq("in_sync") {
+                    format_boolean_field(value)
                 } else if field.eq("uptime") {
                     let uptime = if let Some(uptime) = value.as_u64() {
                         indicatif::HumanDuration(Duration::new(uptime, 0)).to_string()
@@ -490,12 +498,26 @@ impl FormatterValue for Playlists {
 
 impl Formatter for Playlists {
     fn format(&self, output_type: OutputType) -> String {
+        fn format_boolean_field(value: &serde_json::Value) -> Cell {
+            if value.as_bool().unwrap_or(false) {
+                cell!(c -> "✅")
+            } else {
+                cell!(c -> "❌")
+            }
+        }
+
         format_value(
             output_type,
-            vec!["Id", "Title"],
-            vec!["id", "title"],
+            vec!["Id", "Title", "Enabled", "Priority"],
+            vec!["id", "title", "is_enabled", "priority"],
             self,
-            None::<fn(&str, &serde_json::Value) -> Cell>,
+            Some(|field: &str, value: &serde_json::Value| {
+                if field.eq("is_enabled") || field.eq("priority") {
+                    format_boolean_field(value)
+                } else {
+                    Cell::new(value.as_str().unwrap_or("N/A"))
+                }
+            }),
         )
     }
 }

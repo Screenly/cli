@@ -465,7 +465,7 @@ impl EdgeAppCommand {
         }
 
         let prompt = format!("It seems like the setting \"{}\" is absent in the YAML file, but it exists on the server. If you wish to skip deletion, you can leave the input blank. Warning, deleting the setting will drop all the associated values. To proceed with deletion, please confirm the setting name by writing it down: ", setting.name);
-        println!("{}", prompt);
+        println!("{prompt}");
         io::stdin()
             .read_line(&mut input_name)
             .expect("Failed to read input");

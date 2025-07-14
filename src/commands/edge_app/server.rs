@@ -80,7 +80,7 @@ pub async fn run_server(
 
     tokio::task::spawn(server_future);
 
-    Ok(format!("http://{}/edge/1", addr))
+    Ok(format!("http://{addr}/edge/1"))
 }
 
 #[derive(Debug)]
@@ -134,7 +134,7 @@ async fn generate_content(
     let data: MockData = match serde_yaml::from_str(&content) {
         Ok(data) => data,
         Err(e) => {
-            eprintln!("Failed to parse mock data: {}", e);
+            eprintln!("Failed to parse mock data: {e}");
             return Err(warp::reject::not_found());
         }
     };
@@ -202,19 +202,19 @@ fn format_section(name: &str, items: &[(String, Value)]) -> String {
     let content = items
         .iter()
         .map(|(k, v)| match v {
-            Value::Str(s) => format!("        \"{}\": \"{}\"", k, s),
+            Value::Str(s) => format!("        \"{k}\": \"{s}\""),
             Value::Array(arr) => format!(
                 "        \"{}\": [{}]",
                 k,
                 arr.iter()
-                    .map(|item| format!("\"{}\"", item))
+                    .map(|item| format!("\"{item}\""))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
         })
         .collect::<Vec<_>>()
         .join(",\n");
-    format!("    {}: {{\n{}\n    }}", name, content)
+    format!("    {name}: {{\n{content}\n    }}")
 }
 
 impl EdgeAppCommand {
@@ -246,7 +246,7 @@ impl EdgeAppCommand {
                 "{}/index.html",
                 address_shared.lock().unwrap().as_ref().unwrap()
             )) {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
 
             loop {

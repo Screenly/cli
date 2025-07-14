@@ -137,7 +137,7 @@ pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, Command
     let mut files = Vec::new();
 
     let ignore = Ignorer::new(path).map_err(|e| {
-        CommandError::IgnoreError(format!("Failed to initialize ignore module: {}", e))
+        CommandError::IgnoreError(format!("Failed to initialize ignore module: {e}"))
     })?;
 
     for entry in WalkDir::new(path)

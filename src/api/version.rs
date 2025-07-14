@@ -30,8 +30,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/versions?select=user_version,description,icon,author,homepage_url,revision,ready_signal&app_id=eq.{}&order=revision.desc&limit=1",
-                app_id
+                "v4.1/edge-apps/versions?select=user_version,description,icon,author,homepage_url,revision,ready_signal&app_id=eq.{app_id}&order=revision.desc&limit=1"
             ),
         )?;
 

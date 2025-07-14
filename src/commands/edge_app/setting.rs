@@ -98,7 +98,7 @@ impl EdgeAppCommand {
         if setting.edge_app_setting_values.len() == 1
             && setting.edge_app_setting_values[0].get("value").unwrap() == setting_value
         {
-            println!("Setting value is already set to {}", setting_value);
+            println!("Setting value is already set to {setting_value}");
             return Ok(());
         }
 

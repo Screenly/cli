@@ -16,8 +16,7 @@ impl Api {
         let response = commands::patch(
             &self.authentication,
             &format!(
-                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
-                channel, app_id
+                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{channel}&app_id=eq.{app_id}"
             ),
             &json!(
             {

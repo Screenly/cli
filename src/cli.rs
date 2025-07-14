@@ -612,7 +612,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
             match playlist_file {
                 Ok(playlist) => {
                     let pretty_playlist_file = serde_json::to_string_pretty(&playlist).unwrap();
-                    println!("{}", pretty_playlist_file);
+                    println!("{pretty_playlist_file}");
                 }
                 Err(e) => {
                     eprintln!("Error occurred when getting playlist: {e:?}")
@@ -864,8 +864,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
             Ok(revision) => {
                 println!(
-                    "Edge app successfully deployed. Revision: {revision}.",
-                    revision = revision
+                    "Edge app successfully deployed. Revision: {revision}."
                 );
             }
             Err(e) => {
@@ -883,7 +882,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app setting successfully set.");
                     }
                     Err(e) => {
-                        eprintln!("Failed to set edge app setting: {}", e);
+                        eprintln!("Failed to set edge app setting: {e}");
                         std::process::exit(1);
                     }
                 }
@@ -1136,7 +1135,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                             }
                         },
                         Err(e) => {
-                            eprintln!("Failed to delete edge app instance. {:?}", e);
+                            eprintln!("Failed to delete edge app instance. {e:?}");
                             std::process::exit(1);
                         }
                     };

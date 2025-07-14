@@ -23,7 +23,7 @@ impl Ignorer {
                 } else if pattern.contains('*') {
                     // Convert wildcard '*' to regex '.*'
                     let converted = pattern.replace('.', r"\.").replace('*', r".*");
-                    patterns.push(format!("^{}$", converted));
+                    patterns.push(format!("^{converted}$"));
                 } else {
                     patterns.push(format!("^{}$", regex::escape(pattern)));
                 }
