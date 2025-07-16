@@ -8,9 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     name: List screens
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - id: list-screens
-        uses: ./
+        uses: screenly/cli@master
         with:
           screenly_api_token: ${{ secrets.SCREENLY_API_TOKEN }}
           cli_commands: screen list
