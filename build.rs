@@ -27,7 +27,7 @@ fn main() {
     };
     fs::write(
         dest_path,
-        format!("pub const API_BASE_URL: &str = \"{}\";", api_server),
+        format!("pub const API_BASE_URL: &str = \"{api_server}\";"),
     )
     .unwrap();
     println!("cargo:rerun-if-changed=build.rs");

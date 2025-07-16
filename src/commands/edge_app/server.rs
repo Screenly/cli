@@ -141,7 +141,11 @@ async fn generate_content(
 
     let js_output = format_js(data, secrets);
 
-    Ok(warp::reply::html(js_output))
+    Ok(warp::reply::with_header(
+        js_output,
+        "content-type",
+        "application/javascript",
+    ))
 }
 
 fn format_js(data: MockData, secrets: &[(String, Value)]) -> String {
@@ -429,6 +433,26 @@ settings:
             .unwrap();
 
         assert_eq!(resp.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn test_server_should_serve_javascript_with_correct_mime_type() {
+        let dir = setup_temp_dir_with_mock_data();
+        let dir_path = dir.path().to_path_buf();
+
+        let address = run_server(&dir_path, vec![("key".to_string(), "value".to_string())])
+            .await
+            .unwrap();
+        let resp = reqwest::get(format!("{}/screenly.js?version=1", address))
+            .await
+            .unwrap();
+
+        // Verify the response is successful
+        assert_eq!(resp.status(), 200);
+
+        // Verify the Content-Type header is correct
+        let content_type = resp.headers().get("content-type").unwrap();
+        assert_eq!(content_type, "application/javascript");
     }
 
     #[test]
