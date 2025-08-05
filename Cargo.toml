@@ -13,12 +13,12 @@ path = "src/main.rs"
 anyhow = "1.0.65"
 clap = { version = "4.0.17", features = ["derive", "cargo"] }
 clap-markdown = "0.1.4"
-dirs = "4.0.0"
+dirs = "6.0.0"
 futures = "0.3.28"
 glob = "0.3.1"
 hex = "0.4.3"
 http-auth-basic = "0.3.3"
-indicatif = "0.17.2"
+indicatif = "0.18.0"
 log = { version = "0.4.17", features = [
     "release_max_level_debug",
     "max_level_debug",
@@ -28,10 +28,10 @@ prettytable-rs = "0.10.0"
 protobuf = "3.3.0"
 rayon = "1.7.0"
 regex = "1.9.3"
-reqwest = { version = "0.11.12", features = ["json", "blocking", "multipart"] }
+reqwest = { version = "0.12.22", features = ["json", "blocking", "multipart"] }
 rpassword = "7.2.0"
-sentry = "0.31.5"
-sentry-anyhow = "0.31.5"
+sentry = "0.42.0"
+sentry-anyhow = "0.42.0"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.87"
 serde_with = "3.8.3"
@@ -39,11 +39,11 @@ serde_yaml = "0.9.17"
 sha1 = "0.10.5"
 sha2 = "0.10.7"
 simple_logger = { version = "4.0.0", features = ["colors"] }
-strum = "0.25"
-strum_macros = "0.25"
+strum = "0.27"
+strum_macros = "0.27"
 temp-env = "0.3.6"
-term = "0.7.0"
-thiserror = "1.0.37"
+term = "1.1.0"
+thiserror = "2.0.12"
 tokio = { version = "1.32.0", features = ["rt-multi-thread"] }
 tokio-stream = "0.1.14"
 walkdir = "2.3.3"
