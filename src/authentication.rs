@@ -130,7 +130,7 @@ pub fn verify_and_store_token(
 
 fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), AuthenticationError> {
     // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
-    let url = format!("{}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/", api_url);
+    let url = format!("{api_url}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/");
     let secret = format!("Token {token}");
     let client = reqwest::blocking::Client::builder().build()?;
 

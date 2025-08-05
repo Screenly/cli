@@ -141,8 +141,7 @@ where
         "basic" => Ok(AuthType::Basic),
         "bearer" => Ok(AuthType::Bearer),
         _ => Err(serde::de::Error::custom(format!(
-            "Invalid auth type: {}",
-            s
+            "Invalid auth type: {s}"
         ))),
     }
 }
@@ -155,8 +154,7 @@ where
     match s.as_str() {
         MANIFEST_VERSION => Ok(s),
         invalid => Err(serde::de::Error::custom(format!(
-            "Invalid syntax: {}. Only 'manifest_v1' is accepted.",
-            invalid
+            "Invalid syntax: {invalid}. Only 'manifest_v1' is accepted."
         ))),
     }
 }

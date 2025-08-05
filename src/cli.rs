@@ -441,7 +441,7 @@ pub fn handle_command_execution_result<T: Formatter>(
                     )
                 }
                 _ => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                 }
             }
             std::process::exit(1);
@@ -511,7 +511,7 @@ pub fn handle_cli(cli: &Cli) {
                         std::process::exit(1);
                     }
                     _ => {
-                        error!("Error occurred: {:?}", e);
+                        error!("Error occurred: {e:?}");
                         std::process::exit(1);
                     }
                 },
@@ -538,7 +538,7 @@ fn get_user_input() -> String {
     match stdin.read_line(&mut user_input) {
         Ok(_) => {}
         Err(e) => {
-            error!("Error occurred: {}", e);
+            error!("Error occurred: {e}");
             std::process::exit(1);
         }
     }
@@ -563,7 +563,7 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
         ScreenCommands::Delete { uuid } => {
             match get_screen_name(uuid, &screen_command) {
                 Ok(name) => {
-                    info!("You are about to delete the screen named \"{}\".  This operation cannot be reversed.", name);
+                    info!("You are about to delete the screen named \"{name}\".  This operation cannot be reversed.");
                     info!("Enter the screen name to confirm the screen deletion: ");
                     if name != get_user_input() {
                         error!("The name you entered is incorrect. Aborting.");
@@ -571,7 +571,7 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
                     }
                 }
                 Err(e) => {
-                    error!("Error occurred: {}", e);
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -582,7 +582,7 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
                     std::process::exit(0);
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -612,7 +612,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
             match playlist_file {
                 Ok(playlist) => {
                     let pretty_playlist_file = serde_json::to_string_pretty(&playlist).unwrap();
-                    println!("{}", pretty_playlist_file);
+                    println!("{pretty_playlist_file}");
                 }
                 Err(e) => {
                     eprintln!("Error occurred when getting playlist: {e:?}")
@@ -694,7 +694,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
         AssetCommands::Delete { uuid } => {
             match get_asset_title(uuid, &asset_command) {
                 Ok(title) => {
-                    info!("You are about to delete the asset named \"{}\".  This operation cannot be reversed.", title);
+                    info!("You are about to delete the asset named \"{title}\".  This operation cannot be reversed.");
                     info!("Enter the asset title to confirm the asset deletion: ");
                     io::stdout().flush().unwrap();
 
@@ -703,7 +703,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     match stdin.read_line(&mut user_input) {
                         Ok(_) => {}
                         Err(e) => {
-                            error!("Error occurred: {}", e);
+                            error!("Error occurred: {e}");
                             std::process::exit(1);
                         }
                     }
@@ -714,7 +714,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     }
                 }
                 Err(e) => {
-                    error!("Error occurred: {}", e);
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -724,7 +724,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     std::process::exit(0);
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -736,13 +736,13 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                         match response.status() {
                             StatusCode::OK => response.text().unwrap_or_default(),
                             status => {
-                                error!("Failed to retrieve JS injection code. Wrong response status: {}", status);
+                                error!("Failed to retrieve JS injection code. Wrong response status: {status}");
                                 std::process::exit(1);
                             }
                         }
                     }
                     Err(e) => {
-                        error!("Failed to retrieve JS injection code. Error: {}", e);
+                        error!("Failed to retrieve JS injection code. Error: {e}");
                         std::process::exit(1);
                     }
                 }
@@ -750,7 +750,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                 match fs::read_to_string(path) {
                     Ok(text) => text,
                     Err(e) => {
-                        error!("Failed to read file with JS injection code. Error: {}", e);
+                        error!("Failed to read file with JS injection code. Error: {e}");
                         std::process::exit(1);
                     }
                 }
@@ -761,7 +761,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -772,7 +772,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -787,7 +787,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -798,7 +798,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -812,7 +812,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -864,8 +864,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
         } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
             Ok(revision) => {
                 println!(
-                    "Edge app successfully deployed. Revision: {revision}.",
-                    revision = revision
+                    "Edge app successfully deployed. Revision: {revision}."
                 );
             }
             Err(e) => {
@@ -883,7 +882,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         println!("Edge app setting successfully set.");
                     }
                     Err(e) => {
-                        eprintln!("Failed to set edge app setting: {}", e);
+                        eprintln!("Failed to set edge app setting: {e}");
                         std::process::exit(1);
                     }
                 }
@@ -893,13 +892,13 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                 Ok(id) => id,
                 Err(e) => {
-                    error!("Error calling delete Edge App: {}", e);
+                    error!("Error calling delete Edge App: {e}");
                     std::process::exit(1);
                 }
             };
             match edge_app_command.get_app_name(&actual_app_id) {
                 Ok(name) => {
-                    info!("You are about to delete the Edge App named \"{}\".  This operation cannot be reversed.", name);
+                    info!("You are about to delete the Edge App named \"{name}\".  This operation cannot be reversed.");
                     info!("Enter the Edge App name to confirm the app deletion: ");
                     if name != get_user_input() {
                         error!("The name you entered is incorrect. Aborting.");
@@ -907,7 +906,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     }
                 }
                 Err(e) => {
-                    error!("Error occurred: {}", e);
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -930,14 +929,14 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                             println!("App id cleared from manifest.");
                         }
                         Err(e) => {
-                            error!("Error occurred while clearing manifest: {}", e);
+                            error!("Error occurred while clearing manifest: {e}");
                             std::process::exit(1);
                         }
                     }
                     std::process::exit(0);
                 }
                 Err(e) => {
-                    error!("Error occurred: {:?}", e);
+                    error!("Error occurred: {e:?}");
                     std::process::exit(1);
                 }
             }
@@ -946,7 +945,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                 Ok(id) => id,
                 Err(e) => {
-                    error!("Error calling delete Edge App: {}", e);
+                    error!("Error calling delete Edge App: {e}");
                     std::process::exit(1);
                 }
             };
@@ -1071,7 +1070,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                     Ok(id) => id,
                     Err(e) => {
-                        error!("Error calling list instances: {}", e);
+                        error!("Error calling list instances: {e}");
                         std::process::exit(1);
                     }
                 };
@@ -1084,7 +1083,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                     Ok(id) => id,
                     Err(e) => {
-                        error!("Error calling create instance: {}", e);
+                        error!("Error calling create instance: {e}");
                         std::process::exit(1);
                     }
                 };
@@ -1121,7 +1120,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     match edge_app_command.get_installation_id(path.clone()) {
                         Ok(_installation_id) => _installation_id,
                         Err(e) => {
-                            error!("Error calling delete setting: {}", e);
+                            error!("Error calling delete setting: {e}");
                             std::process::exit(1);
                         }
                     };
@@ -1136,7 +1135,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                             }
                         },
                         Err(e) => {
-                            eprintln!("Failed to delete edge app instance. {:?}", e);
+                            eprintln!("Failed to delete edge app instance. {e:?}");
                             std::process::exit(1);
                         }
                     };
@@ -1212,7 +1211,7 @@ mod tests {
 
         assert_eq!(
             new_path,
-            PathBuf::from(format!("{}/screenly.yml", dir_path))
+            PathBuf::from(format!("{dir_path}/screenly.yml"))
         );
     }
 

@@ -68,8 +68,7 @@ where
     match s.as_str() {
         INSTANCE_MANIFEST_VERSION => Ok(s),
         invalid => Err(serde::de::Error::custom(format!(
-            "Invalid syntax: {}. Only 'instance_v1' is accepted.",
-            invalid
+            "Invalid syntax: {invalid}. Only 'instance_v1' is accepted."
         ))),
     }
 }
