@@ -53,7 +53,7 @@ impl Api {
     pub fn delete_app(&self, app_id: &str) -> Result<(), CommandError> {
         commands::delete(
             &self.authentication,
-            &format!("v4/edge-apps?id=eq.{}", app_id),
+            &format!("v4/edge-apps?id=eq.{app_id}"),
         )?;
         Ok(())
     }
@@ -61,7 +61,7 @@ impl Api {
     pub fn update_app(&self, app_id: &str, name: &str) -> Result<(), CommandError> {
         commands::patch(
             &self.authentication,
-            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
+            &format!("v4/edge-apps?select=name&id=eq.{app_id}"),
             &json!({ "name": name }),
         )?;
         Ok(())
@@ -70,14 +70,13 @@ impl Api {
     pub fn get_app(&self, app_id: &str) -> Result<EdgeApp, CommandError> {
         let response = commands::get(
             &self.authentication,
-            &format!("v4/edge-apps?select=name&id=eq.{}", app_id),
+            &format!("v4/edge-apps?select=name&id=eq.{app_id}"),
         )?;
 
         let apps = serde_json::from_value::<Vec<EdgeApp>>(response)?;
         if apps.is_empty() {
             Err(CommandError::AppNotFound(format!(
-                "Edge app with ID '{}' not found.",
-                app_id
+                "Edge app with ID '{app_id}' not found."
             )))
         } else {
             Ok(apps[0].clone())
@@ -88,7 +87,7 @@ impl Api {
         let response = commands::post(&self.authentication, "v4/edge-apps/copy-assets", &payload)?;
         let copied_assets = serde_json::from_value::<Vec<String>>(response)?;
 
-        debug!("Copied assets: {:?}", copied_assets);
+        debug!("Copied assets: {copied_assets:?}");
         Ok(copied_assets)
     }
 }

@@ -14,8 +14,7 @@ impl Api {
         let get_response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=revision&app_id=eq.{}&revision=eq.{}",
-                app_id, revision
+                "v4/edge-apps/versions?select=revision&app_id=eq.{app_id}&revision=eq.{revision}"
             ),
         )?;
         let version =
@@ -37,7 +36,7 @@ impl Api {
         if let Some(arr) = response.as_array() {
             if let Some(obj) = arr.first() {
                 if let Some(revision) = obj["revision"].as_u64() {
-                    debug!("New version revision: {}", revision);
+                    debug!("New version revision: {revision}");
                     return Ok(revision as u32);
                 }
             }
@@ -54,8 +53,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=file_tree&app_id=eq.{}&revision=eq.{}",
-                app_id, revision
+                "v4/edge-apps/versions?select=file_tree&app_id=eq.{app_id}&revision=eq.{revision}"
             ),
         )?;
 
@@ -75,8 +73,7 @@ impl Api {
         commands::patch(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?app_id=eq.{}&revision=eq.{}",
-                app_id, revision
+                "v4/edge-apps/versions?app_id=eq.{app_id}&revision=eq.{revision}"
             ),
             &json!({"published": true}),
         )?;

@@ -173,8 +173,7 @@ where
     match SettingType::from_str(&s.to_lowercase()) {
         Ok(setting_type) => Ok(setting_type),
         Err(_) => Err(serde::de::Error::custom(format!(
-            "Setting type should be one of the following:\n{}",
-            valid_setting_types
+            "Setting type should be one of the following:\n{valid_setting_types}"
         ))),
     }
 }
@@ -212,8 +211,7 @@ impl Api {
         Ok(deserialize_settings_from_array(commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{}&order=name.asc",
-                app_id,
+                "v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{app_id}&order=name.asc",
             ),
         )?)?)
     }
@@ -222,8 +220,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/settings?select=is_global&app_id=eq.{}&name=eq.{}",
-                app_id, setting_key,
+                "v4.1/edge-apps/settings?select=is_global&app_id=eq.{app_id}&name=eq.{setting_key}",
             ),
         )?;
 
@@ -247,8 +244,7 @@ impl Api {
         // TODO: test values are returned properly when there are several installations. Most likely need to feed installation_id to the request.
         // installation_id=is.null or installation_id=eq.smth
         let app_settings: Vec<HashMap<String, serde_json::Value>> = serde_json::from_value(commands::get(&self.authentication,
-            &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text,edge_app_setting_values(value)&app_id=eq.{}&order=name.asc",
-                app_id,
+            &format!("v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text,edge_app_setting_values(value)&app_id=eq.{app_id}&order=name.asc",
             ))?)?;
 
         Ok(EdgeAppSettings::new(serde_json::to_value(app_settings)?))
@@ -262,8 +258,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&app_id=eq.{}&edge_app_setting_values.app_id=eq.{}&name=eq.{}",
-                app_id, app_id, setting_key
+                "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&app_id=eq.{app_id}&edge_app_setting_values.app_id=eq.{app_id}&name=eq.{setting_key}"
             ),
         )?;
         let settings = serde_json::from_value::<Vec<SettingValue>>(response)?;
@@ -282,8 +277,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&edge_app_setting_values.installation_id=eq.{}&name=eq.{}&app_id=eq.{}",
-                installation_id, setting_key, app_id
+                "v4.1/edge-apps/settings?select=name,type,edge_app_setting_values(value)&edge_app_setting_values.installation_id=eq.{installation_id}&name=eq.{setting_key}&app_id=eq.{app_id}"
             ),
         )?;
 
@@ -388,8 +382,7 @@ impl Api {
         commands::patch(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/settings/values?app_id=eq.{}&name=eq.{}&installation_id=is.null",
-                app_id, setting_key
+                "v4.1/edge-apps/settings/values?app_id=eq.{app_id}&name=eq.{setting_key}&installation_id=is.null"
             ),
             &json!({
                 "value": setting_value,
@@ -408,8 +401,7 @@ impl Api {
         commands::patch(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/settings/values?installation_id=eq.{}&name=eq.{}",
-                installation_id, setting_key
+                "v4.1/edge-apps/settings/values?installation_id=eq.{installation_id}&name=eq.{setting_key}"
             ),
             &json!({
                 "value": setting_value,

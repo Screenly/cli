@@ -21,8 +21,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/installations?select=name&id=eq.{}",
-                installation_id
+                "v4.1/edge-apps/installations?select=name&id=eq.{installation_id}"
             ),
         )?;
 
@@ -43,8 +42,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/installations?select=id,name&app_id=eq.{}",
-                app_id
+                "v4/edge-apps/installations?select=id,name&app_id=eq.{app_id}"
             ),
         )?;
 
@@ -56,7 +54,7 @@ impl Api {
     pub fn delete_installation(&self, installation_id: &str) -> Result<(), CommandError> {
         commands::delete(
             &self.authentication,
-            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
+            &format!("v4.1/edge-apps/installations?id=eq.{installation_id}"),
         )?;
         Ok(())
     }
@@ -71,7 +69,7 @@ impl Api {
         });
         commands::patch(
             &self.authentication,
-            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
+            &format!("v4.1/edge-apps/installations?id=eq.{installation_id}"),
             &payload,
         )?;
         Ok(())
