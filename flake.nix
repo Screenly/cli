@@ -2,7 +2,7 @@
   description = "Screenly CLI flake";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
   };
 
   outputs = { self, nixpkgs }:
