@@ -36,4 +36,4 @@ jobs:
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --manifest-path rust-services/Cargo.toml
+          args: --manifest-path Cargo.toml

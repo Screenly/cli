@@ -22,4 +22,4 @@ jobs:
 
       - name: Run rustfmt check
         id: fmt
-        run: cargo fmt --all --manifest-path rust-services/Cargo.toml --check
+        run: cargo fmt --all --manifest-path Cargo.toml --check
