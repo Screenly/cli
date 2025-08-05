@@ -1,19 +1,19 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::{fs, str};
+
+use anyhow::Result;
+use futures::future::{self, BoxFuture, FutureExt};
+use serde::{Deserialize, Serialize};
+use warp::reject::Reject;
+use warp::{Filter, Rejection, Reply};
+
 use crate::api::edge_app::setting::SettingType;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::ignorer::Ignorer;
 use crate::commands::CommandError;
-use anyhow::Result;
-use futures::future::{self, BoxFuture, FutureExt};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::{fs, str};
-
-use serde::{Deserialize, Serialize};
-
-use std::path::{Path, PathBuf};
-use warp::reject::Reject;
-use warp::{Filter, Rejection, Reply};
 
 pub const MOCK_DATA_FILENAME: &str = "mock-data.yml";
 
@@ -80,7 +80,7 @@ pub async fn run_server(
 
     tokio::task::spawn(server_future);
 
-    Ok(format!("http://{}/edge/1", addr))
+    Ok(format!("http://{addr}/edge/1"))
 }
 
 #[derive(Debug)]
@@ -134,7 +134,7 @@ async fn generate_content(
     let data: MockData = match serde_yaml::from_str(&content) {
         Ok(data) => data,
         Err(e) => {
-            eprintln!("Failed to parse mock data: {}", e);
+            eprintln!("Failed to parse mock data: {e}");
             return Err(warp::reject::not_found());
         }
     };
@@ -206,19 +206,19 @@ fn format_section(name: &str, items: &[(String, Value)]) -> String {
     let content = items
         .iter()
         .map(|(k, v)| match v {
-            Value::Str(s) => format!("        \"{}\": \"{}\"", k, s),
+            Value::Str(s) => format!("        \"{k}\": \"{s}\""),
             Value::Array(arr) => format!(
                 "        \"{}\": [{}]",
                 k,
                 arr.iter()
-                    .map(|item| format!("\"{}\"", item))
+                    .map(|item| format!("\"{item}\""))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
         })
         .collect::<Vec<_>>()
         .join(",\n");
-    format!("    {}: {{\n{}\n    }}", name, content)
+    format!("    {name}: {{\n{content}\n    }}")
 }
 
 impl EdgeAppCommand {
@@ -250,7 +250,7 @@ impl EdgeAppCommand {
                 "{}/index.html",
                 address_shared.lock().unwrap().as_ref().unwrap()
             )) {
-                eprintln!("{}", e);
+                eprintln!("{e}");
             }
 
             loop {
@@ -332,10 +332,11 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
     use tempfile::tempdir;
 
+    use super::*;
     use crate::api::edge_app::setting::{Setting, SettingType};
     use crate::authentication::{Authentication, Config};
     use crate::commands::edge_app::test_utils::tests::{
@@ -380,7 +381,7 @@ settings:
         let address = run_server(&dir_path, vec![("key".to_string(), "value".to_string())])
             .await
             .unwrap();
-        let resp = reqwest::get(format!("{}/screenly.js?version=1", address))
+        let resp = reqwest::get(format!("{address}/screenly.js?version=1"))
             .await
             .unwrap();
         let content = resp.text().await.unwrap();
@@ -412,7 +413,7 @@ settings:
         let address = run_server(&dir_path, vec![("key".to_string(), "value".to_string())])
             .await
             .unwrap();
-        let resp = reqwest::get(format!("{}/screenly.js?version=1", address))
+        let resp = reqwest::get(format!("{address}/screenly.js?version=1"))
             .await
             .unwrap();
 
@@ -428,7 +429,7 @@ settings:
             .await
             .unwrap();
 
-        let resp = reqwest::get(format!("{}/screenly.js?version=2", address))
+        let resp = reqwest::get(format!("{address}/screenly.js?version=2"))
             .await
             .unwrap();
 
@@ -443,7 +444,7 @@ settings:
         let address = run_server(&dir_path, vec![("key".to_string(), "value".to_string())])
             .await
             .unwrap();
-        let resp = reqwest::get(format!("{}/screenly.js?version=1", address))
+        let resp = reqwest::get(format!("{address}/screenly.js?version=1"))
             .await
             .unwrap();
 

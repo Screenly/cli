@@ -1,18 +1,17 @@
+use std::collections::{HashMap, HashSet};
+use std::env;
+use std::path::{Path, PathBuf};
+
+use log::debug;
+use walkdir::{DirEntry, WalkDir};
+
 use crate::api::asset::AssetSignature;
 use crate::api::edge_app::setting::{Setting, SettingType};
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
+use crate::commands::ignorer::Ignorer;
 use crate::commands::CommandError;
 use crate::signature::{generate_signature, sig_to_hex};
-use log::debug;
-use std::collections::{HashMap, HashSet};
-use std::env;
-use std::path::PathBuf;
-
-use crate::commands::ignorer::Ignorer;
-
-use std::path::Path;
-use walkdir::{DirEntry, WalkDir};
 
 const INSTANCE_FILE_NAME_ENV: &str = "INSTANCE_FILE_NAME";
 const MANIFEST_FILE_NAME_ENV: &str = "MANIFEST_FILE_NAME";
@@ -137,7 +136,7 @@ pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, Command
     let mut files = Vec::new();
 
     let ignore = Ignorer::new(path).map_err(|e| {
-        CommandError::IgnoreError(format!("Failed to initialize ignore module: {}", e))
+        CommandError::IgnoreError(format!("Failed to initialize ignore module: {e}"))
     })?;
 
     for entry in WalkDir::new(path)
@@ -311,15 +310,17 @@ pub fn validate_manifests_dependacies(
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use std::io::Write;
+
+    use temp_env;
+    use tempfile::tempdir;
+
     use super::*;
     use crate::api::edge_app::setting::{Setting, SettingType};
     use crate::commands::edge_app::instance_manifest::INSTANCE_MANIFEST_VERSION;
     use crate::commands::edge_app::manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
     use crate::commands::edge_app::manifest_auth::AuthType;
-    use std::fs::File;
-    use std::io::Write;
-    use temp_env;
-    use tempfile::tempdir;
 
     fn create_manifest() -> EdgeAppManifest {
         EdgeAppManifest {

@@ -1,17 +1,15 @@
+use std::time::Duration;
+
+use log::debug;
+use prettytable::{cell, Cell, Row};
+use reqwest::header::{HeaderMap, InvalidHeaderValue};
+use reqwest::StatusCode;
+use serde::{Deserialize, Deserializer, Serialize};
+use thiserror::Error;
+
 use crate::api::edge_app::app::EdgeApps;
 use crate::api::edge_app::installation::EdgeAppInstances;
 use crate::{Authentication, AuthenticationError};
-use prettytable::{cell, Cell, Row};
-
-use log::debug;
-use std::time::Duration;
-
-use serde::{Deserialize, Deserializer, Serialize};
-
-use thiserror::Error;
-
-use reqwest::header::{HeaderMap, InvalidHeaderValue};
-use reqwest::StatusCode;
 
 pub mod asset;
 pub mod edge_app;
@@ -352,7 +350,7 @@ impl Formatter for EdgeAppSettings {
                         }
                         return Cell::new("");
                     }
-                    debug!("field_name: {}, field_value: {:?}", field_name, field_value);
+                    debug!("field_name: {field_name}, field_value: {field_value:?}");
                     Cell::new(field_value.as_str().unwrap_or_default())
                 },
             ),

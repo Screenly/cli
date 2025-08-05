@@ -1,10 +1,9 @@
+use serde::Deserialize;
+use serde_json::json;
+
 use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
-
-use serde_json::json;
-
-use serde::Deserialize;
 
 impl Api {
     pub fn update_channel(
@@ -16,8 +15,7 @@ impl Api {
         let response = commands::patch(
             &self.authentication,
             &format!(
-                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{}&app_id=eq.{}",
-                channel, app_id
+                "v4/edge-apps/channels?select=channel,app_revision&channel=eq.{channel}&app_id=eq.{app_id}"
             ),
             &json!(
             {

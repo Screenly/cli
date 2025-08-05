@@ -1,37 +1,33 @@
-use crate::api::edge_app::setting::{Setting, SettingType};
-use crate::api::version::EdgeAppVersion;
-use crate::commands::edge_app::instance_manifest::InstanceManifest;
-use crate::commands::edge_app::manifest::{EdgeAppManifest, Entrypoint};
-use crate::commands::edge_app::EdgeAppCommand;
-use crate::commands::{CommandError, EdgeApps};
-
-use indicatif::ProgressBar;
-use log::debug;
 use std::collections::HashMap;
-use std::{io, str, thread};
-
-use reqwest::header::HeaderMap;
-use reqwest::StatusCode;
-use serde_json::json;
-use serde_yaml;
-use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::time::{Duration, Instant};
+use std::{fs, io, str, thread};
 
+use indicatif::ProgressBar;
+use log::debug;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use reqwest::header::HeaderMap;
+use reqwest::StatusCode;
+use serde_json::json;
+use serde_yaml;
+
+use crate::api::edge_app::setting::{Setting, SettingType};
+use crate::api::version::EdgeAppVersion;
+use crate::commands::edge_app::instance_manifest::InstanceManifest;
+use crate::commands::edge_app::manifest::{
+    EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
+};
 use crate::commands::edge_app::utils::{
     collect_paths_for_upload, detect_changed_files, detect_changed_settings,
-    ensure_edge_app_has_all_necessary_files, generate_file_tree, FileChanges, SettingChanges,
+    ensure_edge_app_has_all_necessary_files, generate_file_tree,
+    transform_edge_app_path_to_manifest, transform_instance_path_to_instance_manifest, FileChanges,
+    SettingChanges,
 };
-
-use crate::commands::edge_app::utils::transform_edge_app_path_to_manifest;
-
-use crate::commands::edge_app::manifest::{EntrypointType, MANIFEST_VERSION};
-use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
+use crate::commands::edge_app::EdgeAppCommand;
+use crate::commands::{CommandError, EdgeApps};
 
 // Edge apps commands
 impl EdgeAppCommand {
@@ -181,7 +177,7 @@ impl EdgeAppCommand {
             Err(_) => true,
         };
 
-        debug!("File tree changed: {}", file_tree_changed);
+        debug!("File tree changed: {file_tree_changed}");
         if !self.requires_upload(&changed_files) && !file_tree_changed && !version_metadata_changed
         {
             return Err(CommandError::NoChangesToUpload(
@@ -420,7 +416,7 @@ impl EdgeAppCommand {
         revision: u32,
         changed_files: &FileChanges,
     ) -> Result<(), CommandError> {
-        debug!("Changed files: {:#?}", changed_files);
+        debug!("Changed files: {changed_files:#?}");
 
         let copied_signatures = self.copy_edge_app_assets(
             app_id,
@@ -439,7 +435,7 @@ impl EdgeAppCommand {
             return Ok(());
         }
 
-        debug!("Uploading edge app files: {:#?}", files_to_upload);
+        debug!("Uploading edge app files: {files_to_upload:#?}");
         let file_paths: Vec<PathBuf> = files_to_upload
             .iter()
             .map(|file| edge_app_dir.join(&file.path))
@@ -465,7 +461,7 @@ impl EdgeAppCommand {
         }
 
         let prompt = format!("It seems like the setting \"{}\" is absent in the YAML file, but it exists on the server. If you wish to skip deletion, you can leave the input blank. Warning, deleting the setting will drop all the associated values. To proceed with deletion, please confirm the setting name by writing it down: ", setting.name);
-        println!("{}", prompt);
+        println!("{prompt}");
         io::stdin()
             .read_line(&mut input_name)
             .expect("Failed to read input");
@@ -534,7 +530,7 @@ impl EdgeAppCommand {
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
 
-        debug!("Uploading file: {:?}", path);
+        debug!("Uploading file: {path:?}");
         let form = reqwest::blocking::multipart::Form::new()
             .text(
                 "title",
@@ -610,18 +606,18 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
 
-    use crate::commands::edge_app::manifest::MANIFEST_VERSION;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
+    use tempfile::tempdir;
 
+    use super::*;
+    use crate::commands::edge_app::manifest::MANIFEST_VERSION;
     use crate::commands::edge_app::test_utils::tests::{
         create_edge_app_manifest_for_test, create_instance_manifest_for_test,
         prepare_edge_apps_test,
     };
     use crate::commands::edge_app::utils::EdgeAppFile;
-    use tempfile::tempdir;
 
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {
@@ -1833,7 +1829,7 @@ mod tests {
         let result =
             command.get_installation_id(Some(temp_dir.path().to_str().unwrap().to_string()));
 
-        println!("{:?}", result);
+        println!("{result:?}");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
     }

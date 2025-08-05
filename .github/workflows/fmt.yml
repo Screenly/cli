@@ -1,0 +1,25 @@
+name: Rust formatting check
+on:
+  pull_request:
+    branches: ["*"]
+    paths:
+      - "**/*.rs"
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+
+      - name: Run rustfmt check
+        id: fmt
+        run: cargo fmt --all --manifest-path Cargo.toml --check
