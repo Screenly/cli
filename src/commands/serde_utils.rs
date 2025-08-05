@@ -15,8 +15,7 @@ where
         Some(ref s) if s.trim().is_empty() => {
             if error_on_empty {
                 Err(serde::de::Error::custom(format!(
-                    "Field \"{}\" cannot be empty",
-                    field_name
+                    "Field \"{field_name}\" cannot be empty"
                 )))
             } else {
                 Ok(None)
@@ -36,8 +35,7 @@ where
 {
     if value.trim().is_empty() {
         Err(serde::ser::Error::custom(format!(
-            "Field \"{}\" cannot be empty",
-            field_name
+            "Field \"{field_name}\" cannot be empty"
         )))
     } else {
         serializer.serialize_str(value)
@@ -56,8 +54,7 @@ where
 
     if s.trim().is_empty() && error_on_empty {
         Err(serde::de::Error::custom(format!(
-            "Field \"{}\" cannot be empty",
-            field_name
+            "Field \"{field_name}\" cannot be empty"
         )))
     } else {
         Ok(s)

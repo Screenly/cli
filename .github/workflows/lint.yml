@@ -2,16 +2,16 @@ name: Lint
 on:
   push:
     paths:
-      - 'src/**'
-      - 'Cargo.toml'
+      - "src/**"
+      - "Cargo.toml"
 
 jobs:
   lint:
     name: Lint code base
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      checks: 'write'
+      contents: "read"
+      checks: "write"
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -21,6 +21,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-targets --all-features -- -D warnings
+
       - name: rust-fmt-check
         uses: actions-rust-lang/rustfmt@v1
         with:
