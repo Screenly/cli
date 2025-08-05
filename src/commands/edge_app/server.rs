@@ -1,19 +1,19 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::{fs, str};
+
+use anyhow::Result;
+use futures::future::{self, BoxFuture, FutureExt};
+use serde::{Deserialize, Serialize};
+use warp::reject::Reject;
+use warp::{Filter, Rejection, Reply};
+
 use crate::api::edge_app::setting::SettingType;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::ignorer::Ignorer;
 use crate::commands::CommandError;
-use anyhow::Result;
-use futures::future::{self, BoxFuture, FutureExt};
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::{fs, str};
-
-use serde::{Deserialize, Serialize};
-
-use std::path::{Path, PathBuf};
-use warp::reject::Reject;
-use warp::{Filter, Rejection, Reply};
 
 pub const MOCK_DATA_FILENAME: &str = "mock-data.yml";
 
@@ -332,10 +332,11 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
     use tempfile::tempdir;
 
+    use super::*;
     use crate::api::edge_app::setting::{Setting, SettingType};
     use crate::authentication::{Authentication, Config};
     use crate::commands::edge_app::test_utils::tests::{

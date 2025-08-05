@@ -1,19 +1,17 @@
-use crate::commands;
-use crate::commands::CommandError;
-use crate::{api::Api, commands::EdgeAppSettings};
-
-use log::debug;
-use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::ops::Not;
 use std::str::FromStr;
 
-use serde::Deserializer;
+use log::debug;
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::{json, Value};
 use strum::IntoEnumIterator;
 use strum_macros::{Display, EnumIter, EnumString};
 
+use crate::api::Api;
+use crate::commands;
 use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
-use serde::{Deserialize, Serialize};
+use crate::commands::{CommandError, EdgeAppSettings};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SettingValue {

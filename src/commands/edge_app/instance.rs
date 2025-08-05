@@ -1,12 +1,10 @@
-use super::EdgeAppCommand;
+use std::path::Path;
+use std::{fs, str};
 
+use super::EdgeAppCommand;
 use crate::commands::edge_app::instance_manifest::{InstanceManifest, INSTANCE_MANIFEST_VERSION};
 use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
 use crate::commands::{CommandError, EdgeAppInstances};
-use std::str;
-
-use std::fs;
-use std::path::Path;
 
 impl EdgeAppCommand {
     pub fn list_instances(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
@@ -80,14 +78,12 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use crate::commands::edge_app::instance_manifest::InstanceManifest;
-    use crate::commands::edge_app::manifest::EdgeAppManifest;
-    use crate::commands::edge_app::manifest::{Entrypoint, EntrypointType};
-    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
+    use serde_json::{json, Value};
 
-    use serde_json::json;
-    use serde_json::Value;
+    use crate::commands::edge_app::instance_manifest::InstanceManifest;
+    use crate::commands::edge_app::manifest::{EdgeAppManifest, Entrypoint, EntrypointType};
+    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
 
     #[test]
     fn test_instance_list_should_list_instances() {

@@ -1,37 +1,33 @@
-use crate::api::edge_app::setting::{Setting, SettingType};
-use crate::api::version::EdgeAppVersion;
-use crate::commands::edge_app::instance_manifest::InstanceManifest;
-use crate::commands::edge_app::manifest::{EdgeAppManifest, Entrypoint};
-use crate::commands::edge_app::EdgeAppCommand;
-use crate::commands::{CommandError, EdgeApps};
-
-use indicatif::ProgressBar;
-use log::debug;
 use std::collections::HashMap;
-use std::{io, str, thread};
-
-use reqwest::header::HeaderMap;
-use reqwest::StatusCode;
-use serde_json::json;
-use serde_yaml;
-use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::time::{Duration, Instant};
+use std::{fs, io, str, thread};
 
+use indicatif::ProgressBar;
+use log::debug;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use reqwest::header::HeaderMap;
+use reqwest::StatusCode;
+use serde_json::json;
+use serde_yaml;
+
+use crate::api::edge_app::setting::{Setting, SettingType};
+use crate::api::version::EdgeAppVersion;
+use crate::commands::edge_app::instance_manifest::InstanceManifest;
+use crate::commands::edge_app::manifest::{
+    EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
+};
 use crate::commands::edge_app::utils::{
     collect_paths_for_upload, detect_changed_files, detect_changed_settings,
-    ensure_edge_app_has_all_necessary_files, generate_file_tree, FileChanges, SettingChanges,
+    ensure_edge_app_has_all_necessary_files, generate_file_tree,
+    transform_edge_app_path_to_manifest, transform_instance_path_to_instance_manifest, FileChanges,
+    SettingChanges,
 };
-
-use crate::commands::edge_app::utils::transform_edge_app_path_to_manifest;
-
-use crate::commands::edge_app::manifest::{EntrypointType, MANIFEST_VERSION};
-use crate::commands::edge_app::utils::transform_instance_path_to_instance_manifest;
+use crate::commands::edge_app::EdgeAppCommand;
+use crate::commands::{CommandError, EdgeApps};
 
 // Edge apps commands
 impl EdgeAppCommand {
@@ -610,18 +606,18 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::env;
 
-    use crate::commands::edge_app::manifest::MANIFEST_VERSION;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
+    use tempfile::tempdir;
 
+    use super::*;
+    use crate::commands::edge_app::manifest::MANIFEST_VERSION;
     use crate::commands::edge_app::test_utils::tests::{
         create_edge_app_manifest_for_test, create_instance_manifest_for_test,
         prepare_edge_apps_test,
     };
     use crate::commands::edge_app::utils::EdgeAppFile;
-    use tempfile::tempdir;
 
     #[test]
     fn test_edge_app_create_should_create_app_and_required_files() {

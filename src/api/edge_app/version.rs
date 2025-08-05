@@ -1,13 +1,12 @@
+use std::collections::HashMap;
+
+use log::debug;
+use serde::Deserialize;
+use serde_json::{json, Value};
+
 use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
-
-use log::debug;
-use serde_json::Value;
-use std::collections::HashMap;
-
-use serde::Deserialize;
-use serde_json::json;
 
 impl Api {
     pub fn version_exists(&self, app_id: &str, revision: u32) -> Result<bool, CommandError> {
@@ -72,9 +71,7 @@ impl Api {
     pub fn publish_version(&self, app_id: &str, revision: u32) -> Result<(), CommandError> {
         commands::patch(
             &self.authentication,
-            &format!(
-                "v4/edge-apps/versions?app_id=eq.{app_id}&revision=eq.{revision}"
-            ),
+            &format!("v4/edge-apps/versions?app_id=eq.{app_id}&revision=eq.{revision}"),
             &json!({"published": true}),
         )?;
         Ok(())

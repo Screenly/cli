@@ -732,15 +732,13 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
         AssetCommands::InjectJs { uuid, path } => {
             let js_code = if path.starts_with("http://") || path.starts_with("https://") {
                 match reqwest::blocking::get(path) {
-                    Ok(response) => {
-                        match response.status() {
-                            StatusCode::OK => response.text().unwrap_or_default(),
-                            status => {
-                                error!("Failed to retrieve JS injection code. Wrong response status: {status}");
-                                std::process::exit(1);
-                            }
+                    Ok(response) => match response.status() {
+                        StatusCode::OK => response.text().unwrap_or_default(),
+                        status => {
+                            error!("Failed to retrieve JS injection code. Wrong response status: {status}");
+                            std::process::exit(1);
                         }
-                    }
+                    },
                     Err(e) => {
                         error!("Failed to retrieve JS injection code. Error: {e}");
                         std::process::exit(1);
@@ -863,9 +861,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             delete_missing_settings,
         } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
             Ok(revision) => {
-                println!(
-                    "Edge app successfully deployed. Revision: {revision}."
-                );
+                println!("Edge app successfully deployed. Revision: {revision}.");
             }
             Err(e) => {
                 eprintln!("Failed to upload edge app: {e}.");
@@ -1170,12 +1166,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 #[cfg(test)]
 mod tests {
 
-    use httpmock::{Method::GET, MockServer};
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
     use tempfile::tempdir;
 
-    use crate::authentication::Config;
-
     use super::*;
+    use crate::authentication::Config;
 
     #[test]
     fn test_get_screen_name_should_return_correct_screen_name() {
@@ -1209,10 +1205,7 @@ mod tests {
 
         let new_path = transform_edge_app_path_to_manifest(&path).unwrap();
 
-        assert_eq!(
-            new_path,
-            PathBuf::from(format!("{dir_path}/screenly.yml"))
-        );
+        assert_eq!(new_path, PathBuf::from(format!("{dir_path}/screenly.yml")));
     }
 
     #[test]

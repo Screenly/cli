@@ -7,11 +7,12 @@ mod signature;
 
 extern crate prettytable;
 
-use crate::authentication::{Authentication, AuthenticationError};
+use std::env;
+
 use clap::Parser;
 use simple_logger::{init_with_env, SimpleLogger};
 
-use std::env;
+use crate::authentication::{Authentication, AuthenticationError};
 
 fn main() {
     if env::var("RUST_LOG").is_ok() {

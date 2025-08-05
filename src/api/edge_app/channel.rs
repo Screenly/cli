@@ -1,10 +1,9 @@
+use serde::Deserialize;
+use serde_json::json;
+
 use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
-
-use serde_json::json;
-
-use serde::Deserialize;
 
 impl Api {
     pub fn update_channel(
