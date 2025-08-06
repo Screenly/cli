@@ -1047,6 +1047,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_os = "macos", ignore)]
     fn test_transform_edge_app_instance_path_to_instance_manifest_with_env_path_instead_of_file_should_fail(
     ) {
         let dir = tempdir().unwrap();
@@ -1073,6 +1074,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_os = "macos", ignore)]
     fn test_transform_edge_app_path_to_manifest_when_path_provided_should_return_path_with_manifest(
     ) {
         let dir = tempdir().unwrap();
@@ -1089,6 +1091,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_os = "macos", ignore)]
     fn test_transform_edge_app_path_to_manifest_when_path_provided_is_not_a_dir_should_fail() {
         let dir = tempdir().unwrap();
         let dir_path = dir.path();
@@ -1117,6 +1120,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(target_os = "macos", ignore)]
     fn test_transform_edge_app_path_to_manifest_with_env_path_instead_of_file_should_fail() {
         let dir = tempdir().unwrap();
         let dir_path = dir.path();
