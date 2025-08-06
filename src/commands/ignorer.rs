@@ -1,6 +1,7 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::Result;
 use regex::RegexSet;
-use std::path::{Path, PathBuf};
 
 pub struct Ignorer {
     base_path: PathBuf,
@@ -47,11 +48,13 @@ impl Ignorer {
 
 #[cfg(test)]
 mod tests {
-    use super::Ignorer;
     use std::fs::File;
     use std::io::Write;
     use std::path::Path;
+
     use tempfile::tempdir;
+
+    use super::Ignorer;
 
     #[test]
     fn test_when_no_ignore_file_should_ignore_nothing() {

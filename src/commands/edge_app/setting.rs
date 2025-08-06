@@ -1,12 +1,12 @@
-use crate::api::edge_app::setting::Setting;
-use crate::commands::edge_app::EdgeAppCommand;
-use crate::commands::{CommandError, EdgeAppSettings};
-
-use log::debug;
 use std::collections::HashMap;
 use std::str;
 
+use log::debug;
 use serde::{Deserialize, Serialize};
+
+use crate::api::edge_app::setting::Setting;
+use crate::commands::edge_app::EdgeAppCommand;
+use crate::commands::{CommandError, EdgeAppSettings};
 
 impl EdgeAppCommand {
     pub fn list_settings(&self, path: Option<String>) -> Result<EdgeAppSettings, CommandError> {
@@ -155,14 +155,14 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use serde_json::{json, Value};
     use std::env;
 
-    use crate::api::edge_app::setting::SettingType;
-
-    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
     use httpmock::Method::{GET, PATCH, POST};
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::api::edge_app::setting::SettingType;
+    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
 
     #[test]
     fn test_list_settings_should_send_correct_request() {

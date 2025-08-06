@@ -1,14 +1,13 @@
-use crate::commands::CommandError;
-
-use crate::pb_signature::signature::Hash;
-use crate::pb_signature::Signature;
-use protobuf::Message;
-use sha2::Digest;
-use sha2::Sha256;
 use std::fs::File;
-
 use std::io::Read;
 use std::path::Path;
+
+use protobuf::Message;
+use sha2::{Digest, Sha256};
+
+use crate::commands::CommandError;
+use crate::pb_signature::signature::Hash;
+use crate::pb_signature::Signature;
 
 pub fn sig_to_hex(signature: &Signature) -> String {
     let serialized_bytes = signature
@@ -59,9 +58,11 @@ pub fn checksum(chunk: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
     use tempfile::tempdir;
+
+    use super::*;
 
     #[test]
     fn test_generate_signature_when_file_does_not_exist_should_return_error() {

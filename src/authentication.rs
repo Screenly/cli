@@ -153,7 +153,8 @@ mod tests {
 
     use envtestkit::lock::lock_test;
     use envtestkit::set_env;
-    use httpmock::{Method::GET, MockServer};
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
     use simple_logger::SimpleLogger;
     use tempfile::tempdir;
 

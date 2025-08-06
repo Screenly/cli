@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
-
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct AssetSignature {

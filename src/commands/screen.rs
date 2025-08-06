@@ -1,9 +1,10 @@
+use std::collections::HashMap;
+
+use reqwest::StatusCode;
+
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{CommandError, Screens};
-
-use reqwest::StatusCode;
-use std::collections::HashMap;
 
 pub struct ScreenCommand {
     authentication: Authentication,
@@ -67,16 +68,14 @@ impl ScreenCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use httpmock::{Method::GET, MockServer};
-
-    use httpmock::Method::{DELETE, POST};
-
-    use crate::authentication::{Authentication, Config};
-    use crate::commands::{Formatter, OutputType};
+    use httpmock::Method::{DELETE, GET, POST};
+    use httpmock::MockServer;
     use serde_json::{json, Value};
     use tempfile::tempdir;
+
+    use super::*;
+    use crate::authentication::{Authentication, Config};
+    use crate::commands::{Formatter, OutputType};
 
     #[test]
     fn test_list_screens_should_return_correct_screen_list() {

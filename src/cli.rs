@@ -863,9 +863,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             delete_missing_settings,
         } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
             Ok(revision) => {
-                println!(
-                    "Edge app successfully deployed. Revision: {revision}."
-                );
+                println!("Edge app successfully deployed. Revision: {revision}.");
             }
             Err(e) => {
                 eprintln!("Failed to upload edge app: {e}.");
@@ -1170,12 +1168,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
 #[cfg(test)]
 mod tests {
 
-    use httpmock::{Method::GET, MockServer};
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
     use tempfile::tempdir;
 
-    use crate::authentication::Config;
-
     use super::*;
+    use crate::authentication::Config;
 
     #[test]
     fn test_get_screen_name_should_return_correct_screen_name() {
