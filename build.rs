@@ -1,6 +1,5 @@
-use std::env;
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 
 const CONFIG: &str = "config.rs";
 const LOCAL_API_URL: &str = "https://login.screenly.local";
