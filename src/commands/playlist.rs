@@ -1,7 +1,8 @@
+use serde_json::json;
+
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{CommandError, PlaylistFile, PlaylistItem, PlaylistItems, Playlists};
-use serde_json::json;
 
 const POSITION_MULTIPLIER: u64 = 100000;
 pub struct PlaylistCommand {
@@ -162,13 +163,14 @@ impl PlaylistCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::authentication::Config;
+    use std::ffi::OsString;
 
     use envtestkit::set_env;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
-    use std::ffi::OsString;
+
+    use super::*;
+    use crate::authentication::Config;
 
     #[test]
     fn test_create_playlist_should_send_correct_request() {

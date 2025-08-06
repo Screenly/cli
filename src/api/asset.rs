@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
-
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct AssetSignature {
@@ -24,8 +24,7 @@ impl Api {
         Ok(serde_json::from_value(commands::get(
             &self.authentication,
             &format!(
-                "v4/assets?select=signature&app_id=eq.{}&app_revision=eq.{}&type=eq.edge-app-file",
-                app_id, revision
+                "v4/assets?select=signature&app_id=eq.{app_id}&app_revision=eq.{revision}&type=eq.edge-app-file"
             ),
         )?)?)
     }
@@ -38,8 +37,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/assets?select=status,processing_error,title&app_id=eq.{}&app_revision=eq.{}&status=neq.finished",
-                app_id, revision
+                "v4/assets?select=status,processing_error,title&app_id=eq.{app_id}&app_revision=eq.{revision}&status=neq.finished"
             ),
         )?;
 

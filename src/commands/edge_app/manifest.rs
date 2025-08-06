@@ -1,21 +1,18 @@
-use crate::commands::CommandError;
 use std::collections::HashMap;
-
 use std::fs;
 use std::fs::File;
-use std::io::ErrorKind;
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use super::manifest_auth::AuthType;
 use crate::api::edge_app::setting::{deserialize_settings, serialize_settings, Setting};
 use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };
-
-use super::manifest_auth::AuthType;
+use crate::commands::CommandError;
 
 pub const MANIFEST_VERSION: &str = "manifest_v1";
 
@@ -140,10 +137,7 @@ where
     match s.as_str() {
         "basic" => Ok(AuthType::Basic),
         "bearer" => Ok(AuthType::Bearer),
-        _ => Err(serde::de::Error::custom(format!(
-            "Invalid auth type: {}",
-            s
-        ))),
+        _ => Err(serde::de::Error::custom(format!("Invalid auth type: {s}"))),
     }
 }
 
@@ -155,8 +149,7 @@ where
     match s.as_str() {
         MANIFEST_VERSION => Ok(s),
         invalid => Err(serde::de::Error::custom(format!(
-            "Invalid syntax: {}. Only 'manifest_v1' is accepted.",
-            invalid
+            "Invalid syntax: {invalid}. Only 'manifest_v1' is accepted."
         ))),
     }
 }
@@ -331,9 +324,10 @@ pub fn beautify_error_message(error: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use tempfile::tempdir;
+
     use super::*;
     use crate::api::edge_app::setting::{Setting, SettingType};
-    use tempfile::tempdir;
 
     fn create_test_manifest() -> EdgeAppManifest {
         EdgeAppManifest {

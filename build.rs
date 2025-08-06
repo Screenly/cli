@@ -1,6 +1,5 @@
-use std::env;
-use std::fs;
 use std::path::Path;
+use std::{env, fs};
 
 const CONFIG: &str = "config.rs";
 const LOCAL_API_URL: &str = "https://login.screenly.local";
@@ -27,7 +26,7 @@ fn main() {
     };
     fs::write(
         dest_path,
-        format!("pub const API_BASE_URL: &str = \"{}\";", api_server),
+        format!("pub const API_BASE_URL: &str = \"{api_server}\";"),
     )
     .unwrap();
     println!("cargo:rerun-if-changed=build.rs");

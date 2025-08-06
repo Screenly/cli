@@ -1,12 +1,12 @@
-use crate::api::edge_app::setting::Setting;
-use crate::commands::edge_app::EdgeAppCommand;
-use crate::commands::{CommandError, EdgeAppSettings};
-
-use log::debug;
 use std::collections::HashMap;
 use std::str;
 
+use log::debug;
 use serde::{Deserialize, Serialize};
+
+use crate::api::edge_app::setting::Setting;
+use crate::commands::edge_app::EdgeAppCommand;
+use crate::commands::{CommandError, EdgeAppSettings};
 
 impl EdgeAppCommand {
     pub fn list_settings(&self, path: Option<String>) -> Result<EdgeAppSettings, CommandError> {
@@ -98,7 +98,7 @@ impl EdgeAppCommand {
         if setting.edge_app_setting_values.len() == 1
             && setting.edge_app_setting_values[0].get("value").unwrap() == setting_value
         {
-            println!("Setting value is already set to {}", setting_value);
+            println!("Setting value is already set to {setting_value}");
             return Ok(());
         }
 
@@ -123,7 +123,7 @@ impl EdgeAppCommand {
         let response = self.api.create_setting(&app_id, setting);
         if response.is_err() {
             let c = self.api.get_settings(&app_id)?;
-            debug!("Existing settings: {:?}", c);
+            debug!("Existing settings: {c:?}");
             return Err(CommandError::NoChangesToUpload("".to_owned()));
         }
 
@@ -155,14 +155,14 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use serde_json::{json, Value};
     use std::env;
 
-    use crate::api::edge_app::setting::SettingType;
-
-    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
     use httpmock::Method::{GET, PATCH, POST};
+    use serde_json::{json, Value};
+
+    use super::*;
+    use crate::api::edge_app::setting::SettingType;
+    use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
 
     #[test]
     fn test_list_settings_should_send_correct_request() {
@@ -723,7 +723,7 @@ mod tests {
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         secrets_values_mock_post.assert();
-        debug!("result: {:?}", result);
+        debug!("result: {result:?}");
         assert!(result.is_ok());
     }
 
@@ -804,7 +804,7 @@ mod tests {
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         secrets_values_mock_post.assert();
-        debug!("result: {:?}", result);
+        debug!("result: {result:?}");
         assert!(result.is_ok());
     }
 

@@ -1,9 +1,9 @@
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
 use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
-
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 #[derive(Debug)]
 pub struct EdgeAppInstances {
@@ -20,10 +20,7 @@ impl Api {
     pub fn get_instance_name(&self, installation_id: &str) -> Result<String, CommandError> {
         let response = commands::get(
             &self.authentication,
-            &format!(
-                "v4.1/edge-apps/installations?select=name&id=eq.{}",
-                installation_id
-            ),
+            &format!("v4.1/edge-apps/installations?select=name&id=eq.{installation_id}"),
         )?;
 
         #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -42,10 +39,7 @@ impl Api {
     pub fn list_installations(&self, app_id: &str) -> Result<EdgeAppInstances, CommandError> {
         let response = commands::get(
             &self.authentication,
-            &format!(
-                "v4/edge-apps/installations?select=id,name&app_id=eq.{}",
-                app_id
-            ),
+            &format!("v4/edge-apps/installations?select=id,name&app_id=eq.{app_id}"),
         )?;
 
         let instances = EdgeAppInstances::new(response);
@@ -56,7 +50,7 @@ impl Api {
     pub fn delete_installation(&self, installation_id: &str) -> Result<(), CommandError> {
         commands::delete(
             &self.authentication,
-            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
+            &format!("v4.1/edge-apps/installations?id=eq.{installation_id}"),
         )?;
         Ok(())
     }
@@ -71,7 +65,7 @@ impl Api {
         });
         commands::patch(
             &self.authentication,
-            &format!("v4.1/edge-apps/installations?id=eq.{}", installation_id),
+            &format!("v4.1/edge-apps/installations?id=eq.{installation_id}"),
             &payload,
         )?;
         Ok(())

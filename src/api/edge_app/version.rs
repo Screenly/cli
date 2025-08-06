@@ -1,21 +1,19 @@
+use std::collections::HashMap;
+
+use log::debug;
+use serde::Deserialize;
+use serde_json::{json, Value};
+
 use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
-
-use log::debug;
-use serde_json::Value;
-use std::collections::HashMap;
-
-use serde::Deserialize;
-use serde_json::json;
 
 impl Api {
     pub fn version_exists(&self, app_id: &str, revision: u32) -> Result<bool, CommandError> {
         let get_response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=revision&app_id=eq.{}&revision=eq.{}",
-                app_id, revision
+                "v4/edge-apps/versions?select=revision&app_id=eq.{app_id}&revision=eq.{revision}"
             ),
         )?;
         let version =
@@ -37,7 +35,7 @@ impl Api {
         if let Some(arr) = response.as_array() {
             if let Some(obj) = arr.first() {
                 if let Some(revision) = obj["revision"].as_u64() {
-                    debug!("New version revision: {}", revision);
+                    debug!("New version revision: {revision}");
                     return Ok(revision as u32);
                 }
             }
@@ -54,8 +52,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/edge-apps/versions?select=file_tree&app_id=eq.{}&revision=eq.{}",
-                app_id, revision
+                "v4/edge-apps/versions?select=file_tree&app_id=eq.{app_id}&revision=eq.{revision}"
             ),
         )?;
 
@@ -74,10 +71,7 @@ impl Api {
     pub fn publish_version(&self, app_id: &str, revision: u32) -> Result<(), CommandError> {
         commands::patch(
             &self.authentication,
-            &format!(
-                "v4/edge-apps/versions?app_id=eq.{}&revision=eq.{}",
-                app_id, revision
-            ),
+            &format!("v4/edge-apps/versions?app_id=eq.{app_id}&revision=eq.{revision}"),
             &json!({"published": true}),
         )?;
         Ok(())

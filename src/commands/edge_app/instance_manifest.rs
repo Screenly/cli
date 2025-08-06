@@ -1,20 +1,15 @@
-use std::{
-    fs::{self, File},
-    path::Path,
-};
-
+use std::fs::{self, File};
 use std::io::Write;
+use std::path::Path;
 
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-
 use serde_with::serde_as;
 
+use crate::commands::edge_app::manifest::beautify_error_message;
 use crate::commands::serde_utils::{
     deserialize_option_string_field, string_field_is_none_or_empty,
 };
-
-use crate::commands::edge_app::manifest::beautify_error_message;
 use crate::commands::CommandError;
 
 pub const INSTANCE_MANIFEST_VERSION: &str = "instance_v1";
@@ -68,8 +63,7 @@ where
     match s.as_str() {
         INSTANCE_MANIFEST_VERSION => Ok(s),
         invalid => Err(serde::de::Error::custom(format!(
-            "Invalid syntax: {}. Only 'instance_v1' is accepted.",
-            invalid
+            "Invalid syntax: {invalid}. Only 'instance_v1' is accepted."
         ))),
     }
 }
@@ -147,8 +141,9 @@ impl InstanceManifest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::tempdir;
+
+    use super::*;
 
     const INSTANCE_MANIFEST_FILENAME: &str = "instance.yml";
 

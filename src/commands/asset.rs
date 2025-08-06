@@ -1,15 +1,16 @@
-use crate::authentication::Authentication;
-use crate::commands;
-use crate::commands::{Assets, CommandError};
-use indicatif::{ProgressBar, ProgressStyle};
-use log::{debug, info};
-
-use reqwest::header::HeaderMap;
-use reqwest::StatusCode;
-use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
 use std::time::Duration;
+
+use indicatif::{ProgressBar, ProgressStyle};
+use log::{debug, info};
+use reqwest::header::HeaderMap;
+use reqwest::StatusCode;
+use serde_json::json;
+
+use crate::authentication::Authentication;
+use crate::commands;
+use crate::commands::{Assets, CommandError};
 
 pub struct AssetCommand {
     authentication: Authentication,
@@ -159,15 +160,15 @@ impl AssetCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::authentication::Config;
-    use crate::commands::{Formatter, OutputType};
+    use std::fs;
 
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use httpmock::MockServer;
-
-    use std::fs;
     use tempfile::tempdir;
+
+    use super::*;
+    use crate::authentication::Config;
+    use crate::commands::{Formatter, OutputType};
 
     #[test]
     fn test_list_assets_should_return_correct_asset_list() {

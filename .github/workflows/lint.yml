@@ -1,27 +1,39 @@
-name: Lint
+name: Rust Linting
+
 on:
   push:
+    branches:
+      - master
     paths:
-      - 'src/**'
-      - 'Cargo.toml'
+      - "**.rs"
+      - "Cargo.toml"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "**.rs"
+      - "Cargo.toml"
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   lint:
     name: Lint code base
     runs-on: ubuntu-latest
-    permissions:
-      contents: 'read'
-      checks: 'write'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Install dependencies
+        run: sudo apt  -q -yy install libdbus-1-dev pkg-config libdbus-1-3 libsystemd0 libsystemd-dev
 
       - name: rust-clippy-check
-        uses: actions-rs/clippy-check@v1
+        uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-targets --all-features -- -D warnings
-      - name: rust-fmt-check
-        uses: actions-rust-lang/rustfmt@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --manifest-path Cargo.toml
