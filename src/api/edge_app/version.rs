@@ -35,7 +35,7 @@ impl Api {
         if let Some(arr) = response.as_array() {
             if let Some(obj) = arr.first() {
                 if let Some(revision) = obj["revision"].as_u64() {
-                    debug!("New version revision: {}", revision);
+                    debug!("New version revision: {revision}");
                     return Ok(revision as u32);
                 }
             }

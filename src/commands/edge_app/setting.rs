@@ -123,7 +123,7 @@ impl EdgeAppCommand {
         let response = self.api.create_setting(&app_id, setting);
         if response.is_err() {
             let c = self.api.get_settings(&app_id)?;
-            debug!("Existing settings: {:?}", c);
+            debug!("Existing settings: {c:?}");
             return Err(CommandError::NoChangesToUpload("".to_owned()));
         }
 
@@ -723,7 +723,7 @@ mod tests {
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         secrets_values_mock_post.assert();
-        debug!("result: {:?}", result);
+        debug!("result: {result:?}");
         assert!(result.is_ok());
     }
 
@@ -804,7 +804,7 @@ mod tests {
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
         secrets_values_mock_post.assert();
-        debug!("result: {:?}", result);
+        debug!("result: {result:?}");
         assert!(result.is_ok());
     }
 

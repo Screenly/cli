@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     name: List screens
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - id: list-screens
         uses: screenly/cli@master
         with:

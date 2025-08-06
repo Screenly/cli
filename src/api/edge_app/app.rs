@@ -86,7 +86,7 @@ impl Api {
         let response = commands::post(&self.authentication, "v4/edge-apps/copy-assets", &payload)?;
         let copied_assets = serde_json::from_value::<Vec<String>>(response)?;
 
-        debug!("Copied assets: {:?}", copied_assets);
+        debug!("Copied assets: {copied_assets:?}");
         Ok(copied_assets)
     }
 }

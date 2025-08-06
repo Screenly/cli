@@ -177,7 +177,7 @@ impl EdgeAppCommand {
             Err(_) => true,
         };
 
-        debug!("File tree changed: {}", file_tree_changed);
+        debug!("File tree changed: {file_tree_changed}");
         if !self.requires_upload(&changed_files) && !file_tree_changed && !version_metadata_changed
         {
             return Err(CommandError::NoChangesToUpload(
@@ -416,7 +416,7 @@ impl EdgeAppCommand {
         revision: u32,
         changed_files: &FileChanges,
     ) -> Result<(), CommandError> {
-        debug!("Changed files: {:#?}", changed_files);
+        debug!("Changed files: {changed_files:#?}");
 
         let copied_signatures = self.copy_edge_app_assets(
             app_id,
@@ -435,7 +435,7 @@ impl EdgeAppCommand {
             return Ok(());
         }
 
-        debug!("Uploading edge app files: {:#?}", files_to_upload);
+        debug!("Uploading edge app files: {files_to_upload:#?}");
         let file_paths: Vec<PathBuf> = files_to_upload
             .iter()
             .map(|file| edge_app_dir.join(&file.path))
@@ -530,7 +530,7 @@ impl EdgeAppCommand {
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
 
-        debug!("Uploading file: {:?}", path);
+        debug!("Uploading file: {path:?}");
         let form = reqwest::blocking::multipart::Form::new()
             .text(
                 "title",
@@ -1829,7 +1829,7 @@ mod tests {
         let result =
             command.get_installation_id(Some(temp_dir.path().to_str().unwrap().to_string()));
 
-        println!("{:?}", result);
+        println!("{result:?}");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "01H2QZ6Z8WXWNDC0KQ198XCZEB");
     }
