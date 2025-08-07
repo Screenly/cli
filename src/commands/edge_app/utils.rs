@@ -396,6 +396,40 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_changed_settings_when_title_is_null_remotely_should_detect_changes() {
+        let manifest = create_manifest();
+
+        let remote_settings = vec![
+            Setting {
+                name: "display_time".to_string(),
+                type_: SettingType::String,
+                default_value: Some("5".to_string()),
+                title: None,
+                optional: true,
+                is_global: false,
+                help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+            },
+            Setting {
+                name: "google_maps_api_key".to_string(),
+                type_: SettingType::String,
+                default_value: Some("6".to_string()),
+                title: Some("Google maps title".to_string()),
+                optional: true,
+                is_global: false,
+                help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
+            },
+        ];
+
+        // Act
+        let result = detect_changed_settings(&manifest, &remote_settings);
+
+        // Assert
+        assert!(result.is_ok());
+        let changes = result.unwrap();
+        assert_eq!(changes.updates.len(), 1);
+    }
+
+    #[test]
     fn test_detect_changes_settings_when_setting_removed_should_detect_deleted_changes() {
         // Arrange
         let manifest = create_manifest();
