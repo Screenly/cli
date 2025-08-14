@@ -118,10 +118,14 @@ impl PlaylistCommand {
         )?;
 
         let playlist_items = serde_json::from_value::<Vec<PlaylistItem>>(response)?;
-        if playlist_items.len() != 1 {
+        let position = if playlist_items.is_empty() {
+            POSITION_MULTIPLIER
+        } else if playlist_items.len() == 1 {
+            playlist_items[0].position + POSITION_MULTIPLIER
+        } else {
             return Err(CommandError::MissingField);
-        }
-        let position = playlist_items[0].position + POSITION_MULTIPLIER;
+        };
+
         let payload = json!([{
             "playlist_id": playlist_uuid,
             "asset_id": asset_uuid,
@@ -433,6 +437,49 @@ mod tests {
         let authentication = Authentication::new_with_config(config, "token");
         let command = PlaylistCommand::new(authentication);
         let result = command.append_asset("test-playlist-id", "test-asset-id", 100);
+
+        post_mock.assert();
+        get_mock.assert();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_append_asset_to_empty_playlist_should_send_correct_request() {
+        let items_request = json!([
+          {
+            "position": 100000,
+            "duration": 50,
+            "asset_id": "test-asset-id",
+            "playlist_id": "test-playlist-id"
+          },
+        ]);
+
+        let mock_server = MockServer::start();
+        // request to get the highest position from empty playlist
+        let get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/playlist-items")
+                .query_param("playlist_id", "eq.test-playlist-id")
+                .query_param("select", "position,asset_id,duration")
+                .query_param("order", "position.desc")
+                .query_param("limit", "1")
+                .header("Authorization", "Token token");
+            then.status(200).json_body(json!([])); // empty array for empty playlist
+        });
+
+        // then post request to create new playlist items
+        let post_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/playlist-items")
+                .header("Authorization", "Token token")
+                .json_body(items_request);
+            then.status(201).json_body(json!({}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let command = PlaylistCommand::new(authentication);
+        let result = command.append_asset("test-playlist-id", "test-asset-id", 50);
 
         post_mock.assert();
         get_mock.assert();
