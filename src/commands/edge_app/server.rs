@@ -6,6 +6,7 @@ use std::{fs, str};
 use anyhow::Result;
 use futures::future::{self, BoxFuture, FutureExt};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map as JsonMap, Value as JsonValue};
 use warp::reject::Reject;
 use warp::{Filter, Rejection, Reply};
 
@@ -202,23 +203,32 @@ fn hashmap_from_metadata(metadata: &Metadata) -> Vec<(String, Value)> {
     result
 }
 
-fn format_section(name: &str, items: &[(String, Value)]) -> String {
-    let content = items
-        .iter()
-        .map(|(k, v)| match v {
-            Value::Str(s) => format!("        \"{k}\": \"{s}\""),
-            Value::Array(arr) => format!(
-                "        \"{}\": [{}]",
-                k,
-                arr.iter()
-                    .map(|item| format!("\"{item}\""))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-        })
-        .collect::<Vec<_>>()
-        .join(",\n");
-    format!("    {name}: {{\n{content}\n    }}")
+fn format_section(section_name: &str, items: &[(String, Value)]) -> String {
+    // Build the inner object: { "key": <json>, ... }
+    let mut inner_object = JsonMap::new();
+
+    for (key, value) in items.iter() {
+        match value {
+            Value::Str(text) => {
+                inner_object.insert(key.clone(), JsonValue::String(text.clone()));
+            }
+            Value::Array(list) => {
+                let json_array = list
+                    .iter()
+                    .cloned()
+                    .map(JsonValue::String)
+                    .collect::<Vec<_>>();
+                inner_object.insert(key.clone(), JsonValue::Array(json_array));
+            }
+        }
+    }
+
+    format!(
+        "{}: {}",
+        section_name,
+        serde_json::to_string_pretty(&JsonValue::Object(inner_object))
+            .expect("Failed to serialize to JSON")
+    )
 }
 
 impl EdgeAppCommand {
@@ -363,6 +373,10 @@ metadata:
   tags:
   - All Screens
 settings:
+  multi_line: |
+    This is a
+    multi-line
+    string.
   enable_analytics: 'true'
   override_timezone: ''
   tag_manager_id: ''
@@ -386,20 +400,26 @@ settings:
             .unwrap();
         let content = resp.text().await.unwrap();
         let expected_content = r#"var screenly = {
-    metadata: {
-        "coordinates": ["37.3861", "-122.0839"],
-        "hardware": "x86",
-        "hostname": "srly-t6kb0ta1jrd9o0w",
-        "location": "Silicon Valley, USA",
-        "screen_name": "Code Cafe Display",
-        "tags": ["All Screens"]
-    },
-    settings: {
-        "enable_analytics": "true",
-        "key": "value",
-        "override_timezone": "",
-        "tag_manager_id": ""
-    },
+metadata: {
+  "coordinates": [
+    "37.3861",
+    "-122.0839"
+  ],
+  "hardware": "x86",
+  "hostname": "srly-t6kb0ta1jrd9o0w",
+  "location": "Silicon Valley, USA",
+  "screen_name": "Code Cafe Display",
+  "tags": [
+    "All Screens"
+  ]
+},
+settings: {
+  "enable_analytics": "true",
+  "key": "value",
+  "multi_line": "This is a\nmulti-line\nstring.\n",
+  "override_timezone": "",
+  "tag_manager_id": ""
+},
     cors_proxy_url: "http://127.0.0.1:8080",
     signalReadyForRendering: function() {}
 };"#;
