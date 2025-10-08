@@ -416,6 +416,140 @@ settings:
     help_text: An example of an API key
 ```
 
+#### Input field types
+
+Edge App settings support additional input field types beyond plain text and password. To render a specific input type in the UI, embed a small JSON descriptor inside the setting's `help_text` field. This JSON does not change the underlying storage type (which remains `string` or `secret`); it only instructs the UI how to render the input.
+
+- **Schema**: The JSON must include `schema_version` and a `properties` object.
+- **Common keys**:
+  - `properties.type`: One of `datetime`, `number`, `select`, `boolean`, `textarea`, `url`.
+  - `properties.help_text`: Human-friendly description shown in the UI.
+  - `properties.options` (only for `select`): Array of `{ label, value }` options.
+- **Storage**: Use `type: string` for all non-secret fields; use `type: secret` for password-like fields. The UI will coerce values appropriately (e.g., booleans) but values are stored as strings unless `type: secret`.
+- **Defaults**: Provide `default_value` at the setting level. For booleans, use `'true'` or `'false'` as strings.
+
+Examples:
+
+**Datetime picker**
+
+```yaml
+settings:
+  date_time_field:
+    type: string
+    title: Start Date Time
+    optional: false
+    help_text: |
+      {
+        "schema_version": 1,
+        "properties": {
+          "help_text": "The start date and time of the event",
+          "type": "datetime"
+        }
+      }
+```
+
+**Number input**
+
+```yaml
+settings:
+  number_field:
+    type: string
+    title: Attendee Count
+    optional: false
+    help_text: |
+      {
+        "schema_version": 1,
+        "properties": {
+          "help_text": "The expected count of attendees",
+          "type": "number"
+        }
+      }
+```
+
+**Select (dropdown) input**
+
+```yaml
+settings:
+  select_field:
+    type: string
+    title: Select Role
+    default_value: editor
+    optional: false
+    help_text: |
+      {
+        "schema_version": 1,
+        "properties": {
+          "type": "select",
+          "help_text": "The role of the user",
+          "options": [
+            { "label": "Admin",  "value": "admin" },
+            { "label": "Editor", "value": "editor" },
+            { "label": "Viewer", "value": "viewer" }
+          ]
+        }
+      }
+```
+
+**Boolean (switch) input**
+
+```yaml
+settings:
+  switch_field:
+    type: string
+    title: Subscribe
+    default_value: "true" # or 'false'
+    optional: false
+    help_text: |
+      {
+        "schema_version": 1,
+        "properties": {
+          "help_text": "Subscribe to updates",
+          "type": "boolean"
+        }
+      }
+```
+
+**Text area input**
+
+```yaml
+settings:
+  text_area_field:
+    type: string
+    title: Description
+    default_value: Field description
+    optional: false
+    help_text: |
+      {
+        "schema_version": 1,
+        "properties": {
+          "help_text": "The description of the event",
+          "type": "textarea"
+        }
+      }
+```
+
+**URL input**
+
+```yaml
+settings:
+  url_field:
+    type: string
+    title: Website URL
+    optional: false
+    help_text: |
+      {
+        "schema_version": 1,
+        "properties": {
+          "help_text": "The URL of the website",
+          "type": "url"
+        }
+      }
+```
+
+Notes:
+
+- These descriptors are backward-compatible; if no JSON is provided, the UI falls back to a plain text field for `string` and a password field for `secret`.
+
 #### Reserved setting names
 
 Settings starting with `screenly_` are reserved and cannot be used in the manifest file.
