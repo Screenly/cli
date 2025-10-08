@@ -10,7 +10,6 @@ use strum_macros::{Display, EnumIter, EnumString};
 
 use crate::api::Api;
 use crate::commands;
-use crate::commands::serde_utils::{deserialize_string_field, serialize_non_empty_string_field};
 use crate::commands::{CommandError, EdgeAppSettings};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -180,14 +179,46 @@ fn serialize_help_text<S>(value: &str, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    serialize_non_empty_string_field("help_text", value, serializer)
+    if value.trim().is_empty() {
+        return Err(serde::ser::Error::custom("Field \"help_text\" cannot be empty"));
+    }
+
+    match serde_json::from_str::<Value>(value) {
+        Ok(json_value) if json_value.is_object() => json_value.serialize(serializer),
+        _ => serializer.serialize_str(value),
+    }
 }
 
 fn deserialize_help_text<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: serde::de::Deserializer<'de>,
 {
-    deserialize_string_field("help_text", true, deserializer)
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum HelpTextHelper {
+        Plain(String),
+        Structured(Value),
+    }
+
+    match HelpTextHelper::deserialize(deserializer)? {
+        HelpTextHelper::Plain(value) => {
+            if value.trim().is_empty() {
+                Err(serde::de::Error::custom("Field \"help_text\" cannot be empty"))
+            } else {
+                Ok(value)
+            }
+        }
+        HelpTextHelper::Structured(value) => {
+            if !value.is_object() {
+                return Err(serde::de::Error::custom(
+                    "Field \"help_text\" must be either a string or an object",
+                ));
+            }
+
+            serde_json::to_string(&value)
+                .map_err(|err| serde::de::Error::custom(format!("Failed to serialize help_text: {err}")))
+        }
+    }
 }
 
 impl Setting {

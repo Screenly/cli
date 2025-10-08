@@ -523,6 +523,63 @@ settings:
     }
 
     #[test]
+    fn test_manifest_allows_structured_help_text() {
+        let dir = tempdir().unwrap();
+        let file_path = write_to_tempfile(
+            &dir,
+            "screenly.yml",
+            r#"---
+syntax: manifest_v1
+settings:
+  username:
+    type: string
+    optional: true
+    help_text:
+      schemaVersion: 1
+      type: input
+      choices:
+        - 1
+        - 2
+        - 3
+"#,
+        );
+
+        let manifest = EdgeAppManifest::new(&file_path).unwrap();
+
+        let actual: serde_json::Value =
+            serde_json::from_str(&manifest.settings[0].help_text).unwrap();
+        let expected: serde_json::Value = serde_yaml::from_str(
+            "schemaVersion: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n",
+        )
+        .unwrap();
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_save_manifest_to_file_serializes_structured_help_text() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("screenly.yml");
+        let mut manifest = create_test_manifest();
+        manifest.settings[0].help_text =
+            "{\"schemaVersion\":1,\"type\":\"input\",\"choices\":[1,2,3]}".to_string();
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let contents = fs::read_to_string(file_path).unwrap();
+        let yaml: serde_json::Value = serde_yaml::from_str(&contents).unwrap();
+        let help_text = &yaml["settings"]["username"]["help_text"];
+
+        assert_eq!(
+            help_text,
+            &serde_yaml::from_str::<serde_json::Value>(
+                "schemaVersion: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n"
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct() {
         let manifest = create_test_manifest();
         let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();

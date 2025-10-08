@@ -418,7 +418,7 @@ settings:
 
 #### Input field types
 
-Edge App settings support additional input field types beyond plain text and password. To render a specific input type in the UI, embed a small JSON descriptor inside the setting's `help_text` field. This JSON does not change the underlying storage type (which remains `string` or `secret`); it only instructs the UI how to render the input.
+Edge App settings support additional input field types beyond plain text and password. To render a specific input type in the UI, embed a small descriptor inside the setting's `help_text` field. The descriptor can be provided either as an inline JSON string or, more ergonomically, as native YAML mapping values (shown below). This metadata does not change the underlying storage type (which remains `string` or `secret`); it only instructs the UI how to render the input.
 
 - **Schema**: The JSON must include `schema_version` and a `properties` object.
 - **Common keys**:
@@ -438,14 +438,11 @@ settings:
     type: string
     title: Start Date Time
     optional: false
-    help_text: |
-      {
-        "schema_version": 1,
-        "properties": {
-          "help_text": "The start date and time of the event",
-          "type": "datetime"
-        }
-      }
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: The start date and time of the event
+        type: datetime
 ```
 
 **Number input**
@@ -456,14 +453,11 @@ settings:
     type: string
     title: Attendee Count
     optional: false
-    help_text: |
-      {
-        "schema_version": 1,
-        "properties": {
-          "help_text": "The expected count of attendees",
-          "type": "number"
-        }
-      }
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: The expected count of attendees
+        type: number
 ```
 
 **Select (dropdown) input**
@@ -475,19 +469,18 @@ settings:
     title: Select Role
     default_value: editor
     optional: false
-    help_text: |
-      {
-        "schema_version": 1,
-        "properties": {
-          "type": "select",
-          "help_text": "The role of the user",
-          "options": [
-            { "label": "Admin",  "value": "admin" },
-            { "label": "Editor", "value": "editor" },
-            { "label": "Viewer", "value": "viewer" }
-          ]
-        }
-      }
+    help_text:
+      schema_version: 1
+      properties:
+        type: select
+        help_text: The role of the user
+        options:
+          - label: Admin
+            value: admin
+          - label: Editor
+            value: editor
+          - label: Viewer
+            value: viewer
 ```
 
 **Boolean (switch) input**
@@ -499,14 +492,11 @@ settings:
     title: Subscribe
     default_value: "true" # or 'false'
     optional: false
-    help_text: |
-      {
-        "schema_version": 1,
-        "properties": {
-          "help_text": "Subscribe to updates",
-          "type": "boolean"
-        }
-      }
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: Subscribe to updates
+        type: boolean
 ```
 
 **Text area input**
@@ -518,14 +508,11 @@ settings:
     title: Description
     default_value: Field description
     optional: false
-    help_text: |
-      {
-        "schema_version": 1,
-        "properties": {
-          "help_text": "The description of the event",
-          "type": "textarea"
-        }
-      }
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: The description of the event
+        type: textarea
 ```
 
 **URL input**
@@ -536,14 +523,11 @@ settings:
     type: string
     title: Website URL
     optional: false
-    help_text: |
-      {
-        "schema_version": 1,
-        "properties": {
-          "help_text": "The URL of the website",
-          "type": "url"
-        }
-      }
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: The URL of the website
+        type: url
 ```
 
 Notes:
