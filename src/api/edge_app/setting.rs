@@ -180,7 +180,9 @@ where
     S: serde::Serializer,
 {
     if value.trim().is_empty() {
-        return Err(serde::ser::Error::custom("Field \"help_text\" cannot be empty"));
+        return Err(serde::ser::Error::custom(
+            "Field \"help_text\" cannot be empty",
+        ));
     }
 
     match serde_json::from_str::<Value>(value) {
@@ -203,7 +205,9 @@ where
     match HelpTextHelper::deserialize(deserializer)? {
         HelpTextHelper::Plain(value) => {
             if value.trim().is_empty() {
-                Err(serde::de::Error::custom("Field \"help_text\" cannot be empty"))
+                Err(serde::de::Error::custom(
+                    "Field \"help_text\" cannot be empty",
+                ))
             } else {
                 Ok(value)
             }
@@ -215,8 +219,9 @@ where
                 ));
             }
 
-            serde_json::to_string(&value)
-                .map_err(|err| serde::de::Error::custom(format!("Failed to serialize help_text: {err}")))
+            serde_json::to_string(&value).map_err(|err| {
+                serde::de::Error::custom(format!("Failed to serialize help_text: {err}"))
+            })
         }
     }
 }

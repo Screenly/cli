@@ -535,7 +535,7 @@ settings:
     type: string
     optional: true
     help_text:
-      schemaVersion: 1
+      schema_version: 1
       type: input
       choices:
         - 1
@@ -548,10 +548,9 @@ settings:
 
         let actual: serde_json::Value =
             serde_json::from_str(&manifest.settings[0].help_text).unwrap();
-        let expected: serde_json::Value = serde_yaml::from_str(
-            "schemaVersion: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n",
-        )
-        .unwrap();
+        let expected: serde_json::Value =
+            serde_yaml::from_str("schema_version: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n")
+                .unwrap();
 
         assert_eq!(actual, expected);
     }
@@ -562,7 +561,7 @@ settings:
         let file_path = dir.path().join("screenly.yml");
         let mut manifest = create_test_manifest();
         manifest.settings[0].help_text =
-            "{\"schemaVersion\":1,\"type\":\"input\",\"choices\":[1,2,3]}".to_string();
+            "{\"schema_version\":1,\"type\":\"input\",\"choices\":[1,2,3]}".to_string();
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
 
@@ -573,7 +572,7 @@ settings:
         assert_eq!(
             help_text,
             &serde_yaml::from_str::<serde_json::Value>(
-                "schemaVersion: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n"
+                "schema_version: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n"
             )
             .unwrap()
         );
