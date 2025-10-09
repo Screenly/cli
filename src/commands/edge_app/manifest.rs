@@ -531,16 +531,23 @@ settings:
             r#"---
 syntax: manifest_v1
 settings:
-  username:
+  select_field:
     type: string
-    optional: true
+    title: Select Role
+    default_value: editor
+    optional: false
     help_text:
       schema_version: 1
-      type: input
-      choices:
-        - 1
-        - 2
-        - 3
+      properties:
+        type: select
+        help_text: The role of the user
+        options:
+          - label: Admin
+            value: admin
+          - label: Editor
+            value: editor
+          - label: Viewer
+            value: viewer
 "#,
         );
 
@@ -548,9 +555,21 @@ settings:
 
         let actual: serde_json::Value =
             serde_json::from_str(&manifest.settings[0].help_text).unwrap();
-        let expected: serde_json::Value =
-            serde_yaml::from_str("schema_version: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n")
-                .unwrap();
+        let expected: serde_json::Value = serde_yaml::from_str(
+            r#"schema_version: 1
+properties:
+  type: select
+  help_text: The role of the user
+  options:
+    - label: Admin
+      value: admin
+    - label: Editor
+      value: editor
+    - label: Viewer
+      value: viewer
+"#,
+        )
+        .unwrap();
 
         assert_eq!(actual, expected);
     }
@@ -560,8 +579,19 @@ settings:
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");
         let mut manifest = create_test_manifest();
-        manifest.settings[0].help_text =
-            "{\"schema_version\":1,\"type\":\"input\",\"choices\":[1,2,3]}".to_string();
+        manifest.settings[0].help_text = serde_json::json!({
+            "schema_version": 1,
+            "properties": {
+                "type": "select",
+                "help_text": "The role of the user",
+                "options": [
+                    {"label": "Admin", "value": "admin"},
+                    {"label": "Editor", "value": "editor"},
+                    {"label": "Viewer", "value": "viewer"},
+                ]
+            }
+        })
+        .to_string();
 
         EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
 
@@ -572,7 +602,18 @@ settings:
         assert_eq!(
             help_text,
             &serde_yaml::from_str::<serde_json::Value>(
-                "schema_version: 1\ntype: input\nchoices:\n  - 1\n  - 2\n  - 3\n"
+                r#"schema_version: 1
+properties:
+  type: select
+  help_text: The role of the user
+  options:
+    - label: Admin
+      value: admin
+    - label: Editor
+      value: editor
+    - label: Viewer
+      value: viewer
+"#
             )
             .unwrap()
         );
