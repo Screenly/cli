@@ -555,21 +555,18 @@ settings:
 
         let actual: serde_json::Value =
             serde_json::from_str(&manifest.settings[0].help_text).unwrap();
-        let expected: serde_json::Value = serde_yaml::from_str(
-            r#"schema_version: 1
-properties:
-  type: select
-  help_text: The role of the user
-  options:
-    - label: Admin
-      value: admin
-    - label: Editor
-      value: editor
-    - label: Viewer
-      value: viewer
-"#,
-        )
-        .unwrap();
+        let expected = serde_json::json!({
+            "schema_version": 1,
+            "properties": {
+                "type": "select",
+                "help_text": "The role of the user",
+                "options": [
+                    {"label": "Admin", "value": "admin"},
+                    {"label": "Editor", "value": "editor"},
+                    {"label": "Viewer", "value": "viewer"},
+                ]
+            }
+        });
 
         assert_eq!(actual, expected);
     }
@@ -599,23 +596,53 @@ properties:
         let yaml: serde_json::Value = serde_yaml::from_str(&contents).unwrap();
         let help_text = &yaml["settings"]["username"]["help_text"];
 
+        let expected = serde_json::json!({
+            "schema_version": 1,
+            "properties": {
+                "type": "select",
+                "help_text": "The role of the user",
+                "options": [
+                    {"label": "Admin", "value": "admin"},
+                    {"label": "Editor", "value": "editor"},
+                    {"label": "Viewer", "value": "viewer"},
+                ]
+            }
+        });
+
+        assert_eq!(help_text, &expected);
+    }
+
+    #[test]
+    fn test_manifest_round_trips_plain_help_text_as_string() {
+        let dir = tempdir().unwrap();
+        let file_path = write_to_tempfile(
+            &dir,
+            "screenly.yml",
+            r#"---
+syntax: manifest_v1
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username title
+    optional: true
+    help_text: some help text
+"#,
+        );
+
+        let manifest = EdgeAppManifest::new(&file_path).unwrap();
+
+        assert_eq!(manifest.settings[0].help_text, "some help text");
+
+        let output_path = dir.path().join("roundtrip.yml");
+        EdgeAppManifest::save_to_file(&manifest, &output_path).unwrap();
+
+        let contents = fs::read_to_string(output_path).unwrap();
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&contents).unwrap();
+
         assert_eq!(
-            help_text,
-            &serde_yaml::from_str::<serde_json::Value>(
-                r#"schema_version: 1
-properties:
-  type: select
-  help_text: The role of the user
-  options:
-    - label: Admin
-      value: admin
-    - label: Editor
-      value: editor
-    - label: Viewer
-      value: viewer
-"#
-            )
-            .unwrap()
+            yaml["settings"]["username"]["help_text"],
+            serde_yaml::Value::String("some help text".to_string())
         );
     }
 
