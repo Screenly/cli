@@ -523,6 +523,130 @@ settings:
     }
 
     #[test]
+    fn test_manifest_allows_structured_help_text() {
+        let dir = tempdir().unwrap();
+        let file_path = write_to_tempfile(
+            &dir,
+            "screenly.yml",
+            r#"---
+syntax: manifest_v1
+settings:
+  select_field:
+    type: string
+    title: Select Role
+    default_value: editor
+    optional: false
+    help_text:
+      schema_version: 1
+      properties:
+        type: select
+        help_text: The role of the user
+        options:
+          - label: Admin
+            value: admin
+          - label: Editor
+            value: editor
+          - label: Viewer
+            value: viewer
+"#,
+        );
+
+        let manifest = EdgeAppManifest::new(&file_path).unwrap();
+
+        let actual: serde_json::Value =
+            serde_json::from_str(&manifest.settings[0].help_text).unwrap();
+        let expected = serde_json::json!({
+            "schema_version": 1,
+            "properties": {
+                "type": "select",
+                "help_text": "The role of the user",
+                "options": [
+                    {"label": "Admin", "value": "admin"},
+                    {"label": "Editor", "value": "editor"},
+                    {"label": "Viewer", "value": "viewer"},
+                ]
+            }
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_save_manifest_to_file_serializes_structured_help_text() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("screenly.yml");
+        let mut manifest = create_test_manifest();
+        manifest.settings[0].help_text = serde_json::json!({
+            "schema_version": 1,
+            "properties": {
+                "type": "select",
+                "help_text": "The role of the user",
+                "options": [
+                    {"label": "Admin", "value": "admin"},
+                    {"label": "Editor", "value": "editor"},
+                    {"label": "Viewer", "value": "viewer"},
+                ]
+            }
+        })
+        .to_string();
+
+        EdgeAppManifest::save_to_file(&manifest, &file_path).unwrap();
+
+        let contents = fs::read_to_string(file_path).unwrap();
+        let yaml: serde_json::Value = serde_yaml::from_str(&contents).unwrap();
+        let help_text = &yaml["settings"]["username"]["help_text"];
+
+        let expected = serde_json::json!({
+            "schema_version": 1,
+            "properties": {
+                "type": "select",
+                "help_text": "The role of the user",
+                "options": [
+                    {"label": "Admin", "value": "admin"},
+                    {"label": "Editor", "value": "editor"},
+                    {"label": "Viewer", "value": "viewer"},
+                ]
+            }
+        });
+
+        assert_eq!(help_text, &expected);
+    }
+
+    #[test]
+    fn test_manifest_round_trips_plain_help_text_as_string() {
+        let dir = tempdir().unwrap();
+        let file_path = write_to_tempfile(
+            &dir,
+            "screenly.yml",
+            r#"---
+syntax: manifest_v1
+settings:
+  username:
+    type: string
+    default_value: stranger
+    title: username title
+    optional: true
+    help_text: some help text
+"#,
+        );
+
+        let manifest = EdgeAppManifest::new(&file_path).unwrap();
+
+        assert_eq!(manifest.settings[0].help_text, "some help text");
+
+        let output_path = dir.path().join("roundtrip.yml");
+        EdgeAppManifest::save_to_file(&manifest, &output_path).unwrap();
+
+        let contents = fs::read_to_string(output_path).unwrap();
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&contents).unwrap();
+
+        assert_eq!(
+            yaml["settings"]["username"]["help_text"],
+            serde_yaml::Value::String("some help text".to_string())
+        );
+    }
+
+    #[test]
     fn test_serialize_deserialize_cycle_should_pass_on_valid_struct() {
         let manifest = create_test_manifest();
         let deserialized_manifest = serialize_deserialize_cycle(manifest.clone()).unwrap();
