@@ -3,7 +3,7 @@ FROM alpine:3 as builder
 
 WORKDIR /usr/src/screenly-cli
 RUN apk add --no-cache wget tar
-ARG RELEASE=v1.0.5
+ARG RELEASE=v1.1.0
 RUN wget "https://github.com/Screenly/cli/releases/download/$RELEASE/screenly-cli-x86_64-unknown-linux-musl.tar.gz"
 RUN tar xfz screenly-cli-x86_64-unknown-linux-musl.tar.gz
 
