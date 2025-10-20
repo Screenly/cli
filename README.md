@@ -109,18 +109,23 @@ $ mv signature.rs src/pb_signature.rs
 This project follows [Semantic Versioning](https://semver.org/) (M.m.p = Major.minor.patch).
 
 1. **Prepare the release:**
-   - Create a release branch (e.g., `release-M.m.p`, like `release-1.0.6`)
-   - Update version in `Cargo.toml`, `action.yml`, and `Dockerfile`
-   - Run `cargo build` to update `Cargo.lock` with the new version
-   - Commit changes with format: `vM.m.p` for the version update, and `chore: bump CLI version in Cargo.lock` for the lockfile
+  - Create a release branch (e.g., `release-M.m.p`, like `release-1.0.6`). This is just a suggestion; you can name the branch as you prefer.
+  - Update version in `Cargo.toml`, `action.yml`, and `Dockerfile`
+  - Run `cargo build` to update `Cargo.lock` with the new version. This step is optional but recommended.
 
 2. **Create and merge the pull request:**
-   - Create a pull request from the release branch to `master`
-   - Once approved and merged, the tag will be pushed automatically
+  - Create a pull request from the release branch to `master`
+  - Once approved, merge the pull request
 
 3. **Create the GitHub release:**
-   - The CI/CD pipeline will detect the version tag and create the release automatically
-   - Add the release notes to the GitHub release description
+  - Make sure that you're on the `master` branch and have pulled the latest changes
+  - Create a version tag (e.g., `vM.m.p`, like `v1.0.h6`) and push it to GitHub by running:
+    ```bash
+    git tag vM.m.p
+    git push origin vM.m.p
+    ```
+  - The release workflow will detect the version tag and create the release automatically
+  - Add the release notes to the GitHub release description
 
 4. **Update Homebrew:**
    - Update the [Homebrew repo](https://github.com/Screenly/homebrew-screenly-cli) with the latest version
