@@ -109,9 +109,9 @@ $ mv signature.rs src/pb_signature.rs
 This project follows [Semantic Versioning](https://semver.org/) (M.m.p = Major.minor.patch).
 
 1. **Prepare the release:**
-  - Create a release branch (e.g., `release-M.m.p`, like `release-1.0.6`). This is just a suggestion; you can name the branch as you prefer.
-  - Update version in `Cargo.toml`, `action.yml`, and `Dockerfile`
-  - Run `cargo build` to update `Cargo.lock` with the new version. This step is optional but recommended.
+  - Create a release branch (e.g., `release-M.m.p`, like `release-1.0.6`).
+  - Update the version in `Cargo.toml`, `action.yml`, and `Dockerfile`
+  - Run `cargo build` to update `Cargo.lock` with the new version (optional but recommended)
 
 2. **Create and merge the pull request:**
   - Create a pull request from the release branch to `master`
@@ -119,7 +119,7 @@ This project follows [Semantic Versioning](https://semver.org/) (M.m.p = Major.m
 
 3. **Create the GitHub release:**
   - Make sure that you're on the `master` branch and have pulled the latest changes
-  - Create a version tag (e.g., `vM.m.p`, like `v1.0.h6`) and push it to GitHub by running:
+  - Create a version tag (e.g., `vM.m.p`, like `v1.0.6`) and push it to GitHub by running:
     ```bash
     git tag vM.m.p
     git push origin vM.m.p
