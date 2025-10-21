@@ -111,6 +111,7 @@ jobs:
           subject-path: "${{ github.workspace }}/screenly*"
 
   build-docker-image:
+    environment: master
     name: docker
     needs: build-release
     runs-on: ubuntu-latest
