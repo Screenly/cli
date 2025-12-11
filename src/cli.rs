@@ -22,6 +22,29 @@ use crate::commands::playlist::PlaylistCommand;
 use crate::commands::{CommandError, Formatter, OutputType, PlaylistFile};
 const DEFAULT_ASSET_DURATION: u32 = 15;
 
+/// Returns a user-friendly error message for authentication errors.
+fn get_authentication_error_message(e: &AuthenticationError) -> String {
+    match e {
+        AuthenticationError::Io(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
+            "Not logged in. Please run `screenly login` first to authenticate.".to_string()
+        }
+        _ => {
+            format!("Authentication error: {e}. Please run `screenly login` to authenticate.")
+        }
+    }
+}
+
+/// Creates an Authentication instance or exits with a user-friendly error message.
+fn get_authentication() -> Authentication {
+    match Authentication::new() {
+        Ok(auth) => auth,
+        Err(e) => {
+            error!("{}", get_authentication_error_message(&e));
+            std::process::exit(1);
+        }
+    }
+}
+
 #[derive(Error, Debug)]
 enum ParseError {
     #[error("missing \"=\" symbol")]
@@ -547,7 +570,7 @@ fn get_user_input() -> String {
 }
 
 pub fn handle_cli_screen_command(command: &ScreenCommands) {
-    let authentication = Authentication::new().expect("Failed to load authentication.");
+    let authentication = get_authentication();
     let screen_command = commands::screen::ScreenCommand::new(authentication);
 
     match command {
@@ -592,7 +615,7 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
 
 pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
     let playlist_command =
-        PlaylistCommand::new(Authentication::new().expect("Failed to load authentication."));
+        PlaylistCommand::new(get_authentication());
     match command {
         PlaylistCommands::Create {
             json,
@@ -678,7 +701,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
 }
 
 pub fn handle_cli_asset_command(command: &AssetCommands) {
-    let authentication = Authentication::new().expect("Failed to load authentication.");
+    let authentication = get_authentication();
     let asset_command = commands::asset::AssetCommand::new(authentication);
 
     match command {
@@ -819,7 +842,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
 }
 
 pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
-    let authentication = Authentication::new().expect("Failed to load authentication.");
+    let authentication = get_authentication();
     let edge_app_command = commands::edge_app::EdgeAppCommand::new(authentication);
 
     match command {
@@ -1220,5 +1243,29 @@ mod tests {
         let new_path = transform_edge_app_path_to_manifest(&None).unwrap();
 
         assert_eq!(new_path, dir_path.join("screenly.yml"));
+    }
+
+    #[test]
+    fn test_get_authentication_error_message_when_not_logged_in() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let auth_err = AuthenticationError::Io(io_err);
+
+        let message = get_authentication_error_message(&auth_err);
+
+        assert_eq!(
+            message,
+            "Not logged in. Please run `screenly login` first to authenticate."
+        );
+    }
+
+    #[test]
+    fn test_get_authentication_error_message_for_other_errors() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "permission denied");
+        let auth_err = AuthenticationError::Io(io_err);
+
+        let message = get_authentication_error_message(&auth_err);
+
+        assert!(message.contains("Authentication error"));
+        assert!(message.contains("Please run `screenly login` to authenticate"));
     }
 }
