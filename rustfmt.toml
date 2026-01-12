@@ -1,6 +1,7 @@
-group_imports = "StdExternalCrate"
-imports_granularity = "Module"
-unstable_features = true
-format_generated_files = false
-
-ignore = ["furiousfilter/**"]
+# Note: These options require nightly rustfmt (`cargo +nightly fmt`)
+# On stable, they are ignored with warnings. Uncomment to use with nightly.
+# group_imports = "StdExternalCrate"
+# imports_granularity = "Module"
+# unstable_features = true
+# format_generated_files = false
+# ignore = ["furiousfilter/**"]

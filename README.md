@@ -67,6 +67,57 @@ $ API_SERVER_NAME=local cargo build --release
 
 Explore available commands [here](https://developer.screenly.io/cli/#commands).
 
+## MCP Server (AI Assistant Integration)
+
+The Screenly CLI includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server, enabling AI assistants like Claude, Cursor, and others to interact with your Screenly digital signage network.
+
+### Starting the MCP Server
+
+```bash
+$ screenly mcp
+```
+
+The server communicates over stdio and exposes the full Screenly API as tools.
+
+### Available Tools
+
+| Category | Tools |
+|----------|-------|
+| **Screens** | `screen_list`, `screen_get` |
+| **Assets** | `asset_list`, `asset_get`, `asset_create`, `asset_update`, `asset_delete` |
+| **Asset Groups** | `asset_group_list`, `asset_group_create`, `asset_group_update`, `asset_group_delete` |
+| **Playlists** | `playlist_list`, `playlist_create`, `playlist_update`, `playlist_delete` |
+| **Playlist Items** | `playlist_item_list`, `playlist_item_create`, `playlist_item_update`, `playlist_item_delete` |
+| **Labels** | `label_list`, `label_create`, `label_update`, `label_delete`, `label_link_screen`, `label_unlink_screen`, `label_link_playlist`, `label_unlink_playlist` |
+| **Shared Playlists** | `shared_playlist_list`, `shared_playlist_create`, `shared_playlist_delete` |
+| **Edge Apps** | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances` |
+
+### Configuration Examples
+
+#### Cursor / Claude Desktop
+
+Add to your MCP configuration file:
+
+```json
+{
+  "mcpServers": {
+    "screenly": {
+      "command": "screenly",
+      "args": ["mcp"],
+      "env": {
+        "API_TOKEN": "your-api-token-here"
+      }
+    }
+  }
+}
+```
+
+#### Authentication
+
+The MCP server uses the same authentication as the CLI:
+- Set the `API_TOKEN` environment variable, or
+- Run `screenly login` to store credentials in `~/.screenly`
+
 ## GitHub Action
 
 Integrate Screenly CLI into your GitHub workflows:

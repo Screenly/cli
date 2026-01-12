@@ -1,8 +1,6 @@
-use std::collections::HashMap;
 use std::str;
 
 use log::debug;
-use serde::{Deserialize, Serialize};
 
 use crate::api::edge_app::setting::Setting;
 use crate::commands::edge_app::EdgeAppCommand;
@@ -31,14 +29,6 @@ impl EdgeAppCommand {
         };
 
         let _is_setting_global = self.api.is_setting_global(&app_id, setting_key)?;
-
-        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-        struct SettingValue {
-            name: String,
-            #[serde(rename = "type")]
-            type_field: String,
-            edge_app_setting_values: Vec<HashMap<String, String>>,
-        }
 
         let server_setting_value = {
             if _is_setting_global {

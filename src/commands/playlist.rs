@@ -575,7 +575,7 @@ mod tests {
 
         delete_mock.assert();
         post_mock.assert();
-        get_mock.assert_hits(2);
+        get_mock.assert_calls(2);
         get_items_mock.assert();
         assert!(result.is_ok());
     }

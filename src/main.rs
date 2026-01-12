@@ -2,6 +2,7 @@ mod api;
 mod authentication;
 mod cli;
 mod commands;
+mod mcp;
 mod pb_signature;
 mod signature;
 

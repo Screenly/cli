@@ -1172,7 +1172,7 @@ mod tests {
         );
 
         // get_entrypoint_mock.assert();
-        last_versions_mock.assert_hits(2);
+        last_versions_mock.assert_calls(2);
         assets_mock.assert();
         file_tree_from_version_mock.assert();
         settings_mock.assert();
@@ -1627,13 +1627,13 @@ mod tests {
         let upload_assets_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/assets")
-                .body_contains("test222");
+                .body_includes("test222");
             then.status(201).body("");
         });
         let upload_assets_mock2 = mock_server.mock(|when, then| {
             when.method(POST)
                 .path("/v4/assets")
-                .body_contains("test333");
+                .body_includes("test333");
             then.status(201).body("");
         });
 
@@ -1785,7 +1785,7 @@ mod tests {
             &changed_files,
         );
 
-        upload_assets_mock.assert_hits(0);
+        upload_assets_mock.assert_calls(0);
         copy_assets_mock.assert();
 
         assert!(result.is_ok());

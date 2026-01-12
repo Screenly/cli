@@ -67,6 +67,8 @@ pub enum Commands {
     /// Edge App related commands.
     #[command(subcommand)]
     EdgeApp(EdgeAppCommands),
+    /// Starts the MCP (Model Context Protocol) server on stdio for AI assistant integration.
+    Mcp {},
     /// For generating `docs/CommandLineHelp.md`.
     #[clap(hide = true)]
     PrintHelpMarkdown {},
@@ -526,9 +528,30 @@ pub fn handle_cli(cli: &Cli) {
             info!("Logout successful.");
             std::process::exit(0);
         }
+        Commands::Mcp {} => {
+            handle_cli_mcp_command();
+        }
         Commands::PrintHelpMarkdown {} => {
             clap_markdown::print_help_markdown::<Cli>();
         }
+    }
+}
+
+pub fn handle_cli_mcp_command() {
+    use crate::mcp::ScreenlyMcpServer;
+
+    let server = match ScreenlyMcpServer::new() {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to initialize MCP server: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+    if let Err(e) = rt.block_on(server.run()) {
+        error!("MCP server error: {}", e);
+        std::process::exit(1);
     }
 }
 
