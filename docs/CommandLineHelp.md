@@ -46,6 +46,7 @@ This document contains the help content for the `screenly` command-line program.
 * [`screenly edge-app deploy`↴](#screenly-edge-app-deploy)
 * [`screenly edge-app delete`↴](#screenly-edge-app-delete)
 * [`screenly edge-app validate`↴](#screenly-edge-app-validate)
+* [`screenly mcp`↴](#screenly-mcp)
 
 ## `screenly`
 
@@ -61,6 +62,7 @@ Command line interface is intended for quick interaction with Screenly through t
 * `asset` — Asset related commands
 * `playlist` — Playlist related commands
 * `edge-app` — Edge App related commands
+* `mcp` — Starts the MCP (Model Context Protocol) server on stdio for AI assistant integration
 
 ###### **Options:**
 
@@ -630,6 +632,14 @@ Validates Edge App manifest file
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+
+
+
+## `screenly mcp`
+
+Starts the MCP (Model Context Protocol) server on stdio for AI assistant integration
+
+**Usage:** `screenly mcp`
 
 
 
