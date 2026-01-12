@@ -10,11 +10,14 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::authentication::Authentication;
-use crate::mcp::tools::{
-    asset::AssetTools, asset_group::AssetGroupTools, edge_app::EdgeAppTools, label::LabelTools,
-    playlist::PlaylistTools, playlist_item::PlaylistItemTools, screen::ScreenTools,
-    shared_playlist::SharedPlaylistTools,
-};
+use crate::mcp::tools::asset::AssetTools;
+use crate::mcp::tools::asset_group::AssetGroupTools;
+use crate::mcp::tools::edge_app::EdgeAppTools;
+use crate::mcp::tools::label::LabelTools;
+use crate::mcp::tools::playlist::PlaylistTools;
+use crate::mcp::tools::playlist_item::PlaylistItemTools;
+use crate::mcp::tools::screen::ScreenTools;
+use crate::mcp::tools::shared_playlist::SharedPlaylistTools;
 
 // ============ PARAMETER STRUCTS ============
 

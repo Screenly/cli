@@ -5,11 +5,14 @@ use httpmock::MockServer;
 use serde_json::json;
 
 use crate::authentication::{Authentication, Config};
-use crate::mcp::tools::{
-    asset::AssetTools, asset_group::AssetGroupTools, edge_app::EdgeAppTools, label::LabelTools,
-    playlist::PlaylistTools, playlist_item::PlaylistItemTools, screen::ScreenTools,
-    shared_playlist::SharedPlaylistTools,
-};
+use crate::mcp::tools::asset::AssetTools;
+use crate::mcp::tools::asset_group::AssetGroupTools;
+use crate::mcp::tools::edge_app::EdgeAppTools;
+use crate::mcp::tools::label::LabelTools;
+use crate::mcp::tools::playlist::PlaylistTools;
+use crate::mcp::tools::playlist_item::PlaylistItemTools;
+use crate::mcp::tools::screen::ScreenTools;
+use crate::mcp::tools::shared_playlist::SharedPlaylistTools;
 
 fn setup_auth(mock_server: &MockServer) -> Authentication {
     let config = Config::new(mock_server.base_url());
