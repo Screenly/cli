@@ -75,7 +75,7 @@ impl Api {
         let apps = serde_json::from_value::<Vec<EdgeApp>>(response)?;
         if apps.is_empty() {
             Err(CommandError::AppNotFound(format!(
-                "Edge app with ID '{app_id}' not found."
+                "Edge App with ID '{app_id}' not found."
             )))
         } else {
             Ok(apps[0].clone())

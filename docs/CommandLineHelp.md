@@ -56,8 +56,8 @@ Command line interface is intended for quick interaction with Screenly through t
 
 ###### **Subcommands:**
 
-* `login` — Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token
-* `logout` — Logouts and removes stored token
+* `login` — Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
+* `logout` — Logs out and removes the stored token
 * `screen` — Screen related commands
 * `asset` — Asset related commands
 * `playlist` — Playlist related commands
@@ -72,7 +72,7 @@ Command line interface is intended for quick interaction with Screenly through t
 
 ## `screenly login`
 
-Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token
+Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
 
 **Usage:** `screenly login`
 
@@ -80,7 +80,7 @@ Logins with the token and stores it for further use if it's valid. You can set A
 
 ## `screenly logout`
 
-Logouts and removes stored token
+Logs out and removes the stored token
 
 **Usage:** `screenly logout`
 
@@ -171,10 +171,10 @@ Asset related commands
 * `add` — Adds a new asset
 * `delete` — Deletes an asset. This cannot be undone
 * `inject-js` — Injects JavaScript code inside of the web asset. It will be executed once the asset loads during playback
-* `set-headers` — Sets HTTP headers for web asset
-* `update-headers` — Updates HTTP headers for web asset
-* `basic-auth` — Shortcut for setting up basic authentication headers
-* `bearer-auth` — Shortcut for setting up bearer authentication headers
+* `set-headers` — Sets HTTP headers for a web asset
+* `update-headers` — Updates HTTP headers for a web asset
+* `basic-auth` — Sets up basic authentication headers for a web asset
+* `bearer-auth` — Sets up bearer authentication headers for a web asset
 
 
 
@@ -250,52 +250,52 @@ Injects JavaScript code inside of the web asset. It will be executed once the as
 
 ## `screenly asset set-headers`
 
-Sets HTTP headers for web asset
+Sets HTTP headers for a web asset
 
 **Usage:** `screenly asset set-headers <UUID> <HEADERS>`
 
 ###### **Arguments:**
 
-* `<UUID>` — UUID of the web asset to set http headers
-* `<HEADERS>` — HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command replaces all headers of the asset with the given headers (when an empty string is given, e.g. --set-headers "", all existing headers are removed, if any)
+* `<UUID>` — UUID of the web asset
+* `<HEADERS>` — HTTP headers in the form `header1=value1[,header2=value2[,...]]`. This command replaces all headers of the asset with the given headers. Use an empty string (e.g., --set-headers "") to remove all existing headers
 
 
 
 ## `screenly asset update-headers`
 
-Updates HTTP headers for web asset
+Updates HTTP headers for a web asset
 
 **Usage:** `screenly asset update-headers <UUID> <HEADERS>`
 
 ###### **Arguments:**
 
-* `<UUID>` — UUID of the web asset to set http headers
-* `<HEADERS>` — HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command updates only the given headers (adding them if new), leaving any other headers unchanged
+* `<UUID>` — UUID of the web asset
+* `<HEADERS>` — HTTP headers in the form `header1=value1[,header2=value2[,...]]`. This command updates only the given headers (adding them if new), leaving other headers unchanged
 
 
 
 ## `screenly asset basic-auth`
 
-Shortcut for setting up basic authentication headers
+Sets up basic authentication headers for a web asset
 
 **Usage:** `screenly asset basic-auth <UUID> <CREDENTIALS>`
 
 ###### **Arguments:**
 
-* `<UUID>` — UUID of the web asset to set up basic authentication for
+* `<UUID>` — UUID of the web asset
 * `<CREDENTIALS>` — Basic authentication credentials in "user=password" form
 
 
 
 ## `screenly asset bearer-auth`
 
-Shortcut for setting up bearer authentication headers
+Sets up bearer authentication headers for a web asset
 
 **Usage:** `screenly asset bearer-auth <UUID> <TOKEN>`
 
 ###### **Arguments:**
 
-* `<UUID>` — UUID of the web asset to set up basic authentication for
+* `<UUID>` — UUID of the web asset
 * `<TOKEN>` — Bearer token
 
 
@@ -314,20 +314,48 @@ Playlist related commands
 * `delete` — Deletes a playlist. This cannot be undone
 * `append` — Adds an asset to the end of the playlist
 * `prepend` — Adds an asset to the beginning of the playlist
-* `update` — Patches a given playlist
+* `update` — Updates a playlist from JSON input on stdin
 
 
 
 ## `screenly playlist create`
 
-Creates a new playlist
+Creates a new playlist.
+
+Playlists use a predicate DSL to control when they are shown. The predicate is a boolean expression using these variables:
+
+$DATE    - Current date as Unix timestamp in milliseconds $TIME    - Time of day in ms since midnight (0-86400000) $WEEKDAY - Day of week (0=Sun, 1=Mon, ..., 6=Sat)
+
+Operators: =, <=, >=, <, >, AND, OR, NOT Special: BETWEEN {min, max}, IN {val1, val2, ...}
+
+Time reference (ms): 32400000=9AM, 43200000=12PM, 61200000=5PM
+
+Examples: TRUE                                    - Always show $WEEKDAY IN {1, 2, 3, 4, 5}             - Weekdays only $TIME BETWEEN {32400000, 61200000}     - 9 AM to 5 PM NOT $WEEKDAY IN {0, 6}                  - Exclude weekends
 
 **Usage:** `screenly playlist create [OPTIONS] <TITLE> [PREDICATE]`
 
 ###### **Arguments:**
 
 * `<TITLE>` — Title of the new playlist
-* `<PREDICATE>` — Predicate for the new playlist. If not specified it will be set to "TRUE"
+* `<PREDICATE>` — Predicate expression controlling when the playlist is shown.
+
+   Variables:
+     $DATE    - Unix timestamp in milliseconds
+     $TIME    - Milliseconds since midnight (0-86400000)
+     $WEEKDAY - Day of week (0=Sun, 1=Mon, ..., 6=Sat)
+
+   Operators: =, <=, >=, <, >, AND, OR, NOT
+   Special: BETWEEN {min, max}, IN {val1, val2, ...}
+
+   Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM
+
+   Examples:
+     TRUE                                - Always show
+     $WEEKDAY IN {1, 2, 3, 4, 5}         - Weekdays only
+     $TIME BETWEEN {32400000, 61200000}  - 9 AM to 5 PM
+     NOT $WEEKDAY IN {0, 6}              - Exclude weekends
+
+   Default: TRUE
 
 ###### **Options:**
 
@@ -381,7 +409,7 @@ Adds an asset to the end of the playlist
 
 * `<UUID>` — UUID of the playlist
 * `<ASSET_UUID>` — UUID of the asset
-* `<DURATION>` — Duration of the playlist item in seconds. If not specified it will be set to 15 seconds
+* `<DURATION>` — Duration of the playlist item in seconds. Defaults to 15 seconds
 
 ###### **Options:**
 
@@ -399,7 +427,7 @@ Adds an asset to the beginning of the playlist
 
 * `<UUID>` — UUID of the playlist
 * `<ASSET_UUID>` — UUID of the asset
-* `<DURATION>` — Duration of the playlist item in seconds. If not specified it will be set to 15 seconds
+* `<DURATION>` — Duration of the playlist item in seconds. Defaults to 15 seconds
 
 ###### **Options:**
 
@@ -409,7 +437,7 @@ Adds an asset to the beginning of the playlist
 
 ## `screenly playlist update`
 
-Patches a given playlist
+Updates a playlist from JSON input on stdin
 
 **Usage:** `screenly playlist update`
 
@@ -423,28 +451,28 @@ Edge App related commands
 
 ###### **Subcommands:**
 
-* `create` — Creates Edge App in the store
+* `create` — Creates an Edge App in the store
 * `list` — Lists your Edge Apps
-* `rename` — Renames Edge App
-* `run` — Runs Edge App emulator
-* `setting` — Settings commands
-* `instance` — Instance commands
-* `deploy` — Deploys assets and settings of the Edge App and release it
+* `rename` — Renames an Edge App
+* `run` — Runs the Edge App emulator
+* `setting` — Edge App setting commands
+* `instance` — Edge App instance commands
+* `deploy` — Deploys assets and settings of the Edge App and releases it
 * `delete` — Deletes an Edge App. This cannot be undone
-* `validate` — Validates Edge App manifest file
+* `validate` — Validates the Edge App manifest file
 
 
 
 ## `screenly edge-app create`
 
-Creates Edge App in the store
+Creates an Edge App in the store
 
 **Usage:** `screenly edge-app create [OPTIONS] --name <NAME>`
 
 ###### **Options:**
 
 * `-n`, `--name <NAME>` — Edge App name
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 * `-i`, `--in-place` — Use an existing Edge App directory with the manifest and index.html
 
 
@@ -463,41 +491,41 @@ Lists your Edge Apps
 
 ## `screenly edge-app rename`
 
-Renames Edge App
+Renames an Edge App
 
 **Usage:** `screenly edge-app rename [OPTIONS] --name <NAME>`
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-n`, `--name <NAME>` — Edge App name
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
+* `-n`, `--name <NAME>` — New name for the Edge App
 
 
 
 ## `screenly edge-app run`
 
-Runs Edge App emulator
+Runs the Edge App emulator
 
 **Usage:** `screenly edge-app run [OPTIONS]`
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-s`, `--secrets <SECRETS>` — Secrets to be passed to the Edge App in the form KEY=VALUE. Can be specified multiple times
-* `-g`, `--generate-mock-data` — Generates mock data to be used with Edge App run
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
+* `-s`, `--secrets <SECRETS>` — Secrets to pass to the Edge App in the form KEY=VALUE. Can be specified multiple times
+* `-g`, `--generate-mock-data` — Generates mock data for use with the Edge App emulator
 
 
 
 ## `screenly edge-app setting`
 
-Settings commands
+Edge App setting commands
 
 **Usage:** `screenly edge-app setting <COMMAND>`
 
 ###### **Subcommands:**
 
 * `list` — Lists Edge App settings
-* `set` — Sets Edge App setting
+* `set` — Sets an Edge App setting
 
 
 
@@ -509,39 +537,39 @@ Lists Edge App settings
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 * `-j`, `--json` — Enables JSON output
 
 
 
 ## `screenly edge-app setting set`
 
-Sets Edge App setting
+Sets an Edge App setting
 
 **Usage:** `screenly edge-app setting set [OPTIONS] <SETTING_PAIR>`
 
 ###### **Arguments:**
 
-* `<SETTING_PAIR>` — Key value pair of the setting to be set in the form of `key=value`
+* `<SETTING_PAIR>` — Key-value pair of the setting in the form `key=value`
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 
 
 
 ## `screenly edge-app instance`
 
-Instance commands
+Edge App instance commands
 
 **Usage:** `screenly edge-app instance <COMMAND>`
 
 ###### **Subcommands:**
 
 * `list` — Lists Edge App instances
-* `create` — Creates Edge App instance
-* `delete` — Deletes Edge App instance
-* `update` — Update Edge App instance based on changes in the instance.yml
+* `create` — Creates an Edge App instance
+* `delete` — Deletes an Edge App instance
+* `update` — Updates an Edge App instance based on changes in instance.yml
 
 
 
@@ -553,58 +581,58 @@ Lists Edge App instances
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 * `-j`, `--json` — Enables JSON output
 
 
 
 ## `screenly edge-app instance create`
 
-Creates Edge App instance
+Creates an Edge App instance
 
 **Usage:** `screenly edge-app instance create [OPTIONS]`
 
 ###### **Options:**
 
 * `-n`, `--name <NAME>` — Name of the Edge App instance
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 
 
 
 ## `screenly edge-app instance delete`
 
-Deletes Edge App instance
+Deletes an Edge App instance
 
 **Usage:** `screenly edge-app instance delete [OPTIONS]`
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 
 
 
 ## `screenly edge-app instance update`
 
-Update Edge App instance based on changes in the instance.yml
+Updates an Edge App instance based on changes in instance.yml
 
 **Usage:** `screenly edge-app instance update [OPTIONS]`
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 
 
 
 ## `screenly edge-app deploy`
 
-Deploys assets and settings of the Edge App and release it
+Deploys assets and settings of the Edge App and releases it
 
 **Usage:** `screenly edge-app deploy [OPTIONS]`
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
-* `-d`, `--delete-missing-settings <DELETE_MISSING_SETTINGS>`
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
+* `-d`, `--delete-missing-settings <DELETE_MISSING_SETTINGS>` — Delete settings that exist on the server but not in the manifest
 
   Possible values: `true`, `false`
 
@@ -619,19 +647,19 @@ Deletes an Edge App. This cannot be undone
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 
 
 
 ## `screenly edge-app validate`
 
-Validates Edge App manifest file
+Validates the Edge App manifest file
 
 **Usage:** `screenly edge-app validate [OPTIONS]`
 
 ###### **Options:**
 
-* `-p`, `--path <PATH>` — Path to the directory with the manifest. If not specified CLI will use the current working directory
+* `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 
 
 

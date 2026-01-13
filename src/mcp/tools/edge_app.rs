@@ -10,7 +10,7 @@ impl EdgeAppTools {
     /// List all Edge Apps.
     pub fn list(auth: &Authentication) -> Result<String, String> {
         let result = commands::get(auth, "v4/edge-apps?select=id,name&deleted=eq.false")
-            .map_err(|e| format!("Failed to list edge apps: {}", e))?;
+            .map_err(|e| format!("Failed to list Edge Apps: {}", e))?;
 
         serde_json::to_string_pretty(&result)
             .map_err(|e| format!("Failed to serialize response: {}", e))
@@ -23,7 +23,7 @@ impl EdgeAppTools {
             app_uuid
         );
         let result = commands::get(auth, &endpoint)
-            .map_err(|e| format!("Failed to list edge app settings: {}", e))?;
+            .map_err(|e| format!("Failed to list Edge App settings: {}", e))?;
 
         serde_json::to_string_pretty(&result)
             .map_err(|e| format!("Failed to serialize response: {}", e))
@@ -36,7 +36,7 @@ impl EdgeAppTools {
             app_uuid
         );
         let result = commands::get(auth, &endpoint)
-            .map_err(|e| format!("Failed to list edge app instances: {}", e))?;
+            .map_err(|e| format!("Failed to list Edge App instances: {}", e))?;
 
         serde_json::to_string_pretty(&result)
             .map_err(|e| format!("Failed to serialize response: {}", e))

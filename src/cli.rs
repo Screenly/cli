@@ -51,9 +51,9 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Logins with the token and stores it for further use if it's valid. You can set API_TOKEN environment variable to override used API token.
+    /// Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token.
     Login {},
-    /// Logouts and removes stored token.
+    /// Logs out and removes the stored token.
     Logout {},
     /// Screen related commands.
     #[command(subcommand)]
@@ -109,14 +109,47 @@ pub enum ScreenCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PlaylistCommands {
-    ///Creates a new playlist.
+    /// Creates a new playlist.
+    ///
+    /// Playlists use a predicate DSL to control when they are shown.
+    /// The predicate is a boolean expression using these variables:
+    ///
+    ///   $DATE    - Current date as Unix timestamp in milliseconds
+    ///   $TIME    - Time of day in ms since midnight (0-86400000)
+    ///   $WEEKDAY - Day of week (0=Sun, 1=Mon, ..., 6=Sat)
+    ///
+    /// Operators: =, <=, >=, <, >, AND, OR, NOT
+    /// Special: BETWEEN {min, max}, IN {val1, val2, ...}
+    ///
+    /// Time reference (ms): 32400000=9AM, 43200000=12PM, 61200000=5PM
+    ///
+    /// Examples:
+    ///   TRUE                                    - Always show
+    ///   $WEEKDAY IN {1, 2, 3, 4, 5}             - Weekdays only
+    ///   $TIME BETWEEN {32400000, 61200000}     - 9 AM to 5 PM
+    ///   NOT $WEEKDAY IN {0, 6}                  - Exclude weekends
     Create {
         /// Enables JSON output.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
         /// Title of the new playlist.
         title: String,
-        /// Predicate for the new playlist. If not specified it will be set to "TRUE".
+        /// Predicate expression controlling when the playlist is shown.
+        /// Uses DSL with $DATE, $TIME, $WEEKDAY variables. Default: "TRUE".
+        #[arg(long_help = "Predicate expression controlling when the playlist is shown.\n\n\
+            Variables:\n  \
+            $DATE    - Unix timestamp in milliseconds\n  \
+            $TIME    - Milliseconds since midnight (0-86400000)\n  \
+            $WEEKDAY - Day of week (0=Sun, 1=Mon, ..., 6=Sat)\n\n\
+            Operators: =, <=, >=, <, >, AND, OR, NOT\n\
+            Special: BETWEEN {min, max}, IN {val1, val2, ...}\n\n\
+            Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM\n\n\
+            Examples:\n  \
+            TRUE                                - Always show\n  \
+            $WEEKDAY IN {1, 2, 3, 4, 5}         - Weekdays only\n  \
+            $TIME BETWEEN {32400000, 61200000}  - 9 AM to 5 PM\n  \
+            NOT $WEEKDAY IN {0, 6}              - Exclude weekends\n\n\
+            Default: TRUE")]
         predicate: Option<String>,
     },
     /// Lists your playlists.
@@ -144,7 +177,7 @@ pub enum PlaylistCommands {
         uuid: String,
         /// UUID of the asset.
         asset_uuid: String,
-        /// Duration of the playlist item in seconds. If not specified it will be set to 15 seconds.
+        /// Duration of the playlist item in seconds. Defaults to 15 seconds.
         duration: Option<u32>,
     },
     /// Adds an asset to the beginning of the playlist.
@@ -156,10 +189,10 @@ pub enum PlaylistCommands {
         uuid: String,
         /// UUID of the asset.
         asset_uuid: String,
-        /// Duration of the playlist item in seconds. If not specified it will be set to 15 seconds.
+        /// Duration of the playlist item in seconds. Defaults to 15 seconds.
         duration: Option<u32>,
     },
-    /// Patches a given playlist.
+    /// Updates a playlist from JSON input on stdin.
     Update {},
 }
 
@@ -246,38 +279,38 @@ pub enum AssetCommands {
         path: String,
     },
 
-    /// Sets HTTP headers for web asset.
+    /// Sets HTTP headers for a web asset.
     SetHeaders {
-        /// UUID of the web asset to set http headers.
+        /// UUID of the web asset.
         uuid: String,
 
-        /// HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command
-        /// replaces all headers of the asset with the given headers (when an empty string is given, e.g. --set-headers "",
-        /// all existing headers are removed, if any)
+        /// HTTP headers in the form `header1=value1[,header2=value2[,...]]`. This command
+        /// replaces all headers of the asset with the given headers. Use an empty string
+        /// (e.g., --set-headers "") to remove all existing headers.
         #[arg(value_parser = parse_key_values::<Headers>)]
         headers: Headers,
     },
-    /// Updates HTTP headers for web asset.
+    /// Updates HTTP headers for a web asset.
     UpdateHeaders {
-        /// UUID of the web asset to set http headers.
+        /// UUID of the web asset.
         uuid: String,
 
-        /// HTTP headers in the following form `header1=value1[,header2=value2[,...]]`. This command updates only the given headers (adding them if new), leaving any other headers unchanged.
+        /// HTTP headers in the form `header1=value1[,header2=value2[,...]]`. This command updates only the given headers (adding them if new), leaving other headers unchanged.
         #[arg(value_parser=parse_key_values::<Headers>)]
         headers: Headers,
     },
 
-    /// Shortcut for setting up basic authentication headers.
+    /// Sets up basic authentication headers for a web asset.
     BasicAuth {
-        /// UUID of the web asset to set up basic authentication for.
+        /// UUID of the web asset.
         uuid: String,
         /// Basic authentication credentials in "user=password" form.
         #[arg(value_parser = parse_key_val)]
         credentials: (String, String),
     },
-    /// Shortcut for setting up bearer authentication headers.
+    /// Sets up bearer authentication headers for a web asset.
     BearerAuth {
-        /// UUID of the web asset to set up basic authentication for.
+        /// UUID of the web asset.
         uuid: String,
         /// Bearer token.
         token: String,
@@ -286,12 +319,12 @@ pub enum AssetCommands {
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EdgeAppCommands {
-    /// Creates Edge App in the store.
+    /// Creates an Edge App in the store.
     Create {
-        /// Edge App name
+        /// Edge App name.
         #[arg(short, long)]
         name: String,
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
         /// Use an existing Edge App directory with the manifest and index.html.
@@ -305,58 +338,59 @@ pub enum EdgeAppCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
-    /// Renames Edge App
+    /// Renames an Edge App.
     Rename {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Edge App name
+        /// New name for the Edge App.
         #[arg(short, long)]
         name: String,
     },
 
-    /// Runs Edge App emulator.
+    /// Runs the Edge App emulator.
     Run {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
-        /// Secrets to be passed to the Edge App in the form KEY=VALUE. Can be specified multiple times.
+        /// Secrets to pass to the Edge App in the form KEY=VALUE. Can be specified multiple times.
         #[arg(short, long, value_parser = parse_key_values::<Secrets>)]
         secrets: Option<Secrets>,
 
-        /// Generates mock data to be used with Edge App run
+        /// Generates mock data for use with the Edge App emulator.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         generate_mock_data: Option<bool>,
     },
 
-    /// Settings commands.
+    /// Edge App setting commands.
     #[command(subcommand)]
     Setting(EdgeAppSettingsCommands),
 
-    /// Instance commands.
+    /// Edge App instance commands.
     #[command(subcommand)]
     Instance(EdgeAppInstanceCommands),
 
-    /// Deploys assets and settings of the Edge App and release it.
+    /// Deploys assets and settings of the Edge App and releases it.
     Deploy {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
+        /// Delete settings that exist on the server but not in the manifest.
         #[arg(short, long)]
         delete_missing_settings: Option<bool>,
     },
     /// Deletes an Edge App. This cannot be undone.
     Delete {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
     },
-    /// Validates Edge App manifest file
+    /// Validates the Edge App manifest file.
     Validate {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
     },
@@ -366,7 +400,7 @@ pub enum EdgeAppCommands {
 pub enum EdgeAppSettingsCommands {
     /// Lists Edge App settings.
     List {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
@@ -374,13 +408,13 @@ pub enum EdgeAppSettingsCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
-    /// Sets Edge App setting.
+    /// Sets an Edge App setting.
     Set {
-        /// Key value pair of the setting to be set in the form of `key=value`.
+        /// Key-value pair of the setting in the form `key=value`.
         #[arg(value_parser = parse_key_val)]
         setting_pair: (String, String),
 
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
     },
@@ -390,7 +424,7 @@ pub enum EdgeAppSettingsCommands {
 pub enum EdgeAppInstanceCommands {
     /// Lists Edge App instances.
     List {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
 
@@ -398,25 +432,25 @@ pub enum EdgeAppInstanceCommands {
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         json: Option<bool>,
     },
-    /// Creates Edge App instance.
+    /// Creates an Edge App instance.
     Create {
         /// Name of the Edge App instance.
         #[arg(short, long)]
         name: Option<String>,
 
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
     },
-    /// Deletes Edge App instance.
+    /// Deletes an Edge App instance.
     Delete {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
     },
-    /// Update Edge App instance based on changes in the instance.yml.
+    /// Updates an Edge App instance based on changes in instance.yml.
     Update {
-        /// Path to the directory with the manifest. If not specified CLI will use the current working directory.
+        /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
     },
@@ -860,17 +894,17 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let manifest_path = match transform_edge_app_path_to_manifest(path) {
                 Ok(path) => path,
                 Err(e) => {
-                    eprintln!("Failed to create edge app: {e}.");
+                    eprintln!("Failed to create Edge App: {e}.");
                     std::process::exit(1);
                 }
             };
 
             match create_func(&edge_app_command, name, manifest_path.as_path()) {
                 Ok(()) => {
-                    println!("Edge app successfully created.");
+                    println!("Edge App successfully created.");
                 }
                 Err(e) => {
-                    eprintln!("Failed to publish edge app manifest: {e}.");
+                    eprintln!("Failed to publish Edge App manifest: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -884,10 +918,10 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             delete_missing_settings,
         } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
             Ok(revision) => {
-                println!("Edge app successfully deployed. Revision: {revision}.");
+                println!("Edge App successfully deployed. Revision: {revision}.");
             }
             Err(e) => {
-                eprintln!("Failed to upload edge app: {e}.");
+                eprintln!("Failed to upload Edge App: {e}.");
                 std::process::exit(1);
             }
         },
@@ -898,10 +932,10 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             EdgeAppSettingsCommands::Set { setting_pair, path } => {
                 match edge_app_command.set_setting(path.clone(), &setting_pair.0, &setting_pair.1) {
                     Ok(()) => {
-                        println!("Edge app setting successfully set.");
+                        println!("Edge App setting successfully set.");
                     }
                     Err(e) => {
-                        eprintln!("Failed to set edge app setting: {e}");
+                        eprintln!("Failed to set Edge App setting: {e}");
                         std::process::exit(1);
                     }
                 }
@@ -937,7 +971,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     let manifest_path = match transform_edge_app_path_to_manifest(path) {
                         Ok(path) => path,
                         Err(e) => {
-                            eprintln!("Failed to delete edge app: {e}.");
+                            eprintln!("Failed to delete Edge App: {e}.");
                             std::process::exit(1);
                         }
                     };
@@ -964,16 +998,16 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                 Ok(id) => id,
                 Err(e) => {
-                    error!("Error calling delete Edge App: {e}");
+                    error!("Error renaming Edge App: {e}");
                     std::process::exit(1);
                 }
             };
             match edge_app_command.update_name(&actual_app_id, name) {
                 Ok(()) => {
-                    println!("Edge app successfully updated.");
+                    println!("Edge App successfully renamed.");
                 }
                 Err(e) => {
-                    eprintln!("Failed to update edge app: {e}.");
+                    eprintln!("Failed to rename Edge App: {e}.");
                     std::process::exit(1);
                 }
             }
@@ -1062,21 +1096,21 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             let manifest = match EdgeAppManifest::new(&manifest_path) {
                 Ok(manifest) => manifest,
                 Err(e) => {
-                    eprintln!("Failed to validate edge app manifest file: {e}.");
+                    eprintln!("Failed to validate Edge App manifest file: {e}.");
                     std::process::exit(1);
                 }
             };
             let instance_manifest = match InstanceManifest::new(&instance_manifest_path) {
                 Ok(manifest) => manifest,
                 Err(e) => {
-                    eprintln!("Failed to validate edge app instance manifest file: {e}.");
+                    eprintln!("Failed to validate Edge App instance manifest file: {e}.");
                     std::process::exit(1);
                 }
             };
 
-            match validate_manifests_dependacies(&manifest, &instance_manifest) {
+                match validate_manifests_dependacies(&manifest, &instance_manifest) {
                 Ok(()) => {
-                    println!("Manifests dependancies are valid.");
+                    println!("Manifest dependencies are valid.");
                 }
                 Err(e) => {
                     eprintln!("{e}");
@@ -1108,14 +1142,14 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 };
                 let new_name = match name {
                     Some(name) => name,
-                    None => "Edge App instance created by Screenly CLI",
+                    None => "New Edge App instance",
                 };
 
                 let instance_manifest_path =
                     match transform_instance_path_to_instance_manifest(path) {
                         Ok(path) => path,
                         Err(e) => {
-                            eprintln!("Failed to create edge app instance: {e}.");
+                            eprintln!("Failed to create Edge App instance: {e}.");
                             std::process::exit(1);
                         }
                     };
@@ -1126,10 +1160,10 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     new_name,
                 ) {
                     Ok(_some_id) => {
-                        println!("Edge app instance successfully created.");
+                        println!("Edge App instance successfully created.");
                     }
                     Err(e) => {
-                        eprintln!("Failed to create edge app instance: {e}.");
+                        eprintln!("Failed to create Edge App instance: {e}.");
                         std::process::exit(1);
                     }
                 }
@@ -1149,12 +1183,12 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                         Ok(path) => match path.to_str() {
                             Some(path) => path.to_string(),
                             None => {
-                                eprintln!("Failed to delete edge app instance. Invalid path.");
+                                eprintln!("Failed to delete Edge App instance: invalid path.");
                                 std::process::exit(1);
                             }
                         },
                         Err(e) => {
-                            eprintln!("Failed to delete edge app instance. {e:?}");
+                            eprintln!("Failed to delete Edge App instance: {e:?}");
                             std::process::exit(1);
                         }
                     };
@@ -1163,10 +1197,10 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                     .delete_instance(&actual_installation_id, instance_manifest_path)
                 {
                     Ok(()) => {
-                        println!("Edge app instance successfully deleted.");
+                        println!("Edge App instance successfully deleted.");
                     }
                     Err(e) => {
-                        eprintln!("Failed to delete edge app instance: {e}.");
+                        eprintln!("Failed to delete Edge App instance: {e}.");
                         std::process::exit(1);
                     }
                 }
@@ -1174,10 +1208,10 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             EdgeAppInstanceCommands::Update { path } => {
                 match edge_app_command.update_instance(path.clone()) {
                     Ok(()) => {
-                        println!("Edge app instance successfully updated.");
+                        println!("Edge App instance successfully updated.");
                     }
                     Err(e) => {
-                        eprintln!("Failed to update edge app instance: {e}.");
+                        eprintln!("Failed to update Edge App instance: {e}.");
                         std::process::exit(1);
                     }
                 }

@@ -61,11 +61,31 @@ pub struct AssetGroupUpdateParam {
     pub title: String,
 }
 
+/// Predicate DSL documentation for playlist scheduling.
+///
+/// Predicates are boolean expressions that control when a playlist is shown.
+/// They use three context variables:
+/// - `$DATE`: Current date as Unix timestamp in milliseconds
+/// - `$TIME`: Time of day in milliseconds since midnight (0-86400000)
+/// - `$WEEKDAY`: Day of week (0=Sunday, 1=Monday, ..., 6=Saturday)
+///
+/// Operators: `=`, `<=`, `>=`, `<`, `>`, `AND`, `OR`, `NOT`
+/// Special: `BETWEEN {min, max}`, `IN {val1, val2, ...}`
+///
+/// Examples:
+/// - `TRUE` - Always show
+/// - `$WEEKDAY IN {1, 2, 3, 4, 5}` - Weekdays only
+/// - `$TIME BETWEEN {32400000, 61200000}` - 9 AM to 5 PM
+/// - `$TIME >= 32400000 AND $TIME <= 61200000 AND NOT $WEEKDAY IN {0, 6}` - Business hours
+const _PREDICATE_DSL_DOCS: () = ();
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct PlaylistCreateParam {
     #[schemars(description = "Title of the playlist")]
     pub title: String,
-    #[schemars(description = "Predicate expression for when to show the playlist (default: TRUE)")]
+    #[schemars(
+        description = "Predicate expression for when to show the playlist. Uses DSL with $DATE (ms timestamp), $TIME (ms since midnight, 0-86400000), $WEEKDAY (0=Sun to 6=Sat). Examples: 'TRUE' (always), '$WEEKDAY IN {1,2,3,4,5}' (weekdays), '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM). Operators: =, <=, >=, <, >, AND, OR, NOT, BETWEEN {min,max}, IN {values}. Default: TRUE"
+    )]
     pub predicate: Option<String>,
     #[schemars(description = "Whether this is a priority playlist")]
     pub priority: Option<bool>,
@@ -79,7 +99,9 @@ pub struct PlaylistUpdateParam {
     pub uuid: String,
     #[schemars(description = "New title")]
     pub title: Option<String>,
-    #[schemars(description = "New predicate expression")]
+    #[schemars(
+        description = "New predicate expression. Uses DSL with $DATE (ms timestamp), $TIME (ms since midnight, 0-86400000), $WEEKDAY (0=Sun to 6=Sat). Examples: 'TRUE' (always), '$WEEKDAY IN {1,2,3,4,5}' (weekdays), '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM). Operators: =, <=, >=, <, >, AND, OR, NOT, BETWEEN {min,max}, IN {values}"
+    )]
     pub predicate: Option<String>,
     #[schemars(description = "Set as priority playlist")]
     pub priority: Option<bool>,
@@ -591,7 +613,14 @@ impl rmcp::ServerHandler for ScreenlyMcpServer {
         ServerInfo {
             instructions: Some(
                 "Screenly MCP Server - Manage digital signage screens, assets, and playlists. \
-                Use API_TOKEN environment variable or ~/.screenly file for authentication."
+                Use API_TOKEN environment variable or ~/.screenly file for authentication.\n\n\
+                PLAYLIST PREDICATES: Playlists use a predicate DSL for scheduling. Variables: \
+                $DATE (Unix ms), $TIME (ms since midnight, 0-86400000), $WEEKDAY (0=Sun..6=Sat). \
+                Operators: =, <=, >=, <, >, AND, OR, NOT, BETWEEN {min,max}, IN {values}. \
+                Examples: 'TRUE' (always show), '$WEEKDAY IN {1,2,3,4,5}' (weekdays only), \
+                '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM), \
+                '$TIME >= 32400000 AND $TIME <= 61200000 AND NOT $WEEKDAY IN {0, 6}' (business hours). \
+                Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM."
                     .to_string(),
             ),
             capabilities: ServerCapabilities::builder().enable_tools().build(),

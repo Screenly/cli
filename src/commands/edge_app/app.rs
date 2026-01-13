@@ -33,7 +33,7 @@ use crate::commands::{CommandError, EdgeApps};
 impl EdgeAppCommand {
     pub fn create(&self, name: &str, path: &Path) -> Result<(), CommandError> {
         let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
-            "Can not obtain edge app root directory.".to_owned(),
+            "Cannot obtain Edge App root directory.".to_owned(),
         ))?;
         let index_html_path = parent_dir_path.join("index.html");
 
@@ -90,7 +90,7 @@ impl EdgeAppCommand {
 
     pub fn create_in_place(&self, name: &str, path: &Path) -> Result<(), CommandError> {
         let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
-            "Can not obtain edge app root directory.".to_owned(),
+            "Cannot obtain Edge App root directory.".to_owned(),
         ))?;
         let index_html_path = parent_dir_path.join("index.html");
 
@@ -195,7 +195,7 @@ impl EdgeAppCommand {
         self.ensure_assets_processing_finished(&actual_app_id, revision)?;
         // now we freeze it by publishing it
         self.api.publish_version(&actual_app_id, revision)?;
-        debug!("Edge app published.");
+        debug!("Edge App published.");
 
         self.promote_version(&actual_app_id, revision, "stable")?;
 
@@ -428,14 +428,14 @@ impl EdgeAppCommand {
                 .collect(),
         )?;
 
-        debug!("Uploading edge app assets");
+        debug!("Uploading Edge App assets");
         let files_to_upload = changed_files.get_files_to_upload(copied_signatures);
         if files_to_upload.is_empty() {
             debug!("No files to upload");
             return Ok(());
         }
 
-        debug!("Uploading edge app files: {files_to_upload:#?}");
+        debug!("Uploading Edge App files: {files_to_upload:#?}");
         let file_paths: Vec<PathBuf> = files_to_upload
             .iter()
             .map(|file| edge_app_dir.join(&file.path))

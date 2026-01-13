@@ -128,7 +128,7 @@ async fn generate_content(
         fs::read_to_string(&file_path).unwrap_or("".to_string())
     } else {
         eprintln!(
-            "Mock data does not exist. Use \"edge-app run --generate-mock-data\" to create mock data."
+            "Mock data does not exist. Use \"screenly edge-app run --generate-mock-data\" to create mock data."
         );
         return Err(warp::reject::not_found());
     };
