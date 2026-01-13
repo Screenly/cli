@@ -136,7 +136,8 @@ pub enum PlaylistCommands {
         title: String,
         /// Predicate expression controlling when the playlist is shown.
         /// Uses DSL with $DATE, $TIME, $WEEKDAY variables. Default: "TRUE".
-        #[arg(long_help = "Predicate expression controlling when the playlist is shown.\n\n\
+        #[arg(
+            long_help = "Predicate expression controlling when the playlist is shown.\n\n\
             Variables:\n  \
             $DATE    - Unix timestamp in milliseconds\n  \
             $TIME    - Milliseconds since midnight (0-86400000)\n  \
@@ -149,7 +150,8 @@ pub enum PlaylistCommands {
             $WEEKDAY IN {1, 2, 3, 4, 5}         - Weekdays only\n  \
             $TIME BETWEEN {32400000, 61200000}  - 9 AM to 5 PM\n  \
             NOT $WEEKDAY IN {0, 6}              - Exclude weekends\n\n\
-            Default: TRUE")]
+            Default: TRUE"
+        )]
         predicate: Option<String>,
     },
     /// Lists your playlists.
@@ -1108,7 +1110,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             };
 
-                match validate_manifests_dependacies(&manifest, &instance_manifest) {
+            match validate_manifests_dependacies(&manifest, &instance_manifest) {
                 Ok(()) => {
                     println!("Manifest dependencies are valid.");
                 }
