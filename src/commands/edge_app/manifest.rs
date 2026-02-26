@@ -85,6 +85,9 @@ pub struct EdgeAppManifest {
     )]
     pub homepage_url: Option<String>,
 
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub categories: Vec<String>,
+
     #[serde(
         deserialize_with = "deserialize_entrypoint",
         skip_serializing_if = "Option::is_none",
@@ -297,6 +300,8 @@ impl EdgeAppManifest {
             json!(manifest.ready_signal.unwrap_or(false)),
         );
 
+        payload.insert("categories", json!(manifest.categories));
+
         payload
     }
 
@@ -340,6 +345,7 @@ mod tests {
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: None,
@@ -398,6 +404,9 @@ description: test_description
 icon: test_icon
 author: test_author
 homepage_url: test_url
+categories:
+- Utilities
+- Dashboards
 entrypoint:
   type: file
 ready_signal: true
@@ -432,6 +441,9 @@ id: test_app
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
+categories:
+- Utilities
+- Dashboards
 entrypoint:
   type: file
 settings:
@@ -464,6 +476,9 @@ id: test_app
 user_version: test_version
 icon: test_icon
 homepage_url: test_url
+categories:
+- Utilities
+- Dashboards
 entrypoint:
   type: file
 ready_signal: true
@@ -665,6 +680,7 @@ settings:
             icon: None,
             author: Some("test_author".to_string()),
             homepage_url: None,
+            categories: vec![],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: None,
@@ -894,6 +910,7 @@ settings:
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: None,
@@ -921,6 +938,9 @@ description: test_description
 icon: test_icon
 author: test_author
 homepage_url: test_url
+categories:
+- Utilities
+- Dashboards
 entrypoint:
   type: file
 settings:
@@ -948,6 +968,7 @@ settings:
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: Some("entrypoint.html".to_string()),
@@ -969,6 +990,7 @@ settings:
         assert_eq!(result["icon"], json!("test_icon"));
         assert_eq!(result["author"], json!("test_author"));
         assert_eq!(result["homepage_url"], json!("test_url"));
+        assert_eq!(result["categories"], json!(["Utilities", "Dashboards"]));
         assert_eq!(result["entrypoint"], json!("entrypoint.html"));
         assert_eq!(result["ready_signal"], json!(false)); // Added assertion for ready_signal
     }
@@ -992,6 +1014,7 @@ settings:
         assert_eq!(result["icon"], json!("test_icon"));
         assert!(!result.contains_key("author"));
         assert_eq!(result["homepage_url"], json!("test_url"));
+        assert_eq!(result["categories"], json!([]));
         assert!(!result.contains_key("entrypoint"));
         assert_eq!(result["ready_signal"], json!(false)); // Added assertion for ready_signal
     }
@@ -1006,6 +1029,7 @@ settings:
             icon: Some("test_icon".to_string()),
             author: Some("test_author".to_string()),
             homepage_url: Some("test_url".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: Some("entrypoint.html".to_string()),
@@ -1019,6 +1043,7 @@ settings:
         assert_eq!(result["icon"], json!("test_icon"));
         assert_eq!(result["author"], json!("test_author"));
         assert_eq!(result["homepage_url"], json!("test_url"));
+        assert_eq!(result["categories"], json!(["Utilities", "Dashboards"]));
         assert_eq!(result["entrypoint"], json!("entrypoint.html"));
         assert_eq!(result["ready_signal"], json!(true)); // Assert ready_signal is true
     }

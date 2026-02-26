@@ -580,6 +580,7 @@ impl EdgeAppCommand {
                     icon: manifest.icon.clone(),
                     author: manifest.author.clone(),
                     homepage_url: manifest.homepage_url.clone(),
+                    categories: manifest.categories.clone(),
                     revision: _version.revision,
                 }),
             None => Ok(false),
@@ -901,7 +902,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
+                    "user_version,description,icon,author,homepage_url,categories,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -913,6 +914,7 @@ mod tests {
                     "icon": "icon",
                     "author": "author",
                     "homepage_url": "homepage_url",
+                    "categories": [],
                     "ready_signal": false,
                     "revision": 7,
                 }
@@ -994,6 +996,7 @@ mod tests {
                         "description": "asdf",
                         "icon": "asdf",
                         "homepage_url": "asdfasdf",
+                        "categories": ["Utilities", "Dashboards"],
                         "file_tree": {
                             "index.html": "0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"
                         },
@@ -1226,7 +1229,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
+                    "user_version,description,icon,author,homepage_url,categories,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -1238,6 +1241,7 @@ mod tests {
                     "icon": "asdf",
                     "author": "asdf",
                     "homepage_url": "asdfasdf",
+                    "categories": ["Utilities", "Dashboards"],
                     "ready_signal": false,
                     "revision": 1
                 }
@@ -1293,7 +1297,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
+                    "user_version,description,icon,author,homepage_url,categories,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -1305,6 +1309,7 @@ mod tests {
                     "icon": "another_icon",
                     "author": "asdf",
                     "homepage_url": "asdfasdf",
+                    "categories": [],
                     "ready_signal": false,
                     "revision": 1,
                 }
@@ -1360,7 +1365,7 @@ mod tests {
                 )
                 .query_param(
                     "select",
-                    "user_version,description,icon,author,homepage_url,revision,ready_signal",
+                    "user_version,description,icon,author,homepage_url,categories,revision,ready_signal",
                 )
                 .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
                 .query_param("order", "revision.desc")
@@ -1514,6 +1519,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: None,
@@ -1585,6 +1591,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec![],
             entrypoint: None,
             settings: vec![
                 Setting {
@@ -1700,6 +1707,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec![],
             entrypoint: None,
             settings: vec![
                 Setting {

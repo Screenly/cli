@@ -333,6 +333,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: Some("entrypoint.html".to_string()),
@@ -569,6 +570,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: Some("entrypoint.html".to_string()),
@@ -1180,6 +1182,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: None,
@@ -1221,6 +1224,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::RemoteLocal,
                 uri: None,
@@ -1253,6 +1257,7 @@ mod tests {
             icon: Some("asdf".to_string()),
             author: Some("asdf".to_string()),
             homepage_url: Some("asdfasdf".to_string()),
+            categories: vec!["Utilities".to_string(), "Dashboards".to_string()],
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::RemoteLocal,
                 uri: None,

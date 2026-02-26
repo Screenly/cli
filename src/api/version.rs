@@ -17,6 +17,8 @@ pub struct EdgeAppVersion {
     #[serde(default)]
     pub homepage_url: Option<String>,
     #[serde(default)]
+    pub categories: Vec<String>,
+    #[serde(default)]
     pub ready_signal: bool,
     #[serde(default)]
     pub revision: u32,
@@ -30,7 +32,7 @@ impl Api {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4.1/edge-apps/versions?select=user_version,description,icon,author,homepage_url,revision,ready_signal&app_id=eq.{app_id}&order=revision.desc&limit=1"
+                "v4.1/edge-apps/versions?select=user_version,description,icon,author,homepage_url,categories,revision,ready_signal&app_id=eq.{app_id}&order=revision.desc&limit=1"
             ),
         )?;
 
