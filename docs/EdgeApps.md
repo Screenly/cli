@@ -24,6 +24,7 @@ Here's a content section for the document:
      - [Icon](#icon)
      - [Author](#author)
      - [Homepage URL](#homepage-url)
+     - [Categories](#categories)
      - [Auth](#auth)
      - [Ready Signal](#ready-signal)
      - [Settings](#settings)
@@ -206,6 +207,9 @@ description: 'Displays the current weather and time'
 icon: 'https://example.com/some-logo.svg'
 author: 'Screenly, Inc'
 homepage_url: 'https://www.screenly.io'
+categories:
+  - Utilities
+  - Dashboards
 settings:
   google_maps_api_key:
     type: secret
@@ -262,6 +266,10 @@ The `author` field specifies the name of the Edge App's creator.
 #### Homepage URL
 
 The `homepage_url` field is a URL directing to the homepage of the Edge App.
+
+#### Categories
+
+The `categories` field is an optional list of category names that classify the Edge App (e.g., `Utilities`, `Dashboards`). When omitted, defaults to an empty list.
 
 #### Auth
 
