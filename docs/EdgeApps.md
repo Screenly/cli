@@ -93,45 +93,27 @@ $ screenly edge-app create --name hello-remote --entrypoint https://example.com/
 ```
 
 This sets `entrypoint.type: remote-global` and `entrypoint.uri` in
-`screenly.yml`, skips writing the `index.html` stub (it's not needed for
-remote-entrypoint apps), and adds `screenly_inject.js` to `.ignore` so the
-JS injection file (see below) is never bundled as an asset.
+`screenly.yml`, skips writing the `index.html` stub, and drops a starter
+`screenly_inject.js` next to the manifest.
 
 The main use case for remote entrypoints is **JS injection** — a snippet
 of JavaScript that the player executes against the loaded remote page on
 every load. The most common reason to reach for this is **authenticating
 to the remote page**: overriding `fetch`/`XHR` to attach `Authorization`
 headers, setting cookies or `localStorage` tokens before the page boots,
-auto-filling and submitting login forms, etc. (You can of course also use
-it to hide chrome, inject branding, or otherwise tweak third-party pages
-you don't control.)
+auto-filling and submitting login forms, etc.
 
-When `create --entrypoint` is used, a starter `screenly_inject.js` is
-written into the project directory alongside `screenly.yml`. On every
-`screenly edge-app deploy` its contents are pushed to the player as the
-`js_injection` for this installation's asset. If the file is missing or
-empty, `js_injection` is cleared on deploy so the deployed state always
-mirrors the file. JS injection is applied per-installation, so you need
-an `instance.yml` in the project directory (created via
-`screenly edge-app instance create`) — without one, deploy skips the JS
-injection step.
+To use it, edit `screenly_inject.js` and run `screenly edge-app deploy`.
+The file is bundled as part of the Edge App's revision; the player picks
+it up automatically on remote-entrypoint Edge Apps. If you don't want JS
+injection, delete the file before deploying.
 
 To pass credentials securely into the injected script, define them as
 Edge App **settings** or **secrets** (see [Settings](#settings) below)
-and read them from `screenly_settings` inside `screenly_inject.js`. The
-player wraps the injection in an IIFE that supplies `screenly_settings`
-as an argument:
-
-```js
-(function(screenly_settings) {
-  // your screenly_inject.js contents here
-})({ /* this app's settings + secrets */ });
-```
-
-So inside `screenly_inject.js` you can reference `screenly_settings`
-directly — it's not a true global, but it's in scope for the whole
-script. This keeps the values out of the page source and out of the
-injection script you commit to source control.
+and read them as `screenly_settings.<key>` inside `screenly_inject.js`.
+The player provides `screenly_settings` to the script at runtime, so
+secret values don't appear in the page source or in the injection
+script you commit to source control.
 
 Example `screenly_inject.js` that adds a Bearer token to every outbound
 request from the remote page:
