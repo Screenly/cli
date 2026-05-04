@@ -1,6 +1,3 @@
-   Compiling screenly v1.1.1 (/home/sergey/work/cli)
-    Finished `release` profile [optimized] target(s) in 6.84s
-     Running `target/release/screenly print-help-markdown`
 # Command-Line Help for `screenly`
 
 This document contains the help content for the `screenly` command-line program.
