@@ -4,6 +4,11 @@
 // Use this to authenticate the remote page without baking credentials
 // into the script.
 //
+// This script runs AFTER the page has fully loaded — DOMContentLoaded /
+// window.load have already fired, so manipulate the DOM directly. Don't
+// wrap your code in `document.addEventListener('DOMContentLoaded', ...)`
+// (the listener will be registered too late and never fire).
+//
 // ---- Helpers --------------------------------------------------------------
 
 // Set an input's value and notify listeners.
