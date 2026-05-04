@@ -355,9 +355,11 @@ pub enum EdgeAppCommands {
         /// Use an existing Edge App directory with the manifest and index.html.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         in_place: Option<bool>,
-        /// Remote entrypoint URL. When set, the created app uses entrypoint.type =
-        /// remote-global with this URL, and `screenly_inject.js` is added to `.ignore`
-        /// for use with the JS injection workflow on deploy.
+        /// Remote entrypoint URL. When set, the created app uses
+        /// entrypoint.type = remote-global with this URL and a starter
+        /// `screenly_inject.js` is dropped next to `screenly.yml`. The
+        /// inject file is shipped with each deploy and the player runs it
+        /// on every load.
         #[arg(short, long)]
         entrypoint: Option<String>,
     },

@@ -169,7 +169,6 @@ impl Drop for VirtualIndexHtml {
 }
 
 impl EdgeAppCommand {
-
     pub fn create_in_place(&self, name: &str, path: &Path) -> Result<(), CommandError> {
         let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
             "Cannot obtain Edge App root directory.".to_owned(),
@@ -994,7 +993,6 @@ mod tests {
             .contains("Invalid --entrypoint URL"));
         assert!(!tmp_dir.path().join("screenly.yml").exists());
     }
-
 
     #[test]
     fn test_list_edge_apps_should_send_correct_request() {
