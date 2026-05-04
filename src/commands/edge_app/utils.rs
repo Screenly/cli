@@ -64,7 +64,13 @@ impl FileChanges {
 }
 
 fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
-    let exclusion_list = ["screenly.js", "screenly.yml", ".ignore", "instance.yml"];
+    let exclusion_list = [
+        "screenly.js",
+        "screenly.yml",
+        ".ignore",
+        "instance.yml",
+        "screenly_inject.js",
+    ];
     if exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default()) {
         return false;
     }

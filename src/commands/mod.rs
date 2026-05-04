@@ -137,16 +137,18 @@ pub fn get(
     endpoint: &str,
 ) -> Result<serde_json::Value, CommandError> {
     let url = format!("{}/{}", &authentication.config.url, endpoint);
+    debug!("GET {url}");
     let mut headers = HeaderMap::new();
     headers.insert("Prefer", "return=representation".parse()?);
 
     let response = authentication
         .build_client()?
-        .get(url)
+        .get(&url)
         .headers(headers)
         .send()?;
 
     let status = response.status();
+    debug!("GET {url} -> {status}");
 
     if status != StatusCode::OK {
         println!("Response: {:?}", &response.text());
