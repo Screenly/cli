@@ -355,6 +355,13 @@ pub enum EdgeAppCommands {
         /// Use an existing Edge App directory with the manifest and index.html.
         #[arg(short, long, action = clap::ArgAction::SetTrue)]
         in_place: Option<bool>,
+        /// Remote entrypoint URL. When set, the created app uses
+        /// entrypoint.type = remote-global with this URL and a starter
+        /// `screenly_inject.js` is dropped next to `screenly.yml`. The
+        /// inject file is shipped with each deploy and the player runs it
+        /// on every load.
+        #[arg(short, long)]
+        entrypoint: Option<String>,
     },
 
     /// Lists your Edge Apps.
@@ -908,13 +915,8 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             name,
             path,
             in_place,
+            entrypoint,
         } => {
-            let create_func = if in_place.unwrap_or(false) {
-                commands::edge_app::EdgeAppCommand::create_in_place
-            } else {
-                commands::edge_app::EdgeAppCommand::create
-            };
-
             let manifest_path = match transform_edge_app_path_to_manifest(path) {
                 Ok(path) => path,
                 Err(e) => {
@@ -923,7 +925,17 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 }
             };
 
-            match create_func(&edge_app_command, name, manifest_path.as_path()) {
+            let result = if in_place.unwrap_or(false) {
+                if entrypoint.is_some() {
+                    eprintln!("--entrypoint cannot be used with --in-place.");
+                    std::process::exit(1);
+                }
+                edge_app_command.create_in_place(name, manifest_path.as_path())
+            } else {
+                edge_app_command.create(name, manifest_path.as_path(), entrypoint.clone())
+            };
+
+            match result {
                 Ok(()) => {
                     println!("Edge App successfully created.");
                 }
