@@ -14,6 +14,7 @@ use crate::api::edge_app::setting::SettingType;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::ignorer::Ignorer;
+use crate::commands::serde_utils::indent_yaml_sequences;
 use crate::commands::CommandError;
 
 pub const MOCK_DATA_FILENAME: &str = "mock-data.yml";
@@ -331,7 +332,7 @@ impl EdgeAppCommand {
         );
         mock_data.insert("settings".to_string(), serde_yaml::to_value(settings)?);
 
-        let mock_data_yaml = serde_yaml::to_string(&mock_data)?;
+        let mock_data_yaml = indent_yaml_sequences(&serde_yaml::to_string(&mock_data)?);
 
         fs::write(edge_app_dir.join(MOCK_DATA_FILENAME), mock_data_yaml)?;
 

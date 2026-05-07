@@ -8,7 +8,7 @@ use serde_with::serde_as;
 
 use crate::commands::edge_app::manifest::beautify_error_message;
 use crate::commands::serde_utils::{
-    deserialize_option_string_field, string_field_is_none_or_empty,
+    deserialize_option_string_field, indent_yaml_sequences, string_field_is_none_or_empty,
 };
 use crate::commands::CommandError;
 
@@ -123,7 +123,7 @@ impl InstanceManifest {
     }
 
     pub fn save_to_file(manifest: &InstanceManifest, path: &Path) -> Result<(), CommandError> {
-        let yaml = serde_yaml::to_string(&manifest)?;
+        let yaml = indent_yaml_sequences(&serde_yaml::to_string(&manifest)?);
         let manifest_file = File::create(path)?;
         write!(&manifest_file, "---\n{yaml}")?;
         Ok(())
