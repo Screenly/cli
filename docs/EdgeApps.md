@@ -83,6 +83,55 @@ When you run the screenly edge-app create command, two files will be created in 
 - `screenly.yml`
 - `index.html`
 
+#### Remote entrypoint (`--entrypoint`)
+
+If your Edge App should load a remote URL instead of a bundled `index.html`,
+pass the URL at create time:
+
+```shell
+$ screenly edge-app create --name hello-remote --entrypoint https://example.com/app
+```
+
+This sets `entrypoint.type: remote-global` and `entrypoint.uri` in
+`screenly.yml`, skips writing the `index.html` stub, and drops a starter
+`screenly_inject.js` next to the manifest.
+
+The main use case for remote entrypoints is **JS injection** — a snippet
+of JavaScript that the player executes against the loaded remote page on
+every load. The most common reason to reach for this is **authenticating
+to the remote page**: overriding `fetch`/`XHR` to attach `Authorization`
+headers, setting cookies or `localStorage` tokens before the page boots,
+auto-filling and submitting login forms, etc.
+
+To use it, edit `screenly_inject.js` and run `screenly edge-app deploy`.
+The file is bundled as part of the Edge App's revision; the player picks
+it up automatically on remote-entrypoint Edge Apps. If you don't want JS
+injection, delete the file before deploying.
+
+To pass credentials securely into the injected script, define them as
+Edge App **settings** or **secrets** (see [Settings](#settings) below)
+and read them as `screenly_settings.<key>` inside `screenly_inject.js`.
+The player provides `screenly_settings` to the script at runtime, so
+secret values don't appear in the page source or in the injection
+script you commit to source control.
+
+Example `screenly_inject.js` that adds a Bearer token to every outbound
+request from the remote page:
+
+```js
+const token = screenly_settings.api_token;
+const originalFetch = window.fetch;
+window.fetch = (input, init = {}) => {
+  init.headers = { ...(init.headers || {}), Authorization: `Bearer ${token}` };
+  return originalFetch(input, init);
+};
+```
+
+Only `remote-global` (one URL shared across all instances) can be configured
+via `--entrypoint`. For `remote-local` (per-instance URLs), set
+`entrypoint.type: remote-local` in `screenly.yml` and `entrypoint_uri` per
+instance in `instance.yml`.
+
 `screenly.yml` contains the metadata. In this file, you can define settings, secrets, and various other metadata. In our "Hello World" example, we have a single setting called `greeting`, which is used in the Edge App.
 
 `index.html` is our entry point. It is what the client (i.e., the player) will load. This particular file is very simple and just includes some styling and various metadata examples.

@@ -29,9 +29,16 @@ use crate::commands::edge_app::utils::{
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
 
+pub const INJECT_JS_FILE_NAME: &str = "screenly_inject.js";
+
 // Edge apps commands
 impl EdgeAppCommand {
-    pub fn create(&self, name: &str, path: &Path) -> Result<(), CommandError> {
+    pub fn create(
+        &self,
+        name: &str,
+        path: &Path,
+        entrypoint: Option<String>,
+    ) -> Result<(), CommandError> {
         let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
             "Cannot obtain Edge App root directory.".to_owned(),
         ))?;
@@ -44,15 +51,33 @@ impl EdgeAppCommand {
             )));
         }
 
+        let entrypoint_value = match entrypoint {
+            Some(url) => {
+                match reqwest::Url::parse(&url) {
+                    Ok(parsed) if parsed.scheme() == "http" || parsed.scheme() == "https" => {}
+                    _ => {
+                        return Err(CommandError::InitializationError(format!(
+                            "Invalid --entrypoint URL: {url}. Must be a valid http or https URL."
+                        )));
+                    }
+                }
+                Some(Entrypoint {
+                    entrypoint_type: EntrypointType::RemoteGlobal,
+                    uri: Some(url),
+                })
+            }
+            None => Some(Entrypoint {
+                entrypoint_type: EntrypointType::File,
+                uri: None,
+            }),
+        };
+
         let app_id = self.api.create_app(name.to_string())?;
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
             id: Some(app_id),
-            entrypoint: Some(Entrypoint {
-                entrypoint_type: EntrypointType::File,
-                uri: None,
-            }),
+            entrypoint: entrypoint_value,
             settings: vec![
                 Setting {
                     name: "secret_word".to_string(),
@@ -80,14 +105,70 @@ impl EdgeAppCommand {
 
         EdgeAppManifest::save_to_file(&manifest, path)?;
 
-        let index_html_template =
-            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/index.html"));
-        let index_html_file = File::create(&index_html_path)?;
-        write!(&index_html_file, "{index_html_template}")?;
+        let is_remote = matches!(
+            manifest.entrypoint,
+            Some(Entrypoint {
+                entrypoint_type: EntrypointType::RemoteGlobal,
+                ..
+            })
+        );
+
+        if !is_remote {
+            let index_html_template =
+                include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/data/index.html"));
+            let index_html_file = File::create(&index_html_path)?;
+            write!(&index_html_file, "{index_html_template}")?;
+        }
+
+        if is_remote {
+            let inject_js_path = parent_dir_path.join(INJECT_JS_FILE_NAME);
+            if !inject_js_path.exists() {
+                let template = include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/data/screenly_inject.js"
+                ));
+                fs::write(&inject_js_path, template)?;
+            }
+        }
 
         Ok(())
     }
+}
 
+/// RAII guard that materializes an empty `index.html` in the edge app directory
+/// for the duration of a deploy of a remote-entrypoint app. The backend rejects
+/// publishing a version with no asset signatures, so we ship a placeholder.
+struct VirtualIndexHtml {
+    path: PathBuf,
+    created: bool,
+}
+
+impl VirtualIndexHtml {
+    /// Minimal HTML so the asset has non-zero size (the backend rejects empty
+    /// asset bodies with a check-constraint violation). The contents are never
+    /// rendered — the player loads the remote entrypoint URL instead.
+    const PLACEHOLDER: &'static str =
+        "<!-- Screenly remote entrypoint placeholder; see screenly.yml -->\n";
+
+    fn ensure(parent_dir: &Path) -> Result<Self, CommandError> {
+        let path = parent_dir.join("index.html");
+        let created = !path.exists();
+        if created {
+            fs::write(&path, Self::PLACEHOLDER)?;
+        }
+        Ok(Self { path, created })
+    }
+}
+
+impl Drop for VirtualIndexHtml {
+    fn drop(&mut self) {
+        if self.created {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
+impl EdgeAppCommand {
     pub fn create_in_place(&self, name: &str, path: &Path) -> Result<(), CommandError> {
         let parent_dir_path = path.parent().ok_or(CommandError::FileSystemError(
             "Cannot obtain Edge App root directory.".to_owned(),
@@ -141,13 +222,31 @@ impl EdgeAppCommand {
 
         let edge_app_dir = manifest_path.parent().ok_or(CommandError::MissingField)?;
 
+        // Remote-entrypoint apps don't need a real index.html, but the backend
+        // requires every published version to have at least one signed asset.
+        // Materialize an empty placeholder for the duration of this deploy.
+        let is_remote_entrypoint = matches!(
+            manifest.entrypoint,
+            Some(Entrypoint {
+                entrypoint_type: EntrypointType::RemoteGlobal,
+                ..
+            }) | Some(Entrypoint {
+                entrypoint_type: EntrypointType::RemoteLocal,
+                ..
+            })
+        );
+        let _virtual_index_html = if is_remote_entrypoint {
+            Some(VirtualIndexHtml::ensure(edge_app_dir)?)
+        } else {
+            None
+        };
+
         let local_files = collect_paths_for_upload(edge_app_dir)?;
         ensure_edge_app_has_all_necessary_files(&local_files)?;
 
-        let revision = match self.api.get_latest_revision(&actual_app_id)? {
-            Some(revision) => revision.revision,
-            None => 0,
-        };
+        let prior_revision = self.api.get_latest_revision(&actual_app_id)?;
+        let is_first_deploy = prior_revision.is_none();
+        let revision = prior_revision.map(|r| r.revision).unwrap_or(0);
 
         let remote_files = self
             .api
@@ -166,7 +265,7 @@ impl EdgeAppCommand {
             changed_settings,
         )?;
 
-        self.update_entrypoint_value(path)?;
+        self.update_entrypoint_value(path.clone())?;
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
@@ -178,28 +277,31 @@ impl EdgeAppCommand {
         };
 
         debug!("File tree changed: {file_tree_changed}");
-        if !self.requires_upload(&changed_files) && !file_tree_changed && !version_metadata_changed
-        {
-            return Err(CommandError::NoChangesToUpload(
-                "No changes detected".to_owned(),
-            ));
-        }
+        let needs_new_version = is_first_deploy
+            || self.requires_upload(&changed_files)
+            || file_tree_changed
+            || version_metadata_changed;
 
-        // now that we know we have changes, we can create a new version
-        let revision =
-            self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
+        let final_revision = if needs_new_version {
+            let revision =
+                self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
 
-        self.upload_changed_files(edge_app_dir, &actual_app_id, revision, &changed_files)?;
-        debug!("Files uploaded");
+            self.upload_changed_files(edge_app_dir, &actual_app_id, revision, &changed_files)?;
+            debug!("Files uploaded");
 
-        self.ensure_assets_processing_finished(&actual_app_id, revision)?;
-        // now we freeze it by publishing it
-        self.api.publish_version(&actual_app_id, revision)?;
-        debug!("Edge App published.");
+            self.ensure_assets_processing_finished(&actual_app_id, revision)?;
+            // now we freeze it by publishing it
+            self.api.publish_version(&actual_app_id, revision)?;
+            debug!("Edge App published.");
 
-        self.promote_version(&actual_app_id, revision, "stable")?;
+            self.promote_version(&actual_app_id, revision, "stable")?;
+            revision
+        } else {
+            debug!("No version-creating changes; skipping version creation.");
+            revision
+        };
 
-        Ok(revision)
+        Ok(final_revision)
     }
 
     fn promote_version(
@@ -639,12 +741,14 @@ mod tests {
         let result = command.create(
             "Best app ever",
             tmp_dir.path().join("screenly.yml").as_path(),
+            None,
         );
 
         post_mock.assert();
 
         assert!(tmp_dir.path().join("screenly.yml").exists());
         assert!(tmp_dir.path().join("index.html").exists());
+        assert!(!tmp_dir.path().join(".ignore").exists());
 
         let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
         let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
@@ -699,6 +803,7 @@ mod tests {
         let result = command.create(
             "Best app ever",
             tmp_dir.path().join("screenly.yml").as_path(),
+            None,
         );
 
         assert!(result.is_err());
@@ -714,6 +819,7 @@ mod tests {
         let result = command.create(
             "Best app ever",
             tmp_dir.path().join("screenly.yml").as_path(),
+            None,
         );
 
         assert!(result.is_err());
@@ -824,6 +930,68 @@ mod tests {
                 result.unwrap_err().to_string(),
                 "Initialization Failed: The operation can only proceed when 'id' is not set in the 'screenly.yml' configuration file"
             );
+    }
+
+    #[test]
+    fn test_edge_app_create_with_remote_entrypoint_should_set_remote_global_and_write_inject_template(
+    ) {
+        let (tmp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        let post_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/edge-apps")
+                .header("Authorization", "Token token")
+                .json_body(json!({ "name": "Remote app" }));
+            then.status(201)
+                .json_body(json!([{"id": "test-id", "name": "Remote app"}]));
+        });
+
+        let result = command.create(
+            "Remote app",
+            tmp_dir.path().join("screenly.yml").as_path(),
+            Some("https://example.com/app".to_string()),
+        );
+
+        post_mock.assert();
+        assert!(result.is_ok());
+
+        let data = fs::read_to_string(tmp_dir.path().join("screenly.yml")).unwrap();
+        let manifest: EdgeAppManifest = serde_yaml::from_str(&data).unwrap();
+        assert_eq!(
+            manifest.entrypoint,
+            Some(Entrypoint {
+                entrypoint_type: EntrypointType::RemoteGlobal,
+                uri: Some("https://example.com/app".to_string()),
+            })
+        );
+
+        assert!(!tmp_dir.path().join("index.html").exists());
+        assert!(!tmp_dir.path().join(".ignore").exists());
+
+        let inject_path = tmp_dir.path().join(INJECT_JS_FILE_NAME);
+        assert!(inject_path.exists());
+        let inject_content = fs::read_to_string(&inject_path).unwrap();
+        assert!(inject_content.contains("screenly_settings"));
+    }
+
+    #[test]
+    fn test_edge_app_create_with_invalid_entrypoint_url_should_fail() {
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        let result = command.create(
+            "Bad app",
+            tmp_dir.path().join("screenly.yml").as_path(),
+            Some("not-a-url".to_string()),
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid --entrypoint URL"));
+        assert!(!tmp_dir.path().join("screenly.yml").exists());
     }
 
     #[test]

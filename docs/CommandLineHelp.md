@@ -474,6 +474,7 @@ Creates an Edge App in the store
 * `-n`, `--name <NAME>` — Edge App name
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
 * `-i`, `--in-place` — Use an existing Edge App directory with the manifest and index.html
+* `-e`, `--entrypoint <ENTRYPOINT>` — Remote entrypoint URL. When set, the created app uses entrypoint.type = remote-global with this URL and a starter `screenly_inject.js` is dropped next to `screenly.yml`. The inject file is shipped with each deploy and the player runs it on every load
 
 
 
