@@ -485,7 +485,6 @@ settings: {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest.yml");
 
-        // The EdgeAppManifest structure from your example
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),
@@ -513,20 +512,15 @@ settings: {
         let mock_data_path = dir.path().join(MOCK_DATA_FILENAME);
         assert!(mock_data_path.exists());
 
-        let _generated_content = fs::read_to_string(&mock_data_path).unwrap();
-        let _expected_content = r#"metadata:
-      coordinates:
-        - "37.3861"
-        - "-122.0839"
-      hostname: "srly-t6kb0ta1jrd9o0w"
-      location: "Code Cafe, Mountain View, California"
-      screen_name: "Code Cafe Display"
-      tags:
-        - "All Screens"
-    settings:
-      asetting: "yes"
-      nsetting: ""
-    "#;
+        let generated_content = fs::read_to_string(&mock_data_path).unwrap();
+
+        // Sequences must be indented under their parent key.
+        assert!(generated_content.contains("coordinates:\n    - "));
+        assert!(generated_content.contains("tags:\n    - "));
+
+        // Settings values must be present.
+        assert!(generated_content.contains("asetting: yes"));
+        assert!(generated_content.contains("nsetting: ''"));
     }
 
     #[test]
