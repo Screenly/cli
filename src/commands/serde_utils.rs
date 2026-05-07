@@ -1,50 +1,15 @@
+use pretty_yaml::config::{FormatOptions, LanguageOptions, Quotes};
 use serde::{Deserialize, Deserializer};
 
-pub fn indent_yaml_sequences(yaml: &str) -> String {
-    let mut result = String::with_capacity(yaml.len() + 32);
-    let mut lines = yaml.lines().peekable();
-
-    while let Some(line) = lines.next() {
-        result.push_str(line);
-        result.push('\n');
-
-        let trimmed = line.trim_end();
-        if !trimmed.ends_with(':') {
-            continue;
-        }
-
-        let key_indent = line.len() - line.trim_start().len();
-        let extra = "  ";
-
-        while let Some(&next) = lines.peek() {
-            let next_trimmed = next.trim_start();
-            let next_indent = next.len() - next_trimmed.len();
-            if (next_trimmed.starts_with("- ") || next_trimmed == "-") && next_indent == key_indent
-            {
-                lines.next();
-                result.push_str(extra);
-                result.push_str(next);
-                result.push('\n');
-
-                while let Some(&cont) = lines.peek() {
-                    let cont_trimmed = cont.trim_start();
-                    let cont_indent = cont.len() - cont_trimmed.len();
-                    if cont_indent > key_indent {
-                        lines.next();
-                        result.push_str(extra);
-                        result.push_str(cont);
-                        result.push('\n');
-                    } else {
-                        break;
-                    }
-                }
-            } else {
-                break;
-            }
-        }
-    }
-
-    result
+pub fn format_yaml(raw: &str) -> String {
+    let options = FormatOptions {
+        language: LanguageOptions {
+            quotes: Quotes::PreferSingle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    pretty_yaml::format_text(raw, &options).unwrap_or_else(|_| raw.to_owned())
 }
 
 pub fn deserialize_option_string_field<'de, D>(

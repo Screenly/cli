@@ -10,7 +10,7 @@ use serde_json::json;
 use super::manifest_auth::AuthType;
 use crate::api::edge_app::setting::{deserialize_settings, serialize_settings, Setting};
 use crate::commands::serde_utils::{
-    deserialize_option_string_field, indent_yaml_sequences, string_field_is_none_or_empty,
+    deserialize_option_string_field, format_yaml, string_field_is_none_or_empty,
 };
 use crate::commands::CommandError;
 
@@ -270,7 +270,7 @@ impl EdgeAppManifest {
     }
 
     pub fn save_to_file(manifest: &EdgeAppManifest, path: &Path) -> Result<(), CommandError> {
-        let yaml = indent_yaml_sequences(&serde_yaml::to_string(&manifest)?);
+        let yaml = format_yaml(&serde_yaml::to_string(&manifest)?);
         let manifest_file = File::create(path)?;
         write!(&manifest_file, "---\n{yaml}")?;
         Ok(())
