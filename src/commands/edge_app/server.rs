@@ -14,6 +14,7 @@ use crate::api::edge_app::setting::SettingType;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::ignorer::Ignorer;
+use crate::commands::serde_utils::format_yaml;
 use crate::commands::CommandError;
 
 pub const MOCK_DATA_FILENAME: &str = "mock-data.yml";
@@ -331,7 +332,7 @@ impl EdgeAppCommand {
         );
         mock_data.insert("settings".to_string(), serde_yaml::to_value(settings)?);
 
-        let mock_data_yaml = serde_yaml::to_string(&mock_data)?;
+        let mock_data_yaml = format_yaml(&serde_yaml::to_string(&mock_data)?);
 
         fs::write(edge_app_dir.join(MOCK_DATA_FILENAME), mock_data_yaml)?;
 
@@ -484,7 +485,6 @@ settings: {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test_manifest.yml");
 
-        // The EdgeAppManifest structure from your example
         let manifest = create_edge_app_manifest_for_test(vec![
             Setting {
                 name: "asetting".to_string(),

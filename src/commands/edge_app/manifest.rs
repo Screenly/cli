@@ -10,7 +10,7 @@ use serde_json::json;
 use super::manifest_auth::AuthType;
 use crate::api::edge_app::setting::{deserialize_settings, serialize_settings, Setting};
 use crate::commands::serde_utils::{
-    deserialize_option_string_field, string_field_is_none_or_empty,
+    deserialize_option_string_field, format_yaml, string_field_is_none_or_empty,
 };
 use crate::commands::CommandError;
 
@@ -270,7 +270,7 @@ impl EdgeAppManifest {
     }
 
     pub fn save_to_file(manifest: &EdgeAppManifest, path: &Path) -> Result<(), CommandError> {
-        let yaml = serde_yaml::to_string(&manifest)?;
+        let yaml = format_yaml(&serde_yaml::to_string(&manifest)?);
         let manifest_file = File::create(path)?;
         write!(&manifest_file, "---\n{yaml}")?;
         Ok(())
@@ -405,8 +405,8 @@ icon: test_icon
 author: test_author
 homepage_url: test_url
 categories:
-- Utilities
-- Dashboards
+  - Utilities
+  - Dashboards
 entrypoint:
   type: file
 ready_signal: true
@@ -442,8 +442,8 @@ user_version: test_version
 icon: test_icon
 homepage_url: test_url
 categories:
-- Utilities
-- Dashboards
+  - Utilities
+  - Dashboards
 entrypoint:
   type: file
 settings:
@@ -477,8 +477,8 @@ user_version: test_version
 icon: test_icon
 homepage_url: test_url
 categories:
-- Utilities
-- Dashboards
+  - Utilities
+  - Dashboards
 entrypoint:
   type: file
 ready_signal: true
@@ -939,8 +939,8 @@ icon: test_icon
 author: test_author
 homepage_url: test_url
 categories:
-- Utilities
-- Dashboards
+  - Utilities
+  - Dashboards
 entrypoint:
   type: file
 settings:

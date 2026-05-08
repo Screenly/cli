@@ -1,4 +1,16 @@
+use pretty_yaml::config::{FormatOptions, LanguageOptions, Quotes};
 use serde::{Deserialize, Deserializer};
+
+pub fn format_yaml(raw: &str) -> String {
+    let options = FormatOptions {
+        language: LanguageOptions {
+            quotes: Quotes::PreferSingle,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    pretty_yaml::format_text(raw, &options).unwrap_or_else(|_| raw.to_owned())
+}
 
 pub fn deserialize_option_string_field<'de, D>(
     field_name: &'static str,
