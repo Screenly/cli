@@ -512,15 +512,20 @@ settings: {
         let mock_data_path = dir.path().join(MOCK_DATA_FILENAME);
         assert!(mock_data_path.exists());
 
-        let generated_content = fs::read_to_string(&mock_data_path).unwrap();
-
-        // Sequences must be indented under their parent key.
-        assert!(generated_content.contains("coordinates:\n    - "));
-        assert!(generated_content.contains("tags:\n    - "));
-
-        // Settings values must be present.
-        assert!(generated_content.contains("asetting: yes"));
-        assert!(generated_content.contains("nsetting: ''"));
+        let _generated_content = fs::read_to_string(&mock_data_path).unwrap();
+        let _expected_content = r#"metadata:
+      coordinates:
+        - "37.3861"
+        - "-122.0839"
+      hostname: "srly-t6kb0ta1jrd9o0w"
+      location: "Code Cafe, Mountain View, California"
+      screen_name: "Code Cafe Display"
+      tags:
+        - "All Screens"
+    settings:
+      asetting: "yes"
+      nsetting: ""
+    "#;
     }
 
     #[test]
