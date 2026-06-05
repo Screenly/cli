@@ -22,6 +22,7 @@ pub(crate) mod serde_utils;
 pub enum OutputType {
     HumanReadable,
     Json,
+    Csv,
 }
 
 pub trait Formatter {
@@ -67,6 +68,35 @@ where
             table.to_string()
         }
         OutputType::Json => serde_json::to_string_pretty(&value.value()).unwrap(),
+        OutputType::Csv => {
+            let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+            wtr.write_record(&column_names).unwrap();
+            if let Some(values) = value.value().as_array() {
+                for v in values {
+                    let row: Vec<String> = field_names
+                        .iter()
+                        .map(|field| {
+                            let fv = &v[field];
+                            if let Some(s) = fv.as_str() {
+                                s.to_string()
+                            } else if let Some(b) = fv.as_bool() {
+                                b.to_string()
+                            } else if let Some(n) = fv.as_u64() {
+                                n.to_string()
+                            } else if let Some(n) = fv.as_f64() {
+                                n.to_string()
+                            } else if fv.is_null() {
+                                String::new()
+                            } else {
+                                fv.to_string()
+                            }
+                        })
+                        .collect();
+                    wtr.write_record(&row).unwrap();
+                }
+            }
+            String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+        }
     }
 }
 
