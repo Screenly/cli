@@ -4,7 +4,7 @@ use std::{env, fs, io};
 
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
-use log::{error, info};
+use log::{error, info, warn};
 use reqwest::StatusCode;
 use rpassword::read_password;
 use thiserror::Error;
@@ -78,6 +78,10 @@ pub struct Cli {
     /// Output format: table (default), json, or csv.
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Table, global = true)]
     pub output: OutputFormat,
+
+    /// Deprecated: use --output json instead.
+    #[arg(long, hide = true, global = true, conflicts_with = "output")]
+    pub json: bool,
 
     #[command(subcommand)]
     pub(crate) command: Commands,
@@ -532,6 +536,13 @@ pub fn get_asset_title(
 }
 
 pub fn handle_cli(cli: &Cli) {
+    let output = if cli.json {
+        warn!("--json is deprecated, use --output json instead.");
+        &OutputFormat::Json
+    } else {
+        &cli.output
+    };
+
     match &cli.command {
         Commands::Login {} => {
             print!("Enter your API Token: ");
@@ -555,10 +566,10 @@ pub fn handle_cli(cli: &Cli) {
                 },
             }
         }
-        Commands::Screen(command) => handle_cli_screen_command(command, &cli.output),
-        Commands::Asset(command) => handle_cli_asset_command(command, &cli.output),
-        Commands::EdgeApp(command) => handle_cli_edge_app_command(command, &cli.output),
-        Commands::Playlist(command) => handle_cli_playlist_command(command, &cli.output),
+        Commands::Screen(command) => handle_cli_screen_command(command, output),
+        Commands::Asset(command) => handle_cli_asset_command(command, output),
+        Commands::EdgeApp(command) => handle_cli_edge_app_command(command, output),
+        Commands::Playlist(command) => handle_cli_playlist_command(command, output),
         Commands::Logout {} => {
             Authentication::remove_token().expect("Failed to remove token.");
             info!("Logout successful.");
