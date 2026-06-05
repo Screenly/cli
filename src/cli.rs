@@ -938,7 +938,10 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: &OutputFor
         },
         EdgeAppCommands::Setting(command) => match command {
             EdgeAppSettingsCommands::List { path } => {
-                handle_command_execution_result(edge_app_command.list_settings(path.clone()), output);
+                handle_command_execution_result(
+                    edge_app_command.list_settings(path.clone()),
+                    output,
+                );
             }
             EdgeAppSettingsCommands::Set { setting_pair, path } => {
                 match edge_app_command.set_setting(path.clone(), &setting_pair.0, &setting_pair.1) {
