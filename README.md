@@ -86,6 +86,9 @@ $ screenly --output json asset list
 
 # CSV output saved to a file
 $ screenly --output csv screen list > screens.csv
+
+# JSON output saved to a file
+$ screenly --output json screen list > screens.json
 ```
 
 > [!NOTE]
@@ -93,6 +96,7 @@ $ screenly --output csv screen list > screens.csv
 > when redirecting output to a file:
 > ```bash
 > $ RUST_LOG=off screenly --output csv screen list > screens.csv
+> $ RUST_LOG=off screenly --output json screen list > screens.json
 > ```
 
 ## MCP Server (AI Assistant Integration)
