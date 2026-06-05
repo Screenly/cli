@@ -458,6 +458,10 @@ pub fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
     output: &OutputFormat,
 ) {
+    if *output == OutputFormat::Csv && !T::supports_csv() {
+        error!("CSV output is not supported for this command. Use --output table or --output json instead.");
+        std::process::exit(1);
+    }
     match result {
         Ok(screen) => {
             let output_type = match output {

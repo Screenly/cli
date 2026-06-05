@@ -27,6 +27,12 @@ pub enum OutputType {
 
 pub trait Formatter {
     fn format(&self, output_type: OutputType) -> String;
+    fn supports_csv() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
 }
 
 pub trait FormatterValue {
@@ -326,6 +332,10 @@ impl Formatter for EdgeApps {
             None::<fn(&str, &serde_json::Value) -> Cell>,
         )
     }
+
+    fn supports_csv() -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -410,6 +420,10 @@ impl Formatter for EdgeAppInstances {
             ),
         )
     }
+
+    fn supports_csv() -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -439,6 +453,10 @@ impl Formatter for Assets {
             None::<fn(&str, &serde_json::Value) -> Cell>,
         )
     }
+
+    fn supports_csv() -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -459,6 +477,10 @@ impl FormatterValue for Screens {
 }
 
 impl Formatter for Screens {
+    fn supports_csv() -> bool {
+        true
+    }
+
     fn format(&self, output_type: OutputType) -> String {
         fn format_boolean_field(value: &serde_json::Value) -> Cell {
             if value.as_bool().unwrap_or(false) {
@@ -527,6 +549,10 @@ impl FormatterValue for Playlists {
 }
 
 impl Formatter for Playlists {
+    fn supports_csv() -> bool {
+        true
+    }
+
     fn format(&self, output_type: OutputType) -> String {
         fn format_boolean_field(value: &serde_json::Value) -> Cell {
             if value.as_bool().unwrap_or(false) {
@@ -570,6 +596,10 @@ impl FormatterValue for PlaylistItems {
 }
 
 impl Formatter for PlaylistItems {
+    fn supports_csv() -> bool {
+        true
+    }
+
     fn format(&self, output_type: OutputType) -> String {
         format_value(
             output_type,
