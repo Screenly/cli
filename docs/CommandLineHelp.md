@@ -11,6 +11,7 @@ This document contains the help content for the `screenly` command-line program.
 * [`screenly screen list`↴](#screenly-screen-list)
 * [`screenly screen get`↴](#screenly-screen-get)
 * [`screenly screen add`↴](#screenly-screen-add)
+* [`screenly screen status`↴](#screenly-screen-status)
 * [`screenly screen delete`↴](#screenly-screen-delete)
 * [`screenly asset`↴](#screenly-asset)
 * [`screenly asset list`↴](#screenly-asset-list)
@@ -97,6 +98,7 @@ Screen related commands
 * `list` — Lists your screens
 * `get` — Gets a single screen by id
 * `add` — Adds a new screen
+* `status` — Shows screen counts: total, online/offline, out of sync
 * `delete` — Deletes a screen. This cannot be undone
 
 
@@ -139,6 +141,18 @@ Adds a new screen
 
 * `<PIN>` — Pin code created with registrations endpoint
 * `<NAME>` — Optional name of the new screen
+
+###### **Options:**
+
+* `-j`, `--json` — Enables JSON output
+
+
+
+## `screenly screen status`
+
+Shows screen counts: total, online/offline, out of sync
+
+**Usage:** `screenly screen status [OPTIONS]`
 
 ###### **Options:**
 
