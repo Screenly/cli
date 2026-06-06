@@ -68,8 +68,7 @@ impl ScreenCommand {
     }
 
     pub fn status(&self) -> Result<ScreensStatus, CommandError> {
-        let data =
-            commands::get(&self.authentication, "v4/screens?select=id,status,in_sync")?;
+        let data = commands::get(&self.authentication, "v4/screens?select=id,status,in_sync")?;
         let screens = data.as_array().map(|a| a.as_slice()).unwrap_or(&[]);
 
         let total = screens.len();
@@ -273,10 +272,7 @@ mod tests {
 
     #[test]
     fn test_screens_all_online_and_in_sync() {
-        let screens = json!([
-            make_screen("Online", true),
-            make_screen("Online", true),
-        ]);
+        let screens = json!([make_screen("Online", true), make_screen("Online", true),]);
 
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
