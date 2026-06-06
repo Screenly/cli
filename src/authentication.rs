@@ -117,7 +117,7 @@ impl Authentication {
             .tokens
             .get(&active)
             .cloned()
-            .ok_or(AuthenticationError::NoCredentials)
+            .ok_or_else(|| AuthenticationError::ProfileNotFound(active))
     }
 
     pub fn remove_token(name: Option<&str>) -> Result<(), AuthenticationError> {

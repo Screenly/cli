@@ -30,6 +30,9 @@ fn get_authentication_error_message(e: &AuthenticationError) -> String {
         AuthenticationError::Io(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
             "Not logged in. Please run `screenly login` first to authenticate.".to_string()
         }
+        AuthenticationError::ProfileNotFound(name) => {
+            format!("Active profile '{name}' not found. Run `screenly auth switch` to pick a valid profile.")
+        }
         _ => {
             format!("Authentication error: {e}. Please run `screenly login` to authenticate.")
         }
