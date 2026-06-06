@@ -123,6 +123,12 @@ pub enum ScreenCommands {
         /// Optional name of the new screen.
         name: Option<String>,
     },
+    /// Shows screen counts: total, online/offline, out of sync.
+    Status {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
+    },
     /// Deletes a screen. This cannot be undone.
     Delete {
         /// UUID of the screen to be deleted.
@@ -648,6 +654,21 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
         }
         ScreenCommands::Add { pin, name, json } => {
             handle_command_execution_result(screen_command.add(pin, name.clone()), json);
+        }
+        ScreenCommands::Status { json } => {
+            let screen_status_command = commands::screen::ScreenCommand::new(get_authentication());
+            let output_type = if json == &Some(true) {
+                OutputType::Json
+            } else {
+                OutputType::HumanReadable
+            };
+            match screen_status_command.status() {
+                Ok(status) => println!("{}", status.format(output_type)),
+                Err(e) => {
+                    error!("Error occurred: {e:?}");
+                    std::process::exit(1);
+                }
+            }
         }
         ScreenCommands::Delete { uuid } => {
             match get_screen_name(uuid, &screen_command) {

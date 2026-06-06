@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
+use prettytable::{row, Table};
 use reqwest::StatusCode;
+use serde::Serialize;
 
 use crate::authentication::Authentication;
 use crate::commands;
-use crate::commands::{CommandError, Screens};
+use crate::commands::{CommandError, OutputType, Screens};
 
 pub struct ScreenCommand {
     authentication: Authentication,
@@ -63,6 +65,56 @@ impl ScreenCommand {
     pub fn delete(&self, id: &str) -> anyhow::Result<(), CommandError> {
         let endpoint = format!("v3/screens/{id}/");
         commands::delete(&self.authentication, &endpoint)
+    }
+
+    pub fn status(&self) -> Result<ScreensStatus, CommandError> {
+        let data =
+            commands::get(&self.authentication, "v4/screens?select=id,status,in_sync")?;
+        let screens = data.as_array().map(|a| a.as_slice()).unwrap_or(&[]);
+
+        let total = screens.len();
+        let online = screens
+            .iter()
+            .filter(|s| s["status"].as_str() == Some("Online"))
+            .count();
+        let out_of_sync = screens
+            .iter()
+            .filter(|s| s["in_sync"].as_bool() != Some(true))
+            .count();
+
+        Ok(ScreensStatus {
+            total,
+            online,
+            offline: total - online,
+            out_of_sync,
+        })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScreensStatus {
+    pub total: usize,
+    pub online: usize,
+    pub offline: usize,
+    pub out_of_sync: usize,
+}
+
+impl ScreensStatus {
+    pub fn format(&self, output_type: OutputType) -> String {
+        match output_type {
+            OutputType::Json => serde_json::to_string_pretty(self).unwrap(),
+            OutputType::HumanReadable => {
+                let mut table = Table::new();
+                table.add_row(row!["Total", "Online", "Offline", "Out of Sync"]);
+                table.add_row(row![
+                    self.total,
+                    self.online,
+                    self.offline,
+                    self.out_of_sync
+                ]);
+                table.to_string()
+            }
+        }
     }
 }
 
@@ -187,5 +239,78 @@ mod tests {
 +--------------------------------------+---------------------------------+---------+----------+------------------+---------+-------------------------------+--------+\n";
 
         assert_eq!(screen.format(OutputType::HumanReadable), expected_output);
+    }
+
+    fn make_screen(status: &str, in_sync: bool) -> serde_json::Value {
+        json!({ "id": "abc", "status": status, "in_sync": in_sync })
+    }
+
+    #[test]
+    fn test_screens_counts_online_offline_and_out_of_sync() {
+        let screens = json!([
+            make_screen("Online", true),
+            make_screen("Online", false),
+            make_screen("Offline", true),
+            make_screen("Offline", false),
+        ]);
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/screens")
+                .query_param("select", "id,status,in_sync");
+            then.status(200).json_body(screens);
+        });
+
+        let auth = Authentication::new_with_config(Config::new(mock_server.base_url()), "token");
+        let result = ScreenCommand::new(auth).status().unwrap();
+
+        assert_eq!(result.total, 4);
+        assert_eq!(result.online, 2);
+        assert_eq!(result.offline, 2);
+        assert_eq!(result.out_of_sync, 2);
+    }
+
+    #[test]
+    fn test_screens_all_online_and_in_sync() {
+        let screens = json!([
+            make_screen("Online", true),
+            make_screen("Online", true),
+        ]);
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/screens")
+                .query_param("select", "id,status,in_sync");
+            then.status(200).json_body(screens);
+        });
+
+        let auth = Authentication::new_with_config(Config::new(mock_server.base_url()), "token");
+        let result = ScreenCommand::new(auth).status().unwrap();
+
+        assert_eq!(result.total, 2);
+        assert_eq!(result.online, 2);
+        assert_eq!(result.offline, 0);
+        assert_eq!(result.out_of_sync, 0);
+    }
+
+    #[test]
+    fn test_screens_empty() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/screens")
+                .query_param("select", "id,status,in_sync");
+            then.status(200).json_body(json!([]));
+        });
+
+        let auth = Authentication::new_with_config(Config::new(mock_server.base_url()), "token");
+        let result = ScreenCommand::new(auth).status().unwrap();
+
+        assert_eq!(result.total, 0);
+        assert_eq!(result.online, 0);
+        assert_eq!(result.offline, 0);
+        assert_eq!(result.out_of_sync, 0);
     }
 }
