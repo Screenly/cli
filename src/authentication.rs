@@ -1,7 +1,10 @@
+use std::collections::HashMap;
 use std::{env, fs};
 
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::{header, StatusCode};
+use serde::{Deserialize, Serialize};
+use serde_yaml;
 use thiserror::Error;
 
 // For compatability reasons - let's leave build env as well.
@@ -19,6 +22,8 @@ pub enum AuthenticationError {
     WrongCredentials,
     #[error("no credentials error")]
     NoCredentials,
+    #[error("profile not found: {0}")]
+    ProfileNotFound(String),
     #[error("request error")]
     Request(#[from] reqwest::Error),
     #[error("i/o error")]
@@ -29,8 +34,16 @@ pub enum AuthenticationError {
     MissingHomeDir(),
     #[error("invalid header error")]
     InvalidHeader(#[from] InvalidHeaderValue),
+    #[error("yaml error")]
+    Yaml(#[from] serde_yaml::Error),
     #[error("unknown error")]
     Unknown,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct TokenStore {
+    active: Option<String>,
+    tokens: HashMap<String, String>,
 }
 
 pub struct Authentication {
@@ -57,6 +70,35 @@ impl Config {
     }
 }
 
+fn screenly_path() -> Result<std::path::PathBuf, AuthenticationError> {
+    dirs::home_dir()
+        .map(|h| h.join(".screenly"))
+        .ok_or(AuthenticationError::MissingHomeDir())
+}
+
+fn read_store() -> Result<TokenStore, AuthenticationError> {
+    let path = screenly_path()?;
+    if !path.exists() {
+        return Ok(TokenStore::default());
+    }
+    let contents = fs::read_to_string(&path)?;
+    if let Ok(store) = serde_yaml::from_str::<TokenStore>(&contents) {
+        return Ok(store);
+    }
+    // Backward compat: plain text token → migrate to "default" profile
+    let token = contents.trim().to_string();
+    let mut store = TokenStore::default();
+    store.tokens.insert("default".to_string(), token);
+    store.active = Some("default".to_string());
+    Ok(store)
+}
+
+fn write_store(store: &TokenStore) -> Result<(), AuthenticationError> {
+    let path = screenly_path()?;
+    fs::write(path, serde_yaml::to_string(store)?)?;
+    Ok(())
+}
+
 impl Authentication {
     pub fn new() -> Result<Self, AuthenticationError> {
         Ok(Self {
@@ -65,27 +107,59 @@ impl Authentication {
         })
     }
 
-    pub fn remove_token() -> Result<(), AuthenticationError> {
-        match dirs::home_dir() {
-            Some(home) => {
-                fs::remove_file(home.join(".screenly"))?;
-                Ok(())
-            }
-            None => Err(AuthenticationError::MissingHomeDir()),
-        }
-    }
-
     fn read_token() -> Result<String, AuthenticationError> {
         if let Ok(token) = env::var("API_TOKEN") {
             return Ok(token);
         }
+        let store = read_store()?;
+        let active = store.active.ok_or(AuthenticationError::NoCredentials)?;
+        store
+            .tokens
+            .get(&active)
+            .cloned()
+            .ok_or(AuthenticationError::NoCredentials)
+    }
 
-        match dirs::home_dir() {
-            Some(path) => {
-                fs::read_to_string(path.join(".screenly")).map_err(AuthenticationError::Io)
-            }
-            None => Err(AuthenticationError::NoCredentials),
+    pub fn remove_token(name: Option<&str>) -> Result<(), AuthenticationError> {
+        let mut store = read_store()?;
+        let target = match name {
+            Some(n) => n.to_string(),
+            None => store
+                .active
+                .clone()
+                .ok_or(AuthenticationError::NoCredentials)?,
+        };
+        if !store.tokens.contains_key(&target) {
+            return Err(AuthenticationError::ProfileNotFound(target));
         }
+        store.tokens.remove(&target);
+        if store.active.as_deref() == Some(&target) {
+            store.active = store.tokens.keys().next().cloned();
+        }
+        write_store(&store)
+    }
+
+    pub fn list_profiles() -> Result<Vec<(String, String, bool)>, AuthenticationError> {
+        let store = read_store()?;
+        let mut profiles: Vec<(String, String, bool)> = store
+            .tokens
+            .iter()
+            .map(|(name, token)| {
+                let is_active = store.active.as_deref() == Some(name.as_str());
+                (name.clone(), token.clone(), is_active)
+            })
+            .collect();
+        profiles.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(profiles)
+    }
+
+    pub fn switch_profile(name: &str) -> Result<(), AuthenticationError> {
+        let mut store = read_store()?;
+        if !store.tokens.contains_key(name) {
+            return Err(AuthenticationError::ProfileNotFound(name.to_string()));
+        }
+        store.active = Some(name.to_string());
+        write_store(&store)
     }
 
     #[cfg(test)]
@@ -113,19 +187,54 @@ impl Authentication {
     }
 }
 
+pub struct ProfileInfo {
+    pub email: String,
+    pub workspace: String,
+}
+
+pub fn fetch_profile_info(token: &str, api_url: &str) -> Result<ProfileInfo, AuthenticationError> {
+    let secret = format!("Token {token}");
+    let client = reqwest::blocking::Client::builder().build()?;
+
+    let user: serde_json::Value = client
+        .get(format!("{api_url}/v4.1/users/me"))
+        .header(header::AUTHORIZATION, &secret)
+        .send()?
+        .json()?;
+
+    let email = user
+        .get(0)
+        .and_then(|u| u["email"].as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    let teams: serde_json::Value = client
+        .get(format!("{api_url}/v4.1/teams"))
+        .header(header::AUTHORIZATION, &secret)
+        .send()?
+        .json()?;
+
+    let workspace = teams
+        .as_array()
+        .and_then(|arr| arr.iter().find(|t| t["is_current"].as_bool() == Some(true)))
+        .and_then(|t| t["name"].as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
+    Ok(ProfileInfo { email, workspace })
+}
+
 pub fn verify_and_store_token(
     token: &str,
+    name: &str,
     api_url: &str,
 ) -> anyhow::Result<(), AuthenticationError> {
     verify_token(token, api_url)?;
 
-    match dirs::home_dir() {
-        Some(home) => {
-            fs::write(home.join(".screenly"), token)?;
-            Ok(())
-        }
-        None => Err(AuthenticationError::MissingHomeDir()),
-    }
+    let mut store = read_store()?;
+    store.tokens.insert(name.to_string(), token.to_string());
+    store.active = Some(name.to_string());
+    write_store(&store)
 }
 
 fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), AuthenticationError> {
@@ -180,11 +289,14 @@ mod tests {
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "");
-        assert!(verify_and_store_token("correct_token", &authentication.config.url).is_ok());
+        assert!(
+            verify_and_store_token("correct_token", "default", &authentication.config.url).is_ok()
+        );
         let path = tmp_dir.path().join(".screenly");
         assert!(path.exists());
-        let contents = fs::read_to_string(path).unwrap();
-        assert!(contents.eq("correct_token"));
+        let store: TokenStore = serde_yaml::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(store.tokens.get("default").unwrap(), "correct_token");
+        assert_eq!(store.active.unwrap(), "default");
     }
 
     #[test]
@@ -202,7 +314,7 @@ mod tests {
         });
 
         let config = Config::new(mock_server.base_url());
-        assert!(verify_and_store_token("wrong_token", &config.url).is_err());
+        assert!(verify_and_store_token("wrong_token", "default", &config.url).is_err());
         let path = tmp_dir.path().join(".screenly");
 
         assert!(!path.exists());
@@ -214,8 +326,17 @@ mod tests {
         let _lock = lock_test();
         let _token = set_env(OsString::from("API_TOKEN"), "env_token");
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        println!("{}", tmp_dir.path().join(".screenly").to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        let store = TokenStore {
+            active: Some("default".to_string()),
+            tokens: [("default".to_string(), "token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
         assert_eq!(Authentication::read_token().unwrap(), "env_token");
     }
 
@@ -224,20 +345,127 @@ mod tests {
         let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
-
+        let store = TokenStore {
+            active: Some("default".to_string()),
+            tokens: [("default".to_string(), "token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
         assert_eq!(Authentication::read_token().unwrap(), "token");
     }
 
     #[test]
-    fn test_remove_token_should_remove_token_from_storage() {
+    fn test_read_token_backward_compat_plain_text() {
         let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
-        fs::write(tmp_dir.path().join(".screenly").to_str().unwrap(), "token").unwrap();
+        fs::write(tmp_dir.path().join(".screenly"), "legacy_token").unwrap();
+        assert_eq!(Authentication::read_token().unwrap(), "legacy_token");
+    }
 
-        Authentication::remove_token().unwrap();
-        assert!(!tmp_dir.path().join(".screenly").exists());
+    #[test]
+    fn test_remove_token_should_remove_active_profile() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("default".to_string()),
+            tokens: [("default".to_string(), "token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        Authentication::remove_token(None).unwrap();
+        let store: TokenStore =
+            serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
+                .unwrap();
+        assert!(store.tokens.is_empty());
+        assert!(store.active.is_none());
+    }
+
+    #[test]
+    fn test_switch_profile_should_change_active() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [
+                ("prod".to_string(), "prod_token".to_string()),
+                ("stage".to_string(), "stage_token".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        Authentication::switch_profile("stage").unwrap();
+        let updated: TokenStore =
+            serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
+                .unwrap();
+        assert_eq!(updated.active.unwrap(), "stage");
+    }
+
+    #[test]
+    fn test_switch_profile_to_nonexistent_should_fail() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [("prod".to_string(), "prod_token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        assert!(Authentication::switch_profile("ghost").is_err());
+    }
+
+    #[test]
+    fn test_list_profiles_should_return_profiles_with_active_marked() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [
+                ("prod".to_string(), "prod_token".to_string()),
+                ("stage".to_string(), "stage_token".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        let profiles = Authentication::list_profiles().unwrap();
+        assert_eq!(profiles.len(), 2);
+        let prod = profiles.iter().find(|(n, _, _)| n == "prod").unwrap();
+        let stage = profiles.iter().find(|(n, _, _)| n == "stage").unwrap();
+        assert!(prod.2);
+        assert!(!stage.2);
     }
 
     #[test]
@@ -257,11 +485,13 @@ mod tests {
 
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "");
-        assert!(verify_and_store_token("correct_token", &authentication.config.url).is_ok());
+        assert!(
+            verify_and_store_token("correct_token", "default", &authentication.config.url).is_ok()
+        );
         let path = tmp_dir.path().join(".screenly");
         assert!(path.exists());
-        let contents = fs::read_to_string(path).unwrap();
+        let store: TokenStore = serde_yaml::from_str(&fs::read_to_string(path).unwrap()).unwrap();
         group_call_mock.assert();
-        assert!(contents.eq("correct_token"));
+        assert_eq!(store.tokens.get("default").unwrap(), "correct_token");
     }
 }

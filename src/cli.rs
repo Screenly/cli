@@ -9,7 +9,9 @@ use reqwest::StatusCode;
 use rpassword::read_password;
 use thiserror::Error;
 
-use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
+use crate::authentication::{
+    fetch_profile_info, verify_and_store_token, Authentication, AuthenticationError, Config,
+};
 use crate::commands;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
@@ -75,9 +77,20 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token.
-    Login {},
+    Login {
+        /// Profile name to store the token under. Required when other profiles already exist.
+        #[arg(long)]
+        name: Option<String>,
+    },
     /// Logs out and removes the stored token.
-    Logout {},
+    Logout {
+        /// Profile name to remove. Removes the active profile if not specified.
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Manage stored authentication profiles.
+    #[command(subcommand)]
+    Auth(AuthCommands),
     /// Screen related commands.
     #[command(subcommand)]
     Screen(ScreenCommands),
@@ -95,6 +108,17 @@ pub enum Commands {
     /// For generating `docs/CommandLineHelp.md`.
     #[clap(hide = true)]
     PrintHelpMarkdown {},
+}
+
+#[derive(Subcommand)]
+pub enum AuthCommands {
+    /// List stored authentication profiles.
+    List {},
+    /// Switch the active authentication profile.
+    Switch {
+        /// Profile name to activate.
+        name: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -563,13 +587,27 @@ pub fn get_asset_title(
 
 pub fn handle_cli(cli: &Cli) {
     match &cli.command {
-        Commands::Login {} => {
+        Commands::Login { name } => {
+            let resolved_name = match name {
+                Some(n) => n.clone(),
+                None => {
+                    let existing = Authentication::list_profiles().unwrap_or_default();
+                    if existing.is_empty() {
+                        "default".to_string()
+                    } else {
+                        error!(
+                            "Multiple profiles exist. Please specify a profile name with --name."
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            };
             print!("Enter your API Token: ");
             std::io::stdout().flush().unwrap();
             let token = read_password().unwrap();
-            match verify_and_store_token(&token, &Config::default().url) {
+            match verify_and_store_token(&token, &resolved_name, &Config::default().url) {
                 Ok(()) => {
-                    info!("Login credentials have been saved.");
+                    info!("Login credentials have been saved under profile '{resolved_name}'.");
                     std::process::exit(0);
                 }
 
@@ -589,11 +627,99 @@ pub fn handle_cli(cli: &Cli) {
         Commands::Asset(command) => handle_cli_asset_command(command),
         Commands::EdgeApp(command) => handle_cli_edge_app_command(command),
         Commands::Playlist(command) => handle_cli_playlist_command(command),
-        Commands::Logout {} => {
-            Authentication::remove_token().expect("Failed to remove token.");
+        Commands::Logout { name } => {
+            Authentication::remove_token(name.as_deref()).expect("Failed to remove token.");
             info!("Logout successful.");
             std::process::exit(0);
         }
+        Commands::Auth(auth_command) => match auth_command {
+            AuthCommands::List {} => match Authentication::list_profiles() {
+                Ok(profiles) if profiles.is_empty() => {
+                    info!("No profiles stored. Run `screenly login` to add one.");
+                }
+                Ok(profiles) => {
+                    let api_url = Config::default().url;
+                    let rows: Vec<(String, bool, Option<(String, String)>)> = profiles
+                        .into_iter()
+                        .map(|(name, token, is_active)| {
+                            let info = fetch_profile_info(&token, &api_url)
+                                .ok()
+                                .map(|i| (i.email, i.workspace));
+                            (name, is_active, info)
+                        })
+                        .collect();
+
+                    let name_w = rows.iter().map(|(n, _, _)| n.len()).max().unwrap_or(0);
+                    let email_w = rows
+                        .iter()
+                        .filter_map(|(_, _, i)| i.as_ref().map(|(e, _)| e.len()))
+                        .max()
+                        .unwrap_or(0);
+
+                    println!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email");
+                    println!("  {:-<name_w$}  {:-<email_w$}  ---------", "", "");
+                    for (name, is_active, info) in rows {
+                        let marker = if is_active { "*" } else { " " };
+                        match info {
+                            Some((email, workspace)) => {
+                                println!("{marker} {name:<name_w$}  {email:<email_w$}  {workspace}")
+                            }
+                            None => println!("{marker} {name}"),
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error occurred: {e:?}");
+                    std::process::exit(1);
+                }
+            },
+            AuthCommands::Switch { name } => match name {
+                None => {
+                    let api_url = Config::default().url;
+                    if let Ok(profiles) = Authentication::list_profiles() {
+                        let rows: Vec<(String, bool, Option<(String, String)>)> = profiles
+                            .into_iter()
+                            .map(|(name, token, is_active)| {
+                                let info = fetch_profile_info(&token, &api_url)
+                                    .ok()
+                                    .map(|i| (i.email, i.workspace));
+                                (name, is_active, info)
+                            })
+                            .collect();
+                        let name_w = rows.iter().map(|(n, _, _)| n.len()).max().unwrap_or(0);
+                        let email_w = rows
+                            .iter()
+                            .filter_map(|(_, _, i)| i.as_ref().map(|(e, _)| e.len()))
+                            .max()
+                            .unwrap_or(0);
+                        println!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email");
+                        println!("  {:-<name_w$}  {:-<email_w$}  ---------", "", "");
+                        for (name, is_active, info) in rows {
+                            let marker = if is_active { "*" } else { " " };
+                            match info {
+                                Some((email, workspace)) => println!(
+                                    "{marker} {name:<name_w$}  {email:<email_w$}  {workspace}"
+                                ),
+                                None => println!("{marker} {name}"),
+                            }
+                        }
+                    }
+                }
+                Some(name) => match Authentication::switch_profile(name) {
+                    Ok(()) => {
+                        info!("Switched to profile '{name}'.");
+                    }
+                    Err(AuthenticationError::ProfileNotFound(_)) => {
+                        error!("Profile '{name}' not found.");
+                        std::process::exit(1);
+                    }
+                    Err(e) => {
+                        error!("Error occurred: {e:?}");
+                        std::process::exit(1);
+                    }
+                },
+            },
+        },
         Commands::Mcp {} => {
             handle_cli_mcp_command();
         }

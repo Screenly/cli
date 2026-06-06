@@ -7,6 +7,9 @@ This document contains the help content for the `screenly` command-line program.
 * [`screenly`↴](#screenly)
 * [`screenly login`↴](#screenly-login)
 * [`screenly logout`↴](#screenly-logout)
+* [`screenly auth`↴](#screenly-auth)
+* [`screenly auth list`↴](#screenly-auth-list)
+* [`screenly auth switch`↴](#screenly-auth-switch)
 * [`screenly screen`↴](#screenly-screen)
 * [`screenly screen list`↴](#screenly-screen-list)
 * [`screenly screen get`↴](#screenly-screen-get)
@@ -58,6 +61,7 @@ Command line interface is intended for quick interaction with Screenly through t
 
 * `login` — Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
 * `logout` — Logs out and removes the stored token
+* `auth` — Manage stored authentication profiles
 * `screen` — Screen related commands
 * `asset` — Asset related commands
 * `playlist` — Playlist related commands
@@ -74,7 +78,11 @@ Command line interface is intended for quick interaction with Screenly through t
 
 Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
 
-**Usage:** `screenly login`
+**Usage:** `screenly login [OPTIONS]`
+
+###### **Options:**
+
+* `--name <NAME>` — Profile name to store the token under. Required when other profiles already exist
 
 
 
@@ -82,7 +90,44 @@ Logs in with the provided token and stores it for further use if valid. You can 
 
 Logs out and removes the stored token
 
-**Usage:** `screenly logout`
+**Usage:** `screenly logout [OPTIONS]`
+
+###### **Options:**
+
+* `--name <NAME>` — Profile name to remove. Removes the active profile if not specified
+
+
+
+## `screenly auth`
+
+Manage stored authentication profiles
+
+**Usage:** `screenly auth <COMMAND>`
+
+###### **Subcommands:**
+
+* `list` — List stored authentication profiles
+* `switch` — Switch the active authentication profile
+
+
+
+## `screenly auth list`
+
+List stored authentication profiles
+
+**Usage:** `screenly auth list`
+
+
+
+## `screenly auth switch`
+
+Switch the active authentication profile
+
+**Usage:** `screenly auth switch [NAME]`
+
+###### **Arguments:**
+
+* `<NAME>` — Profile name to activate
 
 
 
