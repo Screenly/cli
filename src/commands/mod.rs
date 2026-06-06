@@ -80,8 +80,10 @@ pub enum CommandError {
     Parse(#[from] serde_json::Error),
     #[error("parse error: {0}")]
     YamlParse(#[from] serde_yaml::Error),
-    #[error("unknown error: {0}")]
+    #[error("unexpected response status: {0}")]
     WrongResponseStatus(u16),
+    #[error("{0}")]
+    ApiError(String),
     #[error("Required field is missing in the response")]
     MissingField,
     #[error("Required file is missing in the edge app directory: {0}")]
@@ -178,7 +180,13 @@ pub fn post<T: Serialize + ?Sized>(
 
     // Ok, No_Content are acceptable because some of our RPC code returns that.
     if ![StatusCode::CREATED, StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
-        debug!("Response: {:?}", &response.text()?);
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+            if let Some(msg) = json.get("error").and_then(|v| v.as_str()) {
+                return Err(CommandError::ApiError(msg.to_string()));
+            }
+        }
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
     if status == StatusCode::NO_CONTENT {

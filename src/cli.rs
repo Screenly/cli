@@ -509,7 +509,7 @@ pub fn handle_command_execution_result<T: Formatter>(
                     )
                 }
                 _ => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                 }
             }
             std::process::exit(1);
