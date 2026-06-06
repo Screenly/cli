@@ -129,10 +129,7 @@ mod tests {
         let screen_command = ScreenCommand::new(authentication);
         let result = screen_command.add("wrong-pin", None);
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "Invalid pin"
-        );
+        assert_eq!(result.unwrap_err().to_string(), "Invalid pin");
     }
 
     #[test]
