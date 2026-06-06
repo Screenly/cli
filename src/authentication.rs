@@ -196,11 +196,16 @@ pub fn fetch_profile_info(token: &str, api_url: &str) -> Result<ProfileInfo, Aut
     let secret = format!("Token {token}");
     let client = reqwest::blocking::Client::builder().build()?;
 
-    let user: serde_json::Value = client
+    let user_response = client
         .get(format!("{api_url}/v4.1/users/me"))
         .header(header::AUTHORIZATION, &secret)
-        .send()?
-        .json()?;
+        .send()?;
+
+    if user_response.status() == StatusCode::UNAUTHORIZED {
+        return Err(AuthenticationError::WrongCredentials);
+    }
+
+    let user: serde_json::Value = user_response.json()?;
 
     let email = user
         .get(0)
@@ -222,6 +227,10 @@ pub fn fetch_profile_info(token: &str, api_url: &str) -> Result<ProfileInfo, Aut
         .to_string();
 
     Ok(ProfileInfo { email, workspace })
+}
+
+pub fn active_profile_name() -> Option<String> {
+    read_store().ok().and_then(|s| s.active)
 }
 
 pub fn verify_and_store_token(
@@ -493,5 +502,43 @@ mod tests {
         let store: TokenStore = serde_yaml::from_str(&fs::read_to_string(path).unwrap()).unwrap();
         group_call_mock.assert();
         assert_eq!(store.tokens.get("default").unwrap(), "correct_token");
+    }
+
+    #[test]
+    fn test_fetch_profile_info_returns_email_and_workspace() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/users/me")
+                .header("Authorization", "Token valid_token");
+            then.status(200)
+                .json_body(serde_json::json!([{"email": "user@example.com"}]));
+        });
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/teams")
+                .header("Authorization", "Token valid_token");
+            then.status(200).json_body(
+                serde_json::json!([{"name": "My Team", "is_current": true}]),
+            );
+        });
+
+        let result = fetch_profile_info("valid_token", &mock_server.base_url());
+        assert!(result.is_ok());
+        let info = result.unwrap();
+        assert_eq!(info.email, "user@example.com");
+        assert_eq!(info.workspace, "My Team");
+    }
+
+    #[test]
+    fn test_fetch_profile_info_returns_wrong_credentials_on_401() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET).path("/v4.1/users/me");
+            then.status(401);
+        });
+
+        let result = fetch_profile_info("bad_token", &mock_server.base_url());
+        assert!(matches!(result, Err(AuthenticationError::WrongCredentials)));
     }
 }

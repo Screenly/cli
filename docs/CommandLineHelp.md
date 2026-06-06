@@ -7,6 +7,7 @@ This document contains the help content for the `screenly` command-line program.
 * [`screenly`↴](#screenly)
 * [`screenly login`↴](#screenly-login)
 * [`screenly logout`↴](#screenly-logout)
+* [`screenly me`↴](#screenly-me)
 * [`screenly auth`↴](#screenly-auth)
 * [`screenly auth list`↴](#screenly-auth-list)
 * [`screenly auth switch`↴](#screenly-auth-switch)
@@ -61,6 +62,7 @@ Command line interface is intended for quick interaction with Screenly through t
 
 * `login` — Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
 * `logout` — Logs out and removes the stored token
+* `me` — Show information about the currently authenticated profile
 * `auth` — Manage stored authentication profiles
 * `screen` — Screen related commands
 * `asset` — Asset related commands
@@ -95,6 +97,18 @@ Logs out and removes the stored token
 ###### **Options:**
 
 * `--name <NAME>` — Profile name to remove. Removes the active profile if not specified
+
+
+
+## `screenly me`
+
+Show information about the currently authenticated profile
+
+**Usage:** `screenly me [OPTIONS]`
+
+###### **Options:**
+
+* `-j`, `--json` — Enables JSON output
 
 
 

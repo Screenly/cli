@@ -10,7 +10,8 @@ use rpassword::read_password;
 use thiserror::Error;
 
 use crate::authentication::{
-    fetch_profile_info, verify_and_store_token, Authentication, AuthenticationError, Config,
+    active_profile_name, fetch_profile_info, verify_and_store_token, Authentication,
+    AuthenticationError, Config,
 };
 use crate::commands;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
@@ -90,6 +91,12 @@ pub enum Commands {
         /// Profile name to remove. Removes the active profile if not specified.
         #[arg(long)]
         name: Option<String>,
+    },
+    /// Show information about the currently authenticated profile.
+    Me {
+        /// Enables JSON output.
+        #[arg(short, long, action = clap::ArgAction::SetTrue)]
+        json: Option<bool>,
     },
     /// Manage stored authentication profiles.
     #[command(subcommand)]
@@ -630,6 +637,52 @@ pub fn handle_cli(cli: &Cli) {
         Commands::Asset(command) => handle_cli_asset_command(command),
         Commands::EdgeApp(command) => handle_cli_edge_app_command(command),
         Commands::Playlist(command) => handle_cli_playlist_command(command),
+        Commands::Me { json } => {
+            let auth = get_authentication();
+            match fetch_profile_info(&auth.token, &auth.config.url) {
+                Ok(info) => {
+                    let json_flag = json.unwrap_or(false);
+                    if json_flag {
+                        let mut obj = serde_json::Map::new();
+                        if let Some(name) = active_profile_name() {
+                            obj.insert(
+                                "profile".to_string(),
+                                serde_json::Value::String(name),
+                            );
+                        }
+                        obj.insert(
+                            "email".to_string(),
+                            serde_json::Value::String(info.email),
+                        );
+                        obj.insert(
+                            "workspace".to_string(),
+                            serde_json::Value::String(info.workspace),
+                        );
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&serde_json::Value::Object(obj))
+                                .unwrap()
+                        );
+                    } else {
+                        if let Some(name) = active_profile_name() {
+                            println!("Profile:   {name}");
+                        }
+                        println!("Email:     {}", info.email);
+                        println!("Workspace: {}", info.workspace);
+                    }
+                }
+                Err(AuthenticationError::WrongCredentials) => {
+                    error!(
+                        "Token is invalid. Run `screenly login` to update your credentials."
+                    );
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    error!("Failed to fetch profile info: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         Commands::Logout { name } => {
             Authentication::remove_token(name.as_deref()).expect("Failed to remove token.");
             info!("Logout successful.");
