@@ -518,9 +518,8 @@ mod tests {
             when.method(GET)
                 .path("/v4.1/teams")
                 .header("Authorization", "Token valid_token");
-            then.status(200).json_body(
-                serde_json::json!([{"name": "My Team", "is_current": true}]),
-            );
+            then.status(200)
+                .json_body(serde_json::json!([{"name": "My Team", "is_current": true}]));
         });
 
         let result = fetch_profile_info("valid_token", &mock_server.base_url());

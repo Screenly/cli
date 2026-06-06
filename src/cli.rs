@@ -645,23 +645,16 @@ pub fn handle_cli(cli: &Cli) {
                     if json_flag {
                         let mut obj = serde_json::Map::new();
                         if let Some(name) = active_profile_name() {
-                            obj.insert(
-                                "profile".to_string(),
-                                serde_json::Value::String(name),
-                            );
+                            obj.insert("profile".to_string(), serde_json::Value::String(name));
                         }
-                        obj.insert(
-                            "email".to_string(),
-                            serde_json::Value::String(info.email),
-                        );
+                        obj.insert("email".to_string(), serde_json::Value::String(info.email));
                         obj.insert(
                             "workspace".to_string(),
                             serde_json::Value::String(info.workspace),
                         );
                         println!(
                             "{}",
-                            serde_json::to_string_pretty(&serde_json::Value::Object(obj))
-                                .unwrap()
+                            serde_json::to_string_pretty(&serde_json::Value::Object(obj)).unwrap()
                         );
                     } else {
                         if let Some(name) = active_profile_name() {
@@ -672,9 +665,7 @@ pub fn handle_cli(cli: &Cli) {
                     }
                 }
                 Err(AuthenticationError::WrongCredentials) => {
-                    error!(
-                        "Token is invalid. Run `screenly login` to update your credentials."
-                    );
+                    error!("Token is invalid. Run `screenly login` to update your credentials.");
                     std::process::exit(1);
                 }
                 Err(e) => {
