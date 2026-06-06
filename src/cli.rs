@@ -1273,7 +1273,7 @@ mod tests {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v4/screens")
+                .path("/v4.1/screens")
                 .query_param("id", "eq.017a5104-524b-33d8-8026-9087b59e7eb5")
                 .header("user-agent", format!("screenly-cli {}", env!("CARGO_PKG_VERSION")))
                 .header("Authorization", "Token token");
