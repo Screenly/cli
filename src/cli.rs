@@ -115,7 +115,7 @@ pub enum Commands {
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScreenCommands {
     /// Lists your screens.
-    List {},
+    List,
     /// Gets a single screen by id.
     Get {
         /// UUID of the screen.
@@ -180,7 +180,7 @@ pub enum PlaylistCommands {
         predicate: Option<String>,
     },
     /// Lists your playlists.
-    List {},
+    List,
     /// Gets a single playlist by id.
     Get {
         /// UUID of the playlist.
@@ -210,7 +210,7 @@ pub enum PlaylistCommands {
         duration: Option<u32>,
     },
     /// Updates a playlist from JSON input on stdin.
-    Update {},
+    Update,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -257,7 +257,7 @@ fn parse_key_values<T: KeyValuePairs>(s: &str) -> Result<T, ParseError> {
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AssetCommands {
     /// Lists your assets.
-    List {},
+    List,
     /// Gets a single asset by id.
     Get {
         /// UUID of the asset.
@@ -347,7 +347,7 @@ pub enum EdgeAppCommands {
     },
 
     /// Lists your Edge Apps.
-    List {},
+    List,
     /// Renames an Edge App.
     Rename {
         /// Path to the directory with the manifest. Defaults to the current working directory.
@@ -621,7 +621,7 @@ pub fn handle_cli_screen_command(command: &ScreenCommands, output: OutputFormat)
     let screen_command = commands::screen::ScreenCommand::new(authentication);
 
     match command {
-        ScreenCommands::List {} => {
+        ScreenCommands::List => {
             handle_command_execution_result(screen_command.list(), output);
         }
         ScreenCommands::Get { uuid } => {
@@ -669,7 +669,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: OutputFor
                 output,
             );
         }
-        PlaylistCommands::List {} => {
+        PlaylistCommands::List => {
             handle_command_execution_result(playlist_command.list(), output);
         }
         PlaylistCommands::Get { uuid } => {
@@ -711,7 +711,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: OutputFor
                 output,
             );
         }
-        PlaylistCommands::Update {} => {
+        PlaylistCommands::Update => {
             let mut input = String::new();
             io::stdin()
                 .read_to_string(&mut input)
@@ -736,7 +736,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
     let asset_command = commands::asset::AssetCommand::new(authentication);
 
     match command {
-        AssetCommands::List {} => {
+        AssetCommands::List => {
             handle_command_execution_result(asset_command.list(), output);
         }
         AssetCommands::Get { uuid } => {
@@ -912,7 +912,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputForm
             }
         }
 
-        EdgeAppCommands::List {} => {
+        EdgeAppCommands::List => {
             handle_command_execution_result(edge_app_command.list(), output);
         }
         EdgeAppCommands::Deploy {
