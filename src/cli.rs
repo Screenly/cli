@@ -473,7 +473,12 @@ pub fn handle_command_execution_result<T: Formatter>(
                 OutputFormat::Csv => OutputType::Csv,
                 OutputFormat::Table => OutputType::HumanReadable,
             };
-            println!("{}", screen.format(output_type));
+            let formatted = screen.format(output_type);
+            if output == OutputFormat::Csv {
+                print!("{formatted}");
+            } else {
+                println!("{formatted}");
+            }
         }
         Err(e) => {
             match e {
