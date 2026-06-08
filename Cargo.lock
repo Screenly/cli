@@ -2950,6 +2950,7 @@ dependencies = [
  "anyhow",
  "clap",
  "clap-markdown",
+ "csv",
  "dirs",
  "envtestkit",
  "futures",
