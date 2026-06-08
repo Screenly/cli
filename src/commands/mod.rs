@@ -22,10 +22,17 @@ pub(crate) mod serde_utils;
 pub enum OutputType {
     HumanReadable,
     Json,
+    Csv,
 }
 
 pub trait Formatter {
     fn format(&self, output_type: OutputType) -> String;
+    fn supports_csv() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
 }
 
 pub trait FormatterValue {
@@ -67,6 +74,37 @@ where
             table.to_string()
         }
         OutputType::Json => serde_json::to_string_pretty(&value.value()).unwrap(),
+        OutputType::Csv => {
+            let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+            wtr.write_record(&column_names).unwrap();
+            if let Some(values) = value.value().as_array() {
+                for v in values {
+                    let row: Vec<String> = field_names
+                        .iter()
+                        .map(|field| {
+                            let fv = &v[field];
+                            if let Some(s) = fv.as_str() {
+                                s.to_string()
+                            } else if let Some(b) = fv.as_bool() {
+                                b.to_string()
+                            } else if let Some(n) = fv.as_u64() {
+                                n.to_string()
+                            } else if let Some(n) = fv.as_i64() {
+                                n.to_string()
+                            } else if let Some(n) = fv.as_f64() {
+                                n.to_string()
+                            } else if fv.is_null() {
+                                String::new()
+                            } else {
+                                fv.to_string()
+                            }
+                        })
+                        .collect();
+                    wtr.write_record(&row).unwrap();
+                }
+            }
+            String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+        }
     }
 }
 
@@ -275,6 +313,41 @@ impl PlaylistFile {
     }
 }
 
+impl Formatter for PlaylistFile {
+    fn supports_csv() -> bool {
+        true
+    }
+
+    fn format(&self, output_type: OutputType) -> String {
+        match output_type {
+            OutputType::Json => serde_json::to_string_pretty(self).unwrap(),
+            OutputType::HumanReadable => {
+                let mut table = prettytable::Table::new();
+                table.add_row(Row::from(vec!["Asset Id", "Duration"]));
+                for item in &self.items {
+                    table.add_row(Row::new(vec![
+                        Cell::new(&item.asset_id),
+                        Cell::new(
+                            &indicatif::HumanDuration(Duration::from_secs(item.duration as u64))
+                                .to_string(),
+                        ),
+                    ]));
+                }
+                table.to_string()
+            }
+            OutputType::Csv => {
+                let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+                wtr.write_record(["asset_id", "duration"]).unwrap();
+                for item in &self.items {
+                    wtr.write_record([item.asset_id.as_str(), &item.duration.to_string()])
+                        .unwrap();
+                }
+                String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+            }
+        }
+    }
+}
+
 impl EdgeApps {
     pub fn new(value: serde_json::Value) -> Self {
         Self { value }
@@ -295,6 +368,10 @@ impl Formatter for EdgeApps {
             self,
             None::<fn(&str, &serde_json::Value) -> Cell>,
         )
+    }
+
+    fn supports_csv() -> bool {
+        true
     }
 }
 
@@ -380,6 +457,10 @@ impl Formatter for EdgeAppInstances {
             ),
         )
     }
+
+    fn supports_csv() -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -409,6 +490,10 @@ impl Formatter for Assets {
             None::<fn(&str, &serde_json::Value) -> Cell>,
         )
     }
+
+    fn supports_csv() -> bool {
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -429,6 +514,10 @@ impl FormatterValue for Screens {
 }
 
 impl Formatter for Screens {
+    fn supports_csv() -> bool {
+        true
+    }
+
     fn format(&self, output_type: OutputType) -> String {
         fn format_boolean_field(value: &serde_json::Value) -> Cell {
             if value.as_bool().unwrap_or(false) {
@@ -497,6 +586,10 @@ impl FormatterValue for Playlists {
 }
 
 impl Formatter for Playlists {
+    fn supports_csv() -> bool {
+        true
+    }
+
     fn format(&self, output_type: OutputType) -> String {
         fn format_boolean_field(value: &serde_json::Value) -> Cell {
             if value.as_bool().unwrap_or(false) {
@@ -540,6 +633,10 @@ impl FormatterValue for PlaylistItems {
 }
 
 impl Formatter for PlaylistItems {
+    fn supports_csv() -> bool {
+        true
+    }
+
     fn format(&self, output_type: OutputType) -> String {
         format_value(
             output_type,
@@ -563,6 +660,36 @@ impl Formatter for PlaylistItems {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_assets_csv_round_trip() {
+        let data = r#"[
+            {"id": "abc-123", "title": "Plain Title", "type": "video/mp4", "status": "active"},
+            {"id": "def-456", "title": "Comma, Title", "type": "image/png", "status": "active"},
+            {"id": "ghi-789", "title": "Quote \"Title\"", "type": "image/jpeg", "status": "active"}
+        ]"#;
+        let assets = Assets::new(serde_json::from_str(data).unwrap());
+        let output = assets.format(OutputType::Csv);
+        let mut lines = output.lines();
+        assert_eq!(lines.next().unwrap(), "Id,Title,Type,Status");
+        assert_eq!(
+            lines.next().unwrap(),
+            "abc-123,Plain Title,video/mp4,active"
+        );
+        assert_eq!(
+            lines.next().unwrap(),
+            r#"def-456,"Comma, Title",image/png,active"#
+        );
+        assert_eq!(
+            lines.next().unwrap(),
+            r#"ghi-789,"Quote ""Title""",image/jpeg,active"#
+        );
+    }
+
+    #[test]
+    fn test_edge_app_settings_does_not_support_csv() {
+        assert!(!EdgeAppSettings::supports_csv());
+    }
 
     #[test]
     fn test_edge_app_instance_formatter_format_output_properly() {
