@@ -311,6 +311,44 @@ impl PlaylistFile {
     }
 }
 
+impl Formatter for PlaylistFile {
+    fn supports_csv() -> bool {
+        true
+    }
+
+    fn format(&self, output_type: OutputType) -> String {
+        match output_type {
+            OutputType::Json => serde_json::to_string_pretty(self).unwrap(),
+            OutputType::HumanReadable => {
+                let mut table = prettytable::Table::new();
+                table.add_row(Row::from(vec!["Asset Id", "Duration"]));
+                for item in &self.items {
+                    table.add_row(Row::new(vec![
+                        Cell::new(&item.asset_id),
+                        Cell::new(
+                            &indicatif::HumanDuration(Duration::from_secs(item.duration as u64))
+                                .to_string(),
+                        ),
+                    ]));
+                }
+                table.to_string()
+            }
+            OutputType::Csv => {
+                let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+                wtr.write_record(["asset_id", "duration"]).unwrap();
+                for item in &self.items {
+                    wtr.write_record([
+                        item.asset_id.as_str(),
+                        &item.duration.to_string(),
+                    ])
+                    .unwrap();
+                }
+                String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+            }
+        }
+    }
+}
+
 impl EdgeApps {
     pub fn new(value: serde_json::Value) -> Self {
         Self { value }

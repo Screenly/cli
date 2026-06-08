@@ -673,16 +673,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: &OutputFo
             handle_command_execution_result(playlist_command.list(), output);
         }
         PlaylistCommands::Get { uuid } => {
-            let playlist_file = playlist_command.get_playlist_file(uuid);
-            match playlist_file {
-                Ok(playlist) => {
-                    let pretty_playlist_file = serde_json::to_string_pretty(&playlist).unwrap();
-                    println!("{pretty_playlist_file}");
-                }
-                Err(e) => {
-                    eprintln!("Error occurred when getting playlist: {e:?}")
-                }
-            }
+            handle_command_execution_result(playlist_command.get_playlist_file(uuid), output);
         }
         PlaylistCommands::Delete { uuid } => match playlist_command.delete(uuid) {
             Ok(()) => {
