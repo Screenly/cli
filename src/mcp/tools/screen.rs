@@ -9,7 +9,7 @@ pub struct ScreenTools;
 impl ScreenTools {
     /// List all screens.
     pub fn list(auth: &Authentication) -> Result<String, String> {
-        let result = commands::get(auth, "v4.1/screens")
+        let result = commands::get(auth, "v4.1/screens?select=*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)")
             .map_err(|e| format!("Failed to list screens: {}", e))?;
 
         serde_json::to_string_pretty(&result)
@@ -18,7 +18,7 @@ impl ScreenTools {
 
     /// Get a screen by UUID.
     pub fn get(auth: &Authentication, uuid: &str) -> Result<String, String> {
-        let endpoint = format!("v4.1/screens?id=eq.{}", uuid);
+        let endpoint = format!("v4.1/screens?id=eq.{}&select=*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)", uuid);
         let result =
             commands::get(auth, &endpoint).map_err(|e| format!("Failed to get screen: {}", e))?;
 

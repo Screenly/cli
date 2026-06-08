@@ -27,6 +27,7 @@ fn test_screen_list() {
     mock_server.mock(|when, then| {
         when.method(GET)
             .path("/v4.1/screens")
+            .query_param("select", "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)")
             .header("Authorization", "Token test_token");
         then.status(200)
             .json_body(json!([{"id": "screen-1", "name": "Test Screen"}]));
@@ -47,6 +48,7 @@ fn test_screen_get() {
         when.method(GET)
             .path("/v4.1/screens")
             .query_param("id", "eq.screen-uuid")
+            .query_param("select", "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)")
             .header("Authorization", "Token test_token");
         then.status(200)
             .json_body(json!([{"id": "screen-uuid", "name": "My Screen"}]));

@@ -16,12 +16,12 @@ impl ScreenCommand {
     pub fn list(&self) -> anyhow::Result<Screens, CommandError> {
         Ok(Screens::new(commands::get(
             &self.authentication,
-            "v4.1/screens",
+            "v4.1/screens?select=*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)",
         )?))
     }
 
     pub fn get(&self, id: &str) -> anyhow::Result<Screens, CommandError> {
-        let endpoint = format!("v4.1/screens?id=eq.{id}");
+        let endpoint = format!("v4.1/screens?id=eq.{id}&select=*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)");
 
         Ok(Screens::new(commands::get(
             &self.authentication,
@@ -73,6 +73,7 @@ mod tests {
         mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/screens")
+                .query_param("select", "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)")
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
@@ -139,6 +140,7 @@ mod tests {
             when.method(GET)
                 .path("/v4.1/screens")
                 .query_param("id", "eq.017a5104-524b-33d8-8026-9087b59e7eb5")
+                .query_param("select", "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)")
                 .header("user-agent", format!("screenly-cli {}", env!("CARGO_PKG_VERSION")))
                 .header("Authorization", "Token token");
             then
