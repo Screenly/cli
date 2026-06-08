@@ -56,7 +56,7 @@ fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
-#[derive(clap::ValueEnum, Clone, Debug, Default, PartialEq)]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq)]
 pub enum OutputFormat {
     /// Human-readable table (default).
     #[default]
@@ -460,9 +460,9 @@ pub enum EdgeAppInstanceCommands {
 
 pub fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
-    output: &OutputFormat,
+    output: OutputFormat,
 ) {
-    if *output == OutputFormat::Csv && !T::supports_csv() {
+    if output == OutputFormat::Csv && !T::supports_csv() {
         error!("CSV output is not supported for this command. Use --output table or --output json instead.");
         std::process::exit(1);
     }
@@ -538,9 +538,9 @@ pub fn get_asset_title(
 pub fn handle_cli(cli: &Cli) {
     let output = if cli.json {
         eprintln!("Warning: --json is deprecated, use --output json instead.");
-        &OutputFormat::Json
+        OutputFormat::Json
     } else {
-        &cli.output
+        cli.output
     };
 
     match &cli.command {
@@ -616,7 +616,7 @@ fn get_user_input() -> String {
     user_input.trim().to_string()
 }
 
-pub fn handle_cli_screen_command(command: &ScreenCommands, output: &OutputFormat) {
+pub fn handle_cli_screen_command(command: &ScreenCommands, output: OutputFormat) {
     let authentication = get_authentication();
     let screen_command = commands::screen::ScreenCommand::new(authentication);
 
@@ -660,7 +660,7 @@ pub fn handle_cli_screen_command(command: &ScreenCommands, output: &OutputFormat
     }
 }
 
-pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: &OutputFormat) {
+pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: OutputFormat) {
     let playlist_command = PlaylistCommand::new(get_authentication());
     match command {
         PlaylistCommands::Create { title, predicate } => {
@@ -731,7 +731,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: &OutputFo
     }
 }
 
-pub fn handle_cli_asset_command(command: &AssetCommands, output: &OutputFormat) {
+pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
     let authentication = get_authentication();
     let asset_command = commands::asset::AssetCommand::new(authentication);
 
@@ -872,7 +872,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: &OutputFormat) 
     }
 }
 
-pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: &OutputFormat) {
+pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputFormat) {
     let authentication = get_authentication();
     let edge_app_command = commands::edge_app::EdgeAppCommand::new(authentication);
 
