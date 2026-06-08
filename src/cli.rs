@@ -77,11 +77,11 @@ pub enum OutputFormat {
 pub struct Cli {
     /// Output format: table (default), json, or csv.
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Table, global = true)]
-    pub output: OutputFormat,
+    pub(crate) output: OutputFormat,
 
     /// Deprecated: use --output json instead.
     #[arg(long, hide = true, global = true, conflicts_with = "output")]
-    pub json: bool,
+    pub(crate) json: bool,
 
     #[command(subcommand)]
     pub(crate) command: Commands,
