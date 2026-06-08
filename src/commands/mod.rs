@@ -339,11 +339,8 @@ impl Formatter for PlaylistFile {
                 let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
                 wtr.write_record(["asset_id", "duration"]).unwrap();
                 for item in &self.items {
-                    wtr.write_record([
-                        item.asset_id.as_str(),
-                        &item.duration.to_string(),
-                    ])
-                    .unwrap();
+                    wtr.write_record([item.asset_id.as_str(), &item.duration.to_string()])
+                        .unwrap();
                 }
                 String::from_utf8(wtr.into_inner().unwrap()).unwrap()
             }
@@ -675,8 +672,14 @@ mod tests {
         let output = assets.format(OutputType::Csv);
         let mut lines = output.lines();
         assert_eq!(lines.next().unwrap(), "Id,Title,Type,Status");
-        assert_eq!(lines.next().unwrap(), "abc-123,Plain Title,video/mp4,active");
-        assert_eq!(lines.next().unwrap(), r#"def-456,"Comma, Title",image/png,active"#);
+        assert_eq!(
+            lines.next().unwrap(),
+            "abc-123,Plain Title,video/mp4,active"
+        );
+        assert_eq!(
+            lines.next().unwrap(),
+            r#"def-456,"Comma, Title",image/png,active"#
+        );
         assert_eq!(
             lines.next().unwrap(),
             r#"ghi-789,"Quote ""Title""",image/jpeg,active"#
