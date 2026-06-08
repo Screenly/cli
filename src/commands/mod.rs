@@ -89,6 +89,8 @@ where
                                 b.to_string()
                             } else if let Some(n) = fv.as_u64() {
                                 n.to_string()
+                            } else if let Some(n) = fv.as_i64() {
+                                n.to_string()
                             } else if let Some(n) = fv.as_f64() {
                                 n.to_string()
                             } else if fv.is_null() {
