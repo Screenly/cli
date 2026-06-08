@@ -4,7 +4,7 @@ use std::{env, fs, io};
 
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
-use log::{error, info, warn};
+use log::{error, info};
 use reqwest::StatusCode;
 use rpassword::read_password;
 use thiserror::Error;
@@ -537,7 +537,7 @@ pub fn get_asset_title(
 
 pub fn handle_cli(cli: &Cli) {
     let output = if cli.json {
-        warn!("--json is deprecated, use --output json instead.");
+        eprintln!("Warning: --json is deprecated, use --output json instead.");
         &OutputFormat::Json
     } else {
         &cli.output
