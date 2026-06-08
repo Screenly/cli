@@ -665,6 +665,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_assets_csv_round_trip() {
+        let data = r#"[
+            {"id": "abc-123", "title": "Plain Title", "type": "video/mp4", "status": "active"},
+            {"id": "def-456", "title": "Comma, Title", "type": "image/png", "status": "active"},
+            {"id": "ghi-789", "title": "Quote \"Title\"", "type": "image/jpeg", "status": "active"}
+        ]"#;
+        let assets = Assets::new(serde_json::from_str(data).unwrap());
+        let output = assets.format(OutputType::Csv);
+        let mut lines = output.lines();
+        assert_eq!(lines.next().unwrap(), "Id,Title,Type,Status");
+        assert_eq!(lines.next().unwrap(), "abc-123,Plain Title,video/mp4,active");
+        assert_eq!(lines.next().unwrap(), r#"def-456,"Comma, Title",image/png,active"#);
+        assert_eq!(
+            lines.next().unwrap(),
+            r#"ghi-789,"Quote ""Title""",image/jpeg,active"#
+        );
+    }
+
+    #[test]
+    fn test_edge_app_settings_does_not_support_csv() {
+        assert!(!EdgeAppSettings::supports_csv());
+    }
+
+    #[test]
     fn test_edge_app_instance_formatter_format_output_properly() {
         let data = r#"[{
             "id": "01J1SNE1GMGG8R0ZXZ183ZGN6T",

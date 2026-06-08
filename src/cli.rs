@@ -1312,4 +1312,18 @@ mod tests {
         assert!(message.contains("Authentication error"));
         assert!(message.contains("Please run `screenly login` to authenticate"));
     }
+
+    #[test]
+    fn test_json_flag_sets_json_field() {
+        let cli = Cli::try_parse_from(["screenly", "--json", "screen", "list"]).unwrap();
+        assert!(cli.json);
+        assert_eq!(cli.output, OutputFormat::Table);
+    }
+
+    #[test]
+    fn test_json_flag_conflicts_with_output_flag() {
+        let result =
+            Cli::try_parse_from(["screenly", "--json", "--output", "json", "screen", "list"]);
+        assert!(result.is_err());
+    }
 }
