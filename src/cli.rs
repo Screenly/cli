@@ -565,7 +565,7 @@ pub fn handle_cli(cli: &Cli) {
                         std::process::exit(1);
                     }
                     _ => {
-                        error!("Error occurred: {e:?}");
+                        error!("Error occurred: {e}");
                         std::process::exit(1);
                     }
                 },
@@ -657,7 +657,7 @@ pub fn handle_cli_screen_command(command: &ScreenCommands, output: OutputFormat)
                     std::process::exit(0);
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -685,7 +685,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: OutputFor
                 println!("Playlist deleted successfully.");
             }
             Err(e) => {
-                eprintln!("Error occurred when deleting playlist: {e:?}")
+                eprintln!("Error occurred when deleting playlist: {e}")
             }
         },
         PlaylistCommands::Append {
@@ -729,7 +729,7 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: OutputFor
                     println!("Playlist updated successfully.");
                 }
                 Err(e) => {
-                    eprintln!("Error occurred when updating playlist: {e:?}")
+                    eprintln!("Error occurred when updating playlist: {e}")
                 }
             }
         }
@@ -783,7 +783,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
                     std::process::exit(0);
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -818,7 +818,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -829,7 +829,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -844,7 +844,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -855,7 +855,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -869,7 +869,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
                     info!("Asset updated successfully.");
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }
@@ -999,7 +999,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputForm
                     std::process::exit(0);
                 }
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             }

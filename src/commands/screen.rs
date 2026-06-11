@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn test_delete_screen_should_send_correct_request() {
         let mock_server = MockServer::start();
-        mock_server.mock(|when, then| {
+        let delete_mock = mock_server.mock(|when, then| {
             when.method(DELETE)
                 .path("/v4.1/screens")
                 .query_param("id", "eq.test-id")
@@ -179,7 +179,9 @@ mod tests {
         let config = Config::new(mock_server.base_url());
         let authentication = Authentication::new_with_config(config, "token");
         let screen_command = ScreenCommand::new(authentication);
-        assert!(screen_command.delete("test-id").is_ok());
+        let result = screen_command.delete("test-id");
+        delete_mock.assert();
+        assert!(result.is_ok());
     }
 
     #[test]
