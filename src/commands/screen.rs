@@ -137,6 +137,40 @@ mod tests {
     }
 
     #[test]
+    fn test_get_screen_error_should_return_api_error_message() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET).path("/v4.1/screens");
+            then.status(404)
+                .json_body(json!({"message": "Screen not found"}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let screen_command = ScreenCommand::new(authentication);
+        let result = screen_command.get("nonexistent-id");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Screen not found");
+    }
+
+    #[test]
+    fn test_delete_screen_error_should_return_api_error_message() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(DELETE).path("/v4.1/screens");
+            then.status(403)
+                .json_body(json!({"detail": "Permission denied"}));
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let screen_command = ScreenCommand::new(authentication);
+        let result = screen_command.delete("test-id");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Permission denied");
+    }
+
+    #[test]
     fn test_get_screen_should_return_screen() {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {

@@ -676,7 +676,40 @@ impl Formatter for PlaylistItems {
 
 #[cfg(test)]
 mod tests {
+    use reqwest::StatusCode;
+
     use super::*;
+
+    #[test]
+    fn test_api_error_from_body_uses_error_key() {
+        let err = api_error_from_body(r#"{"error": "Invalid pin"}"#, StatusCode::BAD_REQUEST);
+        assert_eq!(err.to_string(), "Invalid pin");
+    }
+
+    #[test]
+    fn test_api_error_from_body_uses_message_key() {
+        let err = api_error_from_body(r#"{"message": "Not found"}"#, StatusCode::NOT_FOUND);
+        assert_eq!(err.to_string(), "Not found");
+    }
+
+    #[test]
+    fn test_api_error_from_body_uses_detail_key() {
+        let err = api_error_from_body(r#"{"detail": "Permission denied"}"#, StatusCode::FORBIDDEN);
+        assert_eq!(err.to_string(), "Permission denied");
+    }
+
+    #[test]
+    fn test_api_error_from_body_falls_back_to_status_on_unknown_key() {
+        let err =
+            api_error_from_body(r#"{"code": "ERR123"}"#, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.to_string(), "unexpected response status: 500");
+    }
+
+    #[test]
+    fn test_api_error_from_body_falls_back_to_status_on_non_json() {
+        let err = api_error_from_body("not json", StatusCode::BAD_GATEWAY);
+        assert_eq!(err.to_string(), "unexpected response status: 502");
+    }
 
     #[test]
     fn test_assets_csv_round_trip() {
