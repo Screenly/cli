@@ -73,7 +73,10 @@ mod tests {
         mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4.1/screens")
-                .query_param("select", "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)")
+                .query_param(
+                    "select",
+                    "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)",
+                )
                 .header("Authorization", "Token token")
                 .header(
                     "user-agent",
