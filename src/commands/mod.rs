@@ -172,6 +172,17 @@ pub enum CommandError {
     AppNotFound(String),
 }
 
+fn api_error_from_body(body: &str, status: StatusCode) -> CommandError {
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(body) {
+        for key in &["error", "message", "detail"] {
+            if let Some(msg) = json.get(key).and_then(|v| v.as_str()) {
+                return CommandError::ApiError(msg.to_string());
+            }
+        }
+    }
+    CommandError::WrongResponseStatus(status.as_u16())
+}
+
 pub fn get(
     authentication: &Authentication,
     endpoint: &str,
@@ -191,8 +202,9 @@ pub fn get(
     debug!("GET {url} -> {status}");
 
     if status != StatusCode::OK {
-        println!("Response: {:?}", &response.text());
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        return Err(api_error_from_body(&body, status));
     }
     Ok(serde_json::from_str(&response.text()?)?)
 }
@@ -220,12 +232,7 @@ pub fn post<T: Serialize + ?Sized>(
     if ![StatusCode::CREATED, StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
         let body = response.text().unwrap_or_default();
         debug!("Response: {:?}", &body);
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
-            if let Some(msg) = json.get("error").and_then(|v| v.as_str()) {
-                return Err(CommandError::ApiError(msg.to_string()));
-            }
-        }
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        return Err(api_error_from_body(&body, status));
     }
     if status == StatusCode::NO_CONTENT {
         return Ok(serde_json::Value::Null);
@@ -241,8 +248,9 @@ pub fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result
     let status = response.status();
 
     if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
-        debug!("Response: {:?}", &response.text()?);
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        return Err(api_error_from_body(&body, status));
     }
     Ok(())
 }
@@ -265,8 +273,9 @@ pub fn patch<T: Serialize + ?Sized>(
 
     let status = response.status();
     if status != StatusCode::OK {
-        debug!("Response: {:?}", &response.text()?);
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        return Err(api_error_from_body(&body, status));
     }
 
     if status == StatusCode::NO_CONTENT {
