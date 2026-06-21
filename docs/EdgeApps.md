@@ -36,6 +36,7 @@ Here's a content section for the document:
      - [Using Settings in Your Edge App](#using-settings-in-your-edge-app)
      - [Global Settings](#global-settings)
      - [Secret Settings](#secret-settings)
+     - [Integrations](#integrations)
      - [Reserved Setting Names](#reserved-setting-names)
 3. [Global Branding Settings](#global-branding-settings)
    - [Branding Settings List](#branding-settings-list)
@@ -590,6 +591,51 @@ settings:
 Notes:
 
 - These descriptors are backward-compatible; if no JSON is provided, the UI falls back to a plain text field for `string` and a password field for `secret`.
+
+#### Integrations
+
+Some Edge Apps show data from a third-party service — a calendar, a Grafana or Power BI dashboard, a Salesforce report. Connecting to those services means authenticating and keeping credentials fresh. **Integrations** hand that work to Screenly: the user connects an account once in the Screenly dashboard, and your Edge App receives ready-to-use credentials at runtime.
+
+An integration-backed value is just a setting whose `help_text.properties.type` names the provider and the field Screenly should fill, in the form `<provider>:<field>`. The field is either a credential (a token) or a piece of configuration the user chose when connecting the account (which calendar, which dashboard).
+
+```yaml
+settings:
+  access_token:
+    type: secret
+    title: Access Token
+    optional: true
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: For testing only. In production the token is fetched dynamically.
+        type: oauth:google_calendar:access_token
+  calendar_id:
+    type: string
+    title: Calendar ID
+    optional: true
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: Which calendar to display.
+        type: oauth:google_calendar:calendar_id
+```
+
+> Fetching credentials at runtime
+
+```js
+const { token, metadata } = await getCredentials();
+```
+
+At runtime your app asks Screenly for the current credentials with a single call. It returns two things:
+
+* **token** — an opaque credential. You don't need to know how it was obtained; you just present it to the service.
+* **metadata** — non-secret values the integration resolved when the account was connected, such as the service's domain or which resource to show.
+
+Credentials expire, so apps re-fetch them on a refresh loop. How you *use* the result is the only part that depends on the service — most apps send the token as a bearer token to the service's API, while others hand it to an embed library to render a live view.
+
+The values that power `getCredentials()` (`screenly_oauth_tokens_url` and `screenly_app_auth_token`) are reserved settings injected by Screenly — see [Reserved setting names](#reserved-setting-names) below.
+
+In short: Screenly owns the connection to the third-party service, and your Edge App just asks for credentials and uses them.
 
 #### Reserved setting names
 
