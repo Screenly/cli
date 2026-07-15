@@ -52,8 +52,8 @@ walkdir = "2.3.3"
 warp = "0.3"
 
 # MCP server dependencies
-rmcp = { version = "0.12", features = ["schemars", "server", "transport-io"] }
-schemars = "0.8"
+rmcp = { version = "1.4", default-features = false, features = ["macros", "server", "schemars", "transport-io"] }
+schemars = "1"
 
 [dev-dependencies]
 envtestkit = "1.1.2"
