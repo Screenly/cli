@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{ServerCapabilities, ServerInfo};
 use rmcp::{schemars, tool, tool_handler, tool_router, ServiceExt};
@@ -191,7 +190,6 @@ pub struct AppUuidParam {
 #[derive(Clone)]
 pub struct ScreenlyMcpServer {
     auth: Arc<Authentication>,
-    tool_router: ToolRouter<Self>,
 }
 
 impl ScreenlyMcpServer {
@@ -200,7 +198,6 @@ impl ScreenlyMcpServer {
         let auth = Authentication::new()?;
         Ok(Self {
             auth: Arc::new(auth),
-            tool_router: Self::tool_router(),
         })
     }
 
@@ -610,21 +607,17 @@ impl ScreenlyMcpServer {
 #[tool_handler]
 impl rmcp::ServerHandler for ScreenlyMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some(
-                "Screenly MCP Server - Manage digital signage screens, assets, and playlists. \
-                Use API_TOKEN environment variable or ~/.screenly file for authentication.\n\n\
-                PLAYLIST PREDICATES: Playlists use a predicate DSL for scheduling. Variables: \
-                $DATE (Unix ms), $TIME (ms since midnight, 0-86400000), $WEEKDAY (0=Sun..6=Sat). \
-                Operators: =, <=, >=, <, >, AND, OR, NOT, BETWEEN {min,max}, IN {values}. \
-                Examples: 'TRUE' (always show), '$WEEKDAY IN {1,2,3,4,5}' (weekdays only), \
-                '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM), \
-                '$TIME >= 32400000 AND $TIME <= 61200000 AND NOT $WEEKDAY IN {0, 6}' (business hours). \
-                Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM."
-                    .to_string(),
-            ),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
+        // ServerInfo is #[non_exhaustive] in rmcp 1.x; use its builder instead of a struct literal.
+        ServerInfo::new(ServerCapabilities::builder().enable_tools().build()).with_instructions(
+            "Screenly MCP Server - Manage digital signage screens, assets, and playlists. \
+            Use API_TOKEN environment variable or ~/.screenly file for authentication.\n\n\
+            PLAYLIST PREDICATES: Playlists use a predicate DSL for scheduling. Variables: \
+            $DATE (Unix ms), $TIME (ms since midnight, 0-86400000), $WEEKDAY (0=Sun..6=Sat). \
+            Operators: =, <=, >=, <, >, AND, OR, NOT, BETWEEN {min,max}, IN {values}. \
+            Examples: 'TRUE' (always show), '$WEEKDAY IN {1,2,3,4,5}' (weekdays only), \
+            '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM), \
+            '$TIME >= 32400000 AND $TIME <= 61200000 AND NOT $WEEKDAY IN {0, 6}' (business hours). \
+            Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM.",
+        )
     }
 }
