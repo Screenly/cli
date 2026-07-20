@@ -68,10 +68,10 @@ jobs:
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master
-        with:
-          toolchain: ${{ matrix.rust }}
-          target: ${{ matrix.target }}
+        run: |
+          rustup toolchain install ${{ matrix.rust }} --profile minimal
+          rustup default ${{ matrix.rust }}
+          rustup target add ${{ matrix.target }}
 
       - name: Use Cross
         shell: bash
