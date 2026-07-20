@@ -36,7 +36,7 @@ impl ScreenCommand {
         pin: &str,
         maybe_name: Option<String>,
     ) -> anyhow::Result<Screens, CommandError> {
-        let url = format!("{}/v3/screens/", &self.authentication.config.url);
+        let url = format!("{}/v3/screens/", self.authentication.config.url);
         let mut payload = HashMap::new();
         payload.insert("pin".to_string(), pin.to_string());
         if let Some(name) = maybe_name {

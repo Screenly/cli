@@ -57,7 +57,7 @@ impl AssetCommand {
     }
 
     pub fn add(&self, path: &str, title: &str) -> anyhow::Result<Assets, CommandError> {
-        let url = format!("{}/v4/assets", &self.authentication.config.url);
+        let url = format!("{}/v4/assets", self.authentication.config.url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
@@ -130,7 +130,7 @@ impl AssetCommand {
             }
             let headers = assets[0].get("headers").ok_or(CommandError::MissingField)?;
             let old_headers = serde_json::from_value::<HashMap<String, String>>(headers.clone())?;
-            debug!("Old headers {:?}", &old_headers);
+            debug!("Old headers {:?}", old_headers);
             for (key, value) in old_headers {
                 new_headers.entry(key).or_insert(value);
             }
