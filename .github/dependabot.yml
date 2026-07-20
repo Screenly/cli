@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # Cargo: security updates only, bundled into a single PR.
+  #
+  # This repo does not take routine version bumps -- `open-pull-requests-limit: 0`
+  # disables version updates while leaving Dependabot security updates enabled.
+  # Without the group below, each advisory opens its own PR (see #280, #283,
+  # #288, #289, #290, all of which sat open for months after the underlying
+  # bumps had already landed).
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      cargo-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # GitHub Actions: group both version and security updates into one PR each.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions-version:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
