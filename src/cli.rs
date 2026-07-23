@@ -682,10 +682,7 @@ pub fn handle_cli(cli: &Cli) {
                     };
                     if json_flag {
                         let mut obj = serde_json::Map::new();
-                        obj.insert(
-                            "profile".to_string(),
-                            serde_json::Value::String(profile),
-                        );
+                        obj.insert("profile".to_string(), serde_json::Value::String(profile));
                         obj.insert("email".to_string(), serde_json::Value::String(info.email));
                         obj.insert(
                             "workspace".to_string(),

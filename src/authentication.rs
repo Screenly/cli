@@ -507,7 +507,9 @@ mod tests {
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
 
         let mut store = TokenStore::default();
-        store.tokens.insert("default".to_string(), "token".to_string());
+        store
+            .tokens
+            .insert("default".to_string(), "token".to_string());
         store.active = Some("default".to_string());
         write_store(&store).unwrap();
 
