@@ -7,6 +7,7 @@ use http_auth_basic::Credentials;
 use log::{error, info};
 use reqwest::StatusCode;
 use rpassword::read_password;
+use serde_json::json;
 use thiserror::Error;
 
 use crate::authentication::{
@@ -27,9 +28,13 @@ const DEFAULT_ASSET_DURATION: u32 = 15;
 
 /// Returns a user-friendly error message for authentication errors.
 fn get_authentication_error_message(e: &AuthenticationError) -> String {
+    let not_logged_in = "Not logged in. Please run `screenly login` first to authenticate.";
     match e {
+        // The logged-out state now leaves an empty store behind rather than
+        // deleting the file, so it surfaces as NoCredentials, not Io(NotFound).
+        AuthenticationError::NoCredentials => not_logged_in.to_string(),
         AuthenticationError::Io(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
-            "Not logged in. Please run `screenly login` first to authenticate.".to_string()
+            not_logged_in.to_string()
         }
         AuthenticationError::ProfileNotFound(name) => {
             format!("Active profile '{name}' not found. Run `screenly auth switch` to pick a valid profile.")
@@ -42,38 +47,148 @@ fn get_authentication_error_message(e: &AuthenticationError) -> String {
 
 /// Resolves the profile name a `login` should store under.
 ///
-/// An explicit name is always honored. With no name given, a fresh install
-/// (no existing profiles) defaults to `"default"`; otherwise `None` is
-/// returned to signal that `--name` is required so an existing profile is
-/// not overwritten by accident.
-fn resolve_login_name(name: Option<&str>, existing: &[(String, bool)]) -> Option<String> {
+/// An explicit `--name` is always honored. With no name given, `login`
+/// updates the currently active profile (the common re-login-after-rotation
+/// flow), falling back to `"default"` on a fresh install with no active
+/// profile.
+fn resolve_login_name(name: Option<&str>, active: Option<&str>) -> String {
     match name {
-        Some(n) => Some(n.to_string()),
-        None if existing.is_empty() => Some("default".to_string()),
-        None => None,
+        Some(n) => n.to_string(),
+        None => active.unwrap_or("default").to_string(),
     }
 }
 
-/// Prints the stored profiles as a table with email and workspace columns,
-/// marking the active profile with a `*`.
-fn print_profiles_table(entries: &[ProfileEntry]) {
-    let name_w = entries.iter().map(|e| e.name.len()).max().unwrap_or(0);
-    let email_w = entries
+/// Renders the stored profiles as an aligned table, marking the active
+/// profile with `*`. Returns a `String` so it can be unit-tested and reused
+/// across output formats. Column widths account for the header labels and for
+/// the `(unavailable)` placeholder shown when a profile's info can't be
+/// fetched.
+fn format_profiles_table(entries: &[ProfileEntry]) -> String {
+    // Resolve each row's cells first so the widths cover placeholders too.
+    let rows: Vec<(&str, String, String, bool)> = entries
         .iter()
-        .filter_map(|e| e.info.as_ref().map(|i| i.email.len()))
-        .max()
-        .unwrap_or(0);
-
-    println!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email");
-    println!("  {:-<name_w$}  {:-<email_w$}  ---------", "", "");
-    for entry in entries {
-        let marker = if entry.is_active { "*" } else { " " };
-        match &entry.info {
-            Some(info) => println!(
-                "{marker} {:<name_w$}  {:<email_w$}  {}",
-                entry.name, info.email, info.workspace
+        .map(|e| match &e.info {
+            Some(info) => (
+                e.name.as_str(),
+                info.email.clone(),
+                info.workspace.clone(),
+                e.is_active,
             ),
-            None => println!("{marker} {}", entry.name),
+            None => (
+                e.name.as_str(),
+                "(unavailable)".to_string(),
+                "(unavailable)".to_string(),
+                e.is_active,
+            ),
+        })
+        .collect();
+
+    let name_w = rows
+        .iter()
+        .map(|r| r.0.len())
+        .max()
+        .unwrap_or(0)
+        .max("Profile".len());
+    let email_w = rows
+        .iter()
+        .map(|r| r.1.len())
+        .max()
+        .unwrap_or(0)
+        .max("Email".len());
+
+    let mut lines = vec![
+        format!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email"),
+        format!("  {:-<name_w$}  {:-<email_w$}  ---------", "", ""),
+    ];
+    for (name, email, workspace, is_active) in &rows {
+        let marker = if *is_active { "*" } else { " " };
+        lines.push(format!(
+            "{marker} {name:<name_w$}  {email:<email_w$}  {workspace}"
+        ));
+    }
+    lines.join("\n")
+}
+
+/// The current profile's details, rendered for the `me` command.
+struct ProfileDetails {
+    profile: String,
+    email: String,
+    workspace: String,
+}
+
+impl Formatter for ProfileDetails {
+    fn supports_csv() -> bool {
+        true
+    }
+
+    fn format(&self, output_type: OutputType) -> String {
+        match output_type {
+            OutputType::Json => serde_json::to_string_pretty(&json!({
+                "profile": self.profile,
+                "email": self.email,
+                "workspace": self.workspace,
+            }))
+            .unwrap(),
+            OutputType::Csv => {
+                let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+                wtr.write_record(["Profile", "Email", "Workspace"]).unwrap();
+                wtr.write_record([
+                    self.profile.as_str(),
+                    self.email.as_str(),
+                    self.workspace.as_str(),
+                ])
+                .unwrap();
+                String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+            }
+            OutputType::HumanReadable => format!(
+                "Profile:   {}\nEmail:     {}\nWorkspace: {}",
+                self.profile, self.email, self.workspace
+            ),
+        }
+    }
+}
+
+/// The stored profiles, rendered for the `auth list` command.
+struct ProfilesTable(Vec<ProfileEntry>);
+
+impl Formatter for ProfilesTable {
+    fn supports_csv() -> bool {
+        true
+    }
+
+    fn format(&self, output_type: OutputType) -> String {
+        match output_type {
+            OutputType::HumanReadable => format_profiles_table(&self.0),
+            OutputType::Json => {
+                let arr: Vec<serde_json::Value> = self
+                    .0
+                    .iter()
+                    .map(|e| {
+                        json!({
+                            "profile": e.name,
+                            "active": e.is_active,
+                            "email": e.info.as_ref().map(|i| i.email.clone()),
+                            "workspace": e.info.as_ref().map(|i| i.workspace.clone()),
+                        })
+                    })
+                    .collect();
+                serde_json::to_string_pretty(&serde_json::Value::Array(arr)).unwrap()
+            }
+            OutputType::Csv => {
+                let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+                wtr.write_record(["Profile", "Active", "Email", "Workspace"])
+                    .unwrap();
+                for e in &self.0 {
+                    let active = e.is_active.to_string();
+                    let (email, workspace) = match &e.info {
+                        Some(i) => (i.email.as_str(), i.workspace.as_str()),
+                        None => ("", ""),
+                    };
+                    wtr.write_record([e.name.as_str(), active.as_str(), email, workspace])
+                        .unwrap();
+                }
+                String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+            }
         }
     }
 }
@@ -135,7 +250,8 @@ pub struct Cli {
 pub enum Commands {
     /// Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token.
     Login {
-        /// Profile name to store the token under. Required when other profiles already exist.
+        /// Profile name to store the token under. Defaults to the active
+        /// profile, or "default" on a fresh install.
         #[arg(long)]
         name: Option<String>,
     },
@@ -146,11 +262,7 @@ pub enum Commands {
         name: Option<String>,
     },
     /// Show information about the currently authenticated profile.
-    Me {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-    },
+    Me {},
     /// Manage stored authentication profiles.
     #[command(subcommand)]
     Auth(AuthCommands),
@@ -178,10 +290,9 @@ pub enum AuthCommands {
     /// List stored authentication profiles.
     List {},
     /// Switch the active authentication profile.
-    ///
-    /// Without an argument, prints the list of profiles instead of switching.
     Switch {
-        /// Profile name to activate. Omit to print the profile list.
+        /// Profile name to activate. If omitted, the available profiles are
+        /// listed and the command exits with an error.
         name: Option<String>,
     },
 }
@@ -624,14 +735,8 @@ pub fn handle_cli(cli: &Cli) {
 
     match &cli.command {
         Commands::Login { name } => {
-            let existing = Authentication::list_profiles().unwrap_or_default();
-            let resolved_name = match resolve_login_name(name.as_deref(), &existing) {
-                Some(resolved) => resolved,
-                None => {
-                    error!("A profile already exists. Please specify a profile name with --name.");
-                    std::process::exit(1);
-                }
-            };
+            let active = active_profile_name();
+            let resolved_name = resolve_login_name(name.as_deref(), active.as_deref());
             print!("Enter your API Token: ");
             std::io::stdout().flush().unwrap();
             let token = read_password().unwrap();
@@ -657,32 +762,24 @@ pub fn handle_cli(cli: &Cli) {
         Commands::Asset(command) => handle_cli_asset_command(command, output),
         Commands::EdgeApp(command) => handle_cli_edge_app_command(command, output),
         Commands::Playlist(command) => handle_cli_playlist_command(command, output),
-        Commands::Me { json } => {
+        Commands::Me {} => {
             let auth = get_authentication();
             match fetch_profile_info(&auth.token, &auth.config.url) {
                 Ok(info) => {
-                    let json_flag = json.unwrap_or(false);
-                    let profile = match active_profile_name() {
-                        Some(name) => name,
-                        None => "(from API_TOKEN env)".to_string(),
-                    };
-                    if json_flag {
-                        let mut obj = serde_json::Map::new();
-                        obj.insert("profile".to_string(), serde_json::Value::String(profile));
-                        obj.insert("email".to_string(), serde_json::Value::String(info.email));
-                        obj.insert(
-                            "workspace".to_string(),
-                            serde_json::Value::String(info.workspace),
-                        );
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(&serde_json::Value::Object(obj)).unwrap()
-                        );
+                    // read_token() prefers API_TOKEN over the stored profile,
+                    // so the label must follow the same precedence, otherwise
+                    // it names the wrong profile when both are present.
+                    let profile = if env::var("API_TOKEN").is_ok() {
+                        "(from API_TOKEN env)".to_string()
                     } else {
-                        println!("Profile:   {profile}");
-                        println!("Email:     {}", info.email);
-                        println!("Workspace: {}", info.workspace);
-                    }
+                        active_profile_name().unwrap_or_else(|| "unknown".to_string())
+                    };
+                    let details = ProfileDetails {
+                        profile,
+                        email: info.email,
+                        workspace: info.workspace,
+                    };
+                    handle_command_execution_result(Ok::<_, CommandError>(details), output);
                 }
                 Err(AuthenticationError::WrongCredentials) => {
                     error!("Token is invalid. Run `screenly login` to update your credentials.");
@@ -721,7 +818,12 @@ pub fn handle_cli(cli: &Cli) {
                 Ok(entries) if entries.is_empty() => {
                     info!("No profiles stored. Run `screenly login` to add one.");
                 }
-                Ok(entries) => print_profiles_table(&entries),
+                Ok(entries) => {
+                    handle_command_execution_result(
+                        Ok::<_, CommandError>(ProfilesTable(entries)),
+                        output,
+                    );
+                }
                 Err(e) => {
                     error!("Error occurred: {e}");
                     std::process::exit(1);
@@ -729,9 +831,21 @@ pub fn handle_cli(cli: &Cli) {
             },
             AuthCommands::Switch { name } => match name {
                 None => {
-                    if let Ok(entries) = fetch_profiles_with_info(&Config::default().url) {
-                        print_profiles_table(&entries);
+                    // A missing argument is a usage error, so exit non-zero
+                    // (scripts can detect it) but still print the available
+                    // profile names as a hint. Names come from the local store,
+                    // so this needs no network round-trips.
+                    error!("No profile name given. Specify one of the profiles below:");
+                    match Authentication::list_profiles() {
+                        Ok(profiles) => {
+                            for profile in profiles {
+                                let marker = if profile.is_active { "*" } else { " " };
+                                println!("{marker} {}", profile.name);
+                            }
+                        }
+                        Err(e) => error!("Could not read profiles: {e}"),
                     }
+                    std::process::exit(1);
                 }
                 Some(name) => match Authentication::switch_profile(name) {
                     Ok(()) => {
@@ -1410,22 +1524,62 @@ mod tests {
 
     #[test]
     fn test_resolve_login_name_defaults_to_default_on_fresh_install() {
-        assert_eq!(resolve_login_name(None, &[]), Some("default".to_string()));
+        assert_eq!(resolve_login_name(None, None), "default");
     }
 
     #[test]
     fn test_resolve_login_name_honors_explicit_name() {
-        let existing = vec![("prod".to_string(), true)];
-        assert_eq!(
-            resolve_login_name(Some("stage"), &existing),
-            Some("stage".to_string())
-        );
+        assert_eq!(resolve_login_name(Some("stage"), Some("prod")), "stage");
     }
 
     #[test]
-    fn test_resolve_login_name_requires_name_when_profiles_exist() {
-        let existing = vec![("prod".to_string(), true)];
-        assert_eq!(resolve_login_name(None, &existing), None);
+    fn test_resolve_login_name_defaults_to_active_profile() {
+        // Plain `login` with a profile already active updates that profile
+        // rather than failing (the re-login-after-rotation flow).
+        assert_eq!(resolve_login_name(None, Some("prod")), "prod");
+    }
+
+    #[test]
+    fn test_format_profiles_table_aligns_headers_and_placeholders() {
+        use crate::authentication::{ProfileEntry, ProfileInfo};
+
+        // A short name/email (shorter than the headers) and a profile with no
+        // info at all -- both used to break alignment.
+        let entries = vec![
+            ProfileEntry {
+                name: "a".to_string(),
+                is_active: true,
+                info: Some(ProfileInfo {
+                    email: "x@y.z".to_string(),
+                    workspace: "Team".to_string(),
+                }),
+            },
+            ProfileEntry {
+                name: "staging".to_string(),
+                is_active: false,
+                info: None,
+            },
+        ];
+
+        let table = format_profiles_table(&entries);
+        let lines: Vec<&str> = table.lines().collect();
+
+        // Header column is at least as wide as "Profile" even though the
+        // widest name ("staging") is exactly 7 chars.
+        assert!(lines[0].starts_with("  Profile  "));
+
+        // The Email and Workspace columns start at the same offset on the
+        // header and on every data row (lines[0] header, [1] rule, [2..] data).
+        let email_col = lines[0].find("Email").unwrap();
+        let ws_col = lines[0].find("Workspace").unwrap();
+        assert_eq!(lines[2].find("x@y.z"), Some(email_col));
+        assert_eq!(lines[2].find("Team"), Some(ws_col));
+        // Row with missing info renders a placeholder in the same columns
+        // rather than dropping them.
+        assert_eq!(lines[3].find("(unavailable)"), Some(email_col));
+
+        // Active profile is marked.
+        assert!(lines[2].starts_with("* a"));
     }
 
     #[test]
