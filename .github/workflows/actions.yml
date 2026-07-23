@@ -5,6 +5,10 @@ on:
 
 jobs:
   test-github-action-workflow:
+    # Secrets are not available to pull_request runs from forks, so the
+    # SCREENLY_API_TOKEN would be empty and `screen list` would fail auth.
+    # Only run this integration check for same-repository pull requests.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     name: List screens
     steps:
