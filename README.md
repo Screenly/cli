@@ -67,6 +67,38 @@ $ API_SERVER_NAME=local cargo build --release
 
 Explore available commands [here](https://developer.screenly.io/cli/#commands).
 
+## Output Formats
+
+All list and get commands support three output formats via the global `--output` (`-o`) flag:
+
+| Format | Flag | Description |
+|--------|------|-------------|
+| Table | `--output table` | Human-readable table (default) |
+| JSON | `--output json` | JSON output |
+| CSV | `--output csv` | CSV output, suitable for piping to files or other tools |
+
+```bash
+# Human-readable table (default)
+$ screenly screen list
+
+# JSON output
+$ screenly --output json asset list
+
+# CSV output saved to a file
+$ screenly --output csv screen list > screens.csv
+
+# JSON output saved to a file
+$ screenly --output json screen list > screens.json
+```
+
+> [!NOTE]
+> In debug builds, the CLI outputs log messages to stdout. Use `RUST_LOG=off` to suppress them
+> when redirecting output to a file:
+> ```bash
+> $ RUST_LOG=off screenly --output csv screen list > screens.csv
+> $ RUST_LOG=off screenly --output json screen list > screens.json
+> ```
+
 ## MCP Server (AI Assistant Integration)
 
 The Screenly CLI includes a built-in [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server, enabling AI assistants like Claude, Cursor, and others to interact with your Screenly digital signage network.

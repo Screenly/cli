@@ -72,7 +72,18 @@ Command line interface is intended for quick interaction with Screenly through t
 
 ###### **Options:**
 
-* `-j`, `--json` — Enables JSON output
+* `-o`, `--output <OUTPUT>` — Output format: table (default), json, or csv
+
+  Default value: `table`
+
+  Possible values:
+  - `table`:
+    Human-readable table (default)
+  - `json`:
+    JSON output
+  - `csv`:
+    CSV output
+
 
 
 
@@ -166,11 +177,7 @@ Screen related commands
 
 Lists your screens
 
-**Usage:** `screenly screen list [OPTIONS]`
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
+**Usage:** `screenly screen list`
 
 
 
@@ -178,15 +185,11 @@ Lists your screens
 
 Gets a single screen by id
 
-**Usage:** `screenly screen get [OPTIONS] <UUID>`
+**Usage:** `screenly screen get <UUID>`
 
 ###### **Arguments:**
 
 * `<UUID>` — UUID of the screen
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
 
 
 
@@ -194,16 +197,12 @@ Gets a single screen by id
 
 Adds a new screen
 
-**Usage:** `screenly screen add [OPTIONS] <PIN> [NAME]`
+**Usage:** `screenly screen add <PIN> [NAME]`
 
 ###### **Arguments:**
 
 * `<PIN>` — Pin code created with registrations endpoint
 * `<NAME>` — Optional name of the new screen
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
 
 
 
@@ -243,11 +242,7 @@ Asset related commands
 
 Lists your assets
 
-**Usage:** `screenly asset list [OPTIONS]`
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
+**Usage:** `screenly asset list`
 
 
 
@@ -255,15 +250,11 @@ Lists your assets
 
 Gets a single asset by id
 
-**Usage:** `screenly asset get [OPTIONS] <UUID>`
+**Usage:** `screenly asset get <UUID>`
 
 ###### **Arguments:**
 
 * `<UUID>` — UUID of the asset
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
 
 
 
@@ -271,16 +262,12 @@ Gets a single asset by id
 
 Adds a new asset
 
-**Usage:** `screenly asset add [OPTIONS] <PATH> <TITLE>`
+**Usage:** `screenly asset add <PATH> <TITLE>`
 
 ###### **Arguments:**
 
 * `<PATH>` — Path to local file or URL for remote file
 * `<TITLE>` — Asset title
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
 
 
 
@@ -393,7 +380,7 @@ Time reference (ms): 32400000=9AM, 43200000=12PM, 61200000=5PM
 
 Examples: TRUE                                    - Always show $WEEKDAY IN {1, 2, 3, 4, 5}             - Weekdays only $TIME BETWEEN {32400000, 61200000}     - 9 AM to 5 PM NOT $WEEKDAY IN {0, 6}                  - Exclude weekends
 
-**Usage:** `screenly playlist create [OPTIONS] <TITLE> [PREDICATE]`
+**Usage:** `screenly playlist create <TITLE> [PREDICATE]`
 
 ###### **Arguments:**
 
@@ -418,21 +405,13 @@ Examples: TRUE                                    - Always show $WEEKDAY IN {1, 
 
    Default: TRUE
 
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
-
 
 
 ## `screenly playlist list`
 
 Lists your playlists
 
-**Usage:** `screenly playlist list [OPTIONS]`
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
+**Usage:** `screenly playlist list`
 
 
 
@@ -464,17 +443,13 @@ Deletes a playlist. This cannot be undone
 
 Adds an asset to the end of the playlist
 
-**Usage:** `screenly playlist append [OPTIONS] <UUID> <ASSET_UUID> [DURATION]`
+**Usage:** `screenly playlist append <UUID> <ASSET_UUID> [DURATION]`
 
 ###### **Arguments:**
 
 * `<UUID>` — UUID of the playlist
 * `<ASSET_UUID>` — UUID of the asset
 * `<DURATION>` — Duration of the playlist item in seconds. Defaults to 15 seconds
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
 
 
 
@@ -482,17 +457,13 @@ Adds an asset to the end of the playlist
 
 Adds an asset to the beginning of the playlist
 
-**Usage:** `screenly playlist prepend [OPTIONS] <UUID> <ASSET_UUID> [DURATION]`
+**Usage:** `screenly playlist prepend <UUID> <ASSET_UUID> [DURATION]`
 
 ###### **Arguments:**
 
 * `<UUID>` — UUID of the playlist
 * `<ASSET_UUID>` — UUID of the asset
 * `<DURATION>` — Duration of the playlist item in seconds. Defaults to 15 seconds
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
 
 
 
@@ -543,11 +514,7 @@ Creates an Edge App in the store
 
 Lists your Edge Apps
 
-**Usage:** `screenly edge-app list [OPTIONS]`
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
+**Usage:** `screenly edge-app list`
 
 
 
@@ -600,7 +567,6 @@ Lists Edge App settings
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
-* `-j`, `--json` — Enables JSON output
 
 
 
@@ -644,7 +610,6 @@ Lists Edge App instances
 ###### **Options:**
 
 * `-p`, `--path <PATH>` — Path to the directory with the manifest. Defaults to the current working directory
-* `-j`, `--json` — Enables JSON output
 
 
 

@@ -100,6 +100,17 @@ fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
 }
 
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq)]
+pub enum OutputFormat {
+    /// Human-readable table (default).
+    #[default]
+    Table,
+    /// JSON output.
+    Json,
+    /// CSV output.
+    Csv,
+}
+
 #[derive(Parser)]
 #[command(
     version,
@@ -108,9 +119,13 @@ fn parse_key_val(s: &str) -> Result<(String, String), ParseError> {
 )]
 #[command(propagate_version = true)]
 pub struct Cli {
-    /// Enables JSON output.
-    #[arg(short, long, action = clap::ArgAction::SetTrue)]
-    json: Option<bool>,
+    /// Output format: table (default), json, or csv.
+    #[arg(short, long, value_enum, default_value_t = OutputFormat::Table, global = true)]
+    pub(crate) output: OutputFormat,
+
+    /// Deprecated: use --output json instead.
+    #[arg(long, hide = true, global = true, conflicts_with = "output")]
+    pub(crate) json: bool,
 
     #[command(subcommand)]
     pub(crate) command: Commands,
@@ -174,24 +189,14 @@ pub enum AuthCommands {
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ScreenCommands {
     /// Lists your screens.
-    List {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-    },
+    List,
     /// Gets a single screen by id.
     Get {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// UUID of the screen.
         uuid: String,
     },
     /// Adds a new screen.
     Add {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// Pin code created with registrations endpoint.
         pin: String,
         /// Optional name of the new screen.
@@ -226,9 +231,6 @@ pub enum PlaylistCommands {
     ///   $TIME BETWEEN {32400000, 61200000}     - 9 AM to 5 PM
     ///   NOT $WEEKDAY IN {0, 6}                  - Exclude weekends
     Create {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// Title of the new playlist.
         title: String,
         /// Predicate expression controlling when the playlist is shown.
@@ -252,11 +254,7 @@ pub enum PlaylistCommands {
         predicate: Option<String>,
     },
     /// Lists your playlists.
-    List {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-    },
+    List,
     /// Gets a single playlist by id.
     Get {
         /// UUID of the playlist.
@@ -269,9 +267,6 @@ pub enum PlaylistCommands {
     },
     /// Adds an asset to the end of the playlist.
     Append {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// UUID of the playlist.
         uuid: String,
         /// UUID of the asset.
@@ -281,9 +276,6 @@ pub enum PlaylistCommands {
     },
     /// Adds an asset to the beginning of the playlist.
     Prepend {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// UUID of the playlist.
         uuid: String,
         /// UUID of the asset.
@@ -292,7 +284,7 @@ pub enum PlaylistCommands {
         duration: Option<u32>,
     },
     /// Updates a playlist from JSON input on stdin.
-    Update {},
+    Update,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -339,24 +331,14 @@ fn parse_key_values<T: KeyValuePairs>(s: &str) -> Result<T, ParseError> {
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AssetCommands {
     /// Lists your assets.
-    List {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-    },
+    List,
     /// Gets a single asset by id.
     Get {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// UUID of the asset.
         uuid: String,
     },
     /// Adds a new asset.
     Add {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
         /// Path to local file or URL for remote file.
         path: String,
         /// Asset title.
@@ -439,11 +421,7 @@ pub enum EdgeAppCommands {
     },
 
     /// Lists your Edge Apps.
-    List {
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
-    },
+    List,
     /// Renames an Edge App.
     Rename {
         /// Path to the directory with the manifest. Defaults to the current working directory.
@@ -509,10 +487,6 @@ pub enum EdgeAppSettingsCommands {
         /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
-
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
     },
     /// Sets an Edge App setting.
     Set {
@@ -533,10 +507,6 @@ pub enum EdgeAppInstanceCommands {
         /// Path to the directory with the manifest. Defaults to the current working directory.
         #[arg(short, long)]
         path: Option<String>,
-
-        /// Enables JSON output.
-        #[arg(short, long, action = clap::ArgAction::SetTrue)]
-        json: Option<bool>,
     },
     /// Creates an Edge App instance.
     Create {
@@ -564,16 +534,25 @@ pub enum EdgeAppInstanceCommands {
 
 pub fn handle_command_execution_result<T: Formatter>(
     result: anyhow::Result<T, CommandError>,
-    json: &Option<bool>,
+    output: OutputFormat,
 ) {
+    if output == OutputFormat::Csv && !T::supports_csv() {
+        error!("CSV output is not supported for this command. Use --output table or --output json instead.");
+        std::process::exit(1);
+    }
     match result {
         Ok(screen) => {
-            let output_type = if json.unwrap_or(false) {
-                OutputType::Json
-            } else {
-                OutputType::HumanReadable
+            let output_type = match output {
+                OutputFormat::Json => OutputType::Json,
+                OutputFormat::Csv => OutputType::Csv,
+                OutputFormat::Table => OutputType::HumanReadable,
             };
-            println!("{}", screen.format(output_type));
+            let formatted = screen.format(output_type);
+            if output == OutputFormat::Csv {
+                print!("{formatted}");
+            } else {
+                println!("{formatted}");
+            }
         }
         Err(e) => {
             match e {
@@ -636,6 +615,13 @@ pub fn get_asset_title(
 }
 
 pub fn handle_cli(cli: &Cli) {
+    let output = if cli.json {
+        eprintln!("Warning: --json is deprecated, use --output json instead.");
+        OutputFormat::Json
+    } else {
+        cli.output
+    };
+
     match &cli.command {
         Commands::Login { name } => {
             let existing = Authentication::list_profiles().unwrap_or_default();
@@ -667,10 +653,10 @@ pub fn handle_cli(cli: &Cli) {
                 },
             }
         }
-        Commands::Screen(command) => handle_cli_screen_command(command),
-        Commands::Asset(command) => handle_cli_asset_command(command),
-        Commands::EdgeApp(command) => handle_cli_edge_app_command(command),
-        Commands::Playlist(command) => handle_cli_playlist_command(command),
+        Commands::Screen(command) => handle_cli_screen_command(command, output),
+        Commands::Asset(command) => handle_cli_asset_command(command, output),
+        Commands::EdgeApp(command) => handle_cli_edge_app_command(command, output),
+        Commands::Playlist(command) => handle_cli_playlist_command(command, output),
         Commands::Me { json } => {
             let auth = get_authentication();
             match fetch_profile_info(&auth.token, &auth.config.url) {
@@ -803,19 +789,19 @@ fn get_user_input() -> String {
     user_input.trim().to_string()
 }
 
-pub fn handle_cli_screen_command(command: &ScreenCommands) {
+pub fn handle_cli_screen_command(command: &ScreenCommands, output: OutputFormat) {
     let authentication = get_authentication();
     let screen_command = commands::screen::ScreenCommand::new(authentication);
 
     match command {
-        ScreenCommands::List { json } => {
-            handle_command_execution_result(screen_command.list(), json);
+        ScreenCommands::List => {
+            handle_command_execution_result(screen_command.list(), output);
         }
-        ScreenCommands::Get { uuid, json } => {
-            handle_command_execution_result(screen_command.get(uuid), json);
+        ScreenCommands::Get { uuid } => {
+            handle_command_execution_result(screen_command.get(uuid), output);
         }
-        ScreenCommands::Add { pin, name, json } => {
-            handle_command_execution_result(screen_command.add(pin, name.clone()), json);
+        ScreenCommands::Add { pin, name } => {
+            handle_command_execution_result(screen_command.add(pin, name.clone()), output);
         }
         ScreenCommands::Delete { uuid } => {
             match get_screen_name(uuid, &screen_command) {
@@ -847,33 +833,20 @@ pub fn handle_cli_screen_command(command: &ScreenCommands) {
     }
 }
 
-pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
+pub fn handle_cli_playlist_command(command: &PlaylistCommands, output: OutputFormat) {
     let playlist_command = PlaylistCommand::new(get_authentication());
     match command {
-        PlaylistCommands::Create {
-            json,
-            title,
-            predicate,
-        } => {
+        PlaylistCommands::Create { title, predicate } => {
             handle_command_execution_result(
                 playlist_command.create(title, &predicate.clone().unwrap_or("TRUE".to_owned())),
-                json,
+                output,
             );
         }
-        PlaylistCommands::List { json } => {
-            handle_command_execution_result(playlist_command.list(), json);
+        PlaylistCommands::List => {
+            handle_command_execution_result(playlist_command.list(), output);
         }
         PlaylistCommands::Get { uuid } => {
-            let playlist_file = playlist_command.get_playlist_file(uuid);
-            match playlist_file {
-                Ok(playlist) => {
-                    let pretty_playlist_file = serde_json::to_string_pretty(&playlist).unwrap();
-                    println!("{pretty_playlist_file}");
-                }
-                Err(e) => {
-                    eprintln!("Error occurred when getting playlist: {e:?}")
-                }
-            }
+            handle_command_execution_result(playlist_command.get_playlist_file(uuid), output);
         }
         PlaylistCommands::Delete { uuid } => match playlist_command.delete(uuid) {
             Ok(()) => {
@@ -884,7 +857,6 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
             }
         },
         PlaylistCommands::Append {
-            json,
             uuid,
             asset_uuid,
             duration,
@@ -895,11 +867,10 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                     asset_uuid,
                     (*duration).unwrap_or(DEFAULT_ASSET_DURATION),
                 ),
-                json,
+                output,
             );
         }
         PlaylistCommands::Prepend {
-            json,
             uuid,
             asset_uuid,
             duration,
@@ -910,10 +881,10 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
                     asset_uuid,
                     (*duration).unwrap_or(DEFAULT_ASSET_DURATION),
                 ),
-                json,
+                output,
             );
         }
-        PlaylistCommands::Update {} => {
+        PlaylistCommands::Update => {
             let mut input = String::new();
             io::stdin()
                 .read_to_string(&mut input)
@@ -933,19 +904,19 @@ pub fn handle_cli_playlist_command(command: &PlaylistCommands) {
     }
 }
 
-pub fn handle_cli_asset_command(command: &AssetCommands) {
+pub fn handle_cli_asset_command(command: &AssetCommands, output: OutputFormat) {
     let authentication = get_authentication();
     let asset_command = commands::asset::AssetCommand::new(authentication);
 
     match command {
-        AssetCommands::List { json } => {
-            handle_command_execution_result(asset_command.list(), json);
+        AssetCommands::List => {
+            handle_command_execution_result(asset_command.list(), output);
         }
-        AssetCommands::Get { uuid, json } => {
-            handle_command_execution_result(asset_command.get(uuid), json);
+        AssetCommands::Get { uuid } => {
+            handle_command_execution_result(asset_command.get(uuid), output);
         }
-        AssetCommands::Add { path, title, json } => {
-            handle_command_execution_result(asset_command.add(path, title), json);
+        AssetCommands::Add { path, title } => {
+            handle_command_execution_result(asset_command.add(path, title), output);
         }
         AssetCommands::Delete { uuid } => {
             match get_asset_title(uuid, &asset_command) {
@@ -1074,7 +1045,7 @@ pub fn handle_cli_asset_command(command: &AssetCommands) {
     }
 }
 
-pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
+pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputFormat) {
     let authentication = get_authentication();
     let edge_app_command = commands::edge_app::EdgeAppCommand::new(authentication);
 
@@ -1114,8 +1085,8 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         }
 
-        EdgeAppCommands::List { json } => {
-            handle_command_execution_result(edge_app_command.list(), json);
+        EdgeAppCommands::List => {
+            handle_command_execution_result(edge_app_command.list(), output);
         }
         EdgeAppCommands::Deploy {
             path,
@@ -1130,8 +1101,11 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         },
         EdgeAppCommands::Setting(command) => match command {
-            EdgeAppSettingsCommands::List { path, json } => {
-                handle_command_execution_result(edge_app_command.list_settings(path.clone()), json);
+            EdgeAppSettingsCommands::List { path } => {
+                handle_command_execution_result(
+                    edge_app_command.list_settings(path.clone()),
+                    output,
+                );
             }
             EdgeAppSettingsCommands::Set { setting_pair, path } => {
                 match edge_app_command.set_setting(path.clone(), &setting_pair.0, &setting_pair.1) {
@@ -1323,7 +1297,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
             }
         }
         EdgeAppCommands::Instance(command) => match command {
-            EdgeAppInstanceCommands::List { path, json } => {
+            EdgeAppInstanceCommands::List { path } => {
                 let actual_app_id = match edge_app_command.get_app_id(path.clone()) {
                     Ok(id) => id,
                     Err(e) => {
@@ -1333,7 +1307,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands) {
                 };
                 handle_command_execution_result(
                     edge_app_command.list_instances(&actual_app_id),
-                    json,
+                    output,
                 );
             }
             EdgeAppInstanceCommands::Create { path, name } => {
@@ -1525,5 +1499,19 @@ mod tests {
 
         assert!(message.contains("Authentication error"));
         assert!(message.contains("Please run `screenly login` to authenticate"));
+    }
+
+    #[test]
+    fn test_json_flag_sets_json_field() {
+        let cli = Cli::try_parse_from(["screenly", "--json", "screen", "list"]).unwrap();
+        assert!(cli.json);
+        assert_eq!(cli.output, OutputFormat::Table);
+    }
+
+    #[test]
+    fn test_json_flag_conflicts_with_output_flag() {
+        let result =
+            Cli::try_parse_from(["screenly", "--json", "--output", "json", "screen", "list"]);
+        assert!(result.is_err());
     }
 }
