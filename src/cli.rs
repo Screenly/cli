@@ -149,8 +149,10 @@ pub enum AuthCommands {
     /// List stored authentication profiles.
     List {},
     /// Switch the active authentication profile.
+    ///
+    /// Without an argument, prints the list of profiles instead of switching.
     Switch {
-        /// Profile name to activate.
+        /// Profile name to activate. Omit to print the profile list.
         name: Option<String>,
     },
 }
@@ -666,11 +668,16 @@ pub fn handle_cli(cli: &Cli) {
             match fetch_profile_info(&auth.token, &auth.config.url) {
                 Ok(info) => {
                     let json_flag = json.unwrap_or(false);
+                    let profile = match active_profile_name() {
+                        Some(name) => name,
+                        None => "(from API_TOKEN env)".to_string(),
+                    };
                     if json_flag {
                         let mut obj = serde_json::Map::new();
-                        if let Some(name) = active_profile_name() {
-                            obj.insert("profile".to_string(), serde_json::Value::String(name));
-                        }
+                        obj.insert(
+                            "profile".to_string(),
+                            serde_json::Value::String(profile),
+                        );
                         obj.insert("email".to_string(), serde_json::Value::String(info.email));
                         obj.insert(
                             "workspace".to_string(),
@@ -681,9 +688,7 @@ pub fn handle_cli(cli: &Cli) {
                             serde_json::to_string_pretty(&serde_json::Value::Object(obj)).unwrap()
                         );
                     } else {
-                        if let Some(name) = active_profile_name() {
-                            println!("Profile:   {name}");
-                        }
+                        println!("Profile:   {profile}");
                         println!("Email:     {}", info.email);
                         println!("Workspace: {}", info.workspace);
                     }
