@@ -236,12 +236,16 @@ pub struct ProfileEntry {
 
 /// Returns every stored profile together with its email/workspace fetched
 /// from the API. Tokens stay inside this module and are never returned.
+/// The per-profile requests are issued in parallel so the total latency
+/// does not grow linearly with the number of profiles.
 pub fn fetch_profiles_with_info(api_url: &str) -> Result<Vec<ProfileEntry>, AuthenticationError> {
+    use rayon::prelude::*;
+
     let store = read_store()?;
     let mut names: Vec<String> = store.tokens.keys().cloned().collect();
     names.sort();
     let entries = names
-        .into_iter()
+        .into_par_iter()
         .map(|name| {
             let is_active = store.active.as_deref() == Some(name.as_str());
             let info = fetch_profile_info(&store.tokens[&name], api_url).ok();
