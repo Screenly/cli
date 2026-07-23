@@ -92,6 +92,11 @@ fn read_store() -> Result<TokenStore, AuthenticationError> {
         return Ok(TokenStore::default());
     }
     let contents = fs::read_to_string(&path)?;
+    // An empty or whitespace-only file is treated like a missing one rather
+    // than a parse error, so it doesn't block `login` on a fresh/blank store.
+    if contents.trim().is_empty() {
+        return Ok(TokenStore::default());
+    }
     match serde_yaml::from_str::<TokenStore>(&contents) {
         Ok(store) => Ok(store),
         Err(yaml_err) => {
@@ -545,6 +550,23 @@ mod tests {
                 assert!(msg.contains("screenly login"));
             }
             _ => panic!("expected CorruptStore error"),
+        }
+    }
+
+    #[test]
+    fn test_read_store_empty_file_is_treated_as_empty_store() {
+        // A zero-byte or whitespace-only file behaves like a missing one, so
+        // it doesn't take the CorruptStore path and block `login`.
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let path = tmp_dir.path().join(".screenly");
+
+        for contents in ["", "   \n\t"] {
+            fs::write(&path, contents).unwrap();
+            let store = read_store().unwrap();
+            assert!(store.tokens.is_empty());
+            assert!(store.active.is_none());
         }
     }
 
