@@ -674,11 +674,28 @@ pub fn handle_cli(cli: &Cli) {
                 }
             }
         }
-        Commands::Logout { name } => {
-            Authentication::remove_token(name.as_deref()).expect("Failed to remove token.");
-            info!("Logout successful.");
-            std::process::exit(0);
-        }
+        Commands::Logout { name } => match Authentication::remove_token(name.as_deref()) {
+            Ok(new_active) => {
+                info!("Logout successful.");
+                match new_active {
+                    Some(profile) => info!("Active profile is now '{profile}'."),
+                    None => info!("No profiles remain."),
+                }
+                std::process::exit(0);
+            }
+            Err(AuthenticationError::NoCredentials) => {
+                error!("Not logged in.");
+                std::process::exit(1);
+            }
+            Err(AuthenticationError::ProfileNotFound(profile)) => {
+                error!("Profile '{profile}' not found.");
+                std::process::exit(1);
+            }
+            Err(e) => {
+                error!("Error occurred: {e}");
+                std::process::exit(1);
+            }
+        },
         Commands::Auth(auth_command) => match auth_command {
             AuthCommands::List {} => match Authentication::list_profiles() {
                 Ok(profiles) if profiles.is_empty() => {

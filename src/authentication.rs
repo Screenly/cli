@@ -119,7 +119,11 @@ impl Authentication {
             .ok_or_else(|| AuthenticationError::ProfileNotFound(active))
     }
 
-    pub fn remove_token(name: Option<&str>) -> Result<(), AuthenticationError> {
+    /// Removes a profile. When `name` is `None` the active profile is removed.
+    /// If the removed profile was active, the new active profile is chosen
+    /// deterministically (the alphabetically first remaining profile).
+    /// Returns the name of the profile that is active after removal, if any.
+    pub fn remove_token(name: Option<&str>) -> Result<Option<String>, AuthenticationError> {
         let mut store = read_store()?;
         let target = match name {
             Some(n) => n.to_string(),
@@ -133,9 +137,12 @@ impl Authentication {
         }
         store.tokens.remove(&target);
         if store.active.as_deref() == Some(&target) {
-            store.active = store.tokens.keys().next().cloned();
+            let mut remaining: Vec<&String> = store.tokens.keys().collect();
+            remaining.sort();
+            store.active = remaining.first().map(|n| n.to_string());
         }
-        write_store(&store)
+        write_store(&store)?;
+        Ok(store.active)
     }
 
     pub fn list_profiles() -> Result<Vec<(String, String, bool)>, AuthenticationError> {
