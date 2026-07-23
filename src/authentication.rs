@@ -198,20 +198,25 @@ impl Authentication {
     }
 
     pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {
-        let token = self.token.clone();
-        let secret = format!("Token {token}");
-        let mut default_headers = HeaderMap::new();
-        default_headers.insert(header::AUTHORIZATION, secret.parse()?);
-        default_headers.insert(
-            header::USER_AGENT,
-            format!("screenly-cli {}", env!("CARGO_PKG_VERSION")).parse()?,
-        );
-
-        reqwest::blocking::Client::builder()
-            .default_headers(default_headers)
-            .build()
-            .map_err(AuthenticationError::Request)
+        authenticated_client(&self.token)
     }
+}
+
+/// Builds a blocking client that sends the auth token and the standard
+/// `screenly-cli {version}` User-Agent on every request.
+fn authenticated_client(token: &str) -> Result<reqwest::blocking::Client, AuthenticationError> {
+    let secret = format!("Token {token}");
+    let mut default_headers = HeaderMap::new();
+    default_headers.insert(header::AUTHORIZATION, secret.parse()?);
+    default_headers.insert(
+        header::USER_AGENT,
+        format!("screenly-cli {}", env!("CARGO_PKG_VERSION")).parse()?,
+    );
+
+    reqwest::blocking::Client::builder()
+        .default_headers(default_headers)
+        .build()
+        .map_err(AuthenticationError::Request)
 }
 
 pub struct ProfileInfo {
@@ -220,13 +225,9 @@ pub struct ProfileInfo {
 }
 
 pub fn fetch_profile_info(token: &str, api_url: &str) -> Result<ProfileInfo, AuthenticationError> {
-    let secret = format!("Token {token}");
-    let client = reqwest::blocking::Client::builder().build()?;
+    let client = authenticated_client(token)?;
 
-    let user_response = client
-        .get(format!("{api_url}/v4.1/users/me"))
-        .header(header::AUTHORIZATION, &secret)
-        .send()?;
+    let user_response = client.get(format!("{api_url}/v4.1/users/me")).send()?;
 
     if user_response.status() == StatusCode::UNAUTHORIZED {
         return Err(AuthenticationError::WrongCredentials);
@@ -234,17 +235,11 @@ pub fn fetch_profile_info(token: &str, api_url: &str) -> Result<ProfileInfo, Aut
 
     let user: serde_json::Value = user_response.json()?;
 
-    let email = user
-        .get(0)
-        .and_then(|u| u["email"].as_str())
-        .unwrap_or("unknown")
-        .to_string();
+    // The endpoint may return either a single object or a one-element array.
+    let user_obj = user.get(0).unwrap_or(&user);
+    let email = user_obj["email"].as_str().unwrap_or("unknown").to_string();
 
-    let teams: serde_json::Value = client
-        .get(format!("{api_url}/v4.1/teams"))
-        .header(header::AUTHORIZATION, &secret)
-        .send()?
-        .json()?;
+    let teams: serde_json::Value = client.get(format!("{api_url}/v4.1/teams")).send()?.json()?;
 
     let workspace = teams
         .as_array()
