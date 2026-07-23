@@ -100,8 +100,9 @@ mod tests {
 
     #[test]
     fn test_add_screen_should_send_correct_request() {
-        let new_screen = serde_json::from_str::<Value>("{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Test\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}").unwrap();
-        let new_screen_array = serde_json::Value::Array(vec![new_screen.clone()]);
+        // v4.1 POST /screens returns a bare object with the new screen's id,
+        // e.g. {"id": "<ulid>"} -- not the full screen and not an array.
+        let created = json!({ "id": "01KY6ZMD1E3MYZA9DVQBQ187DT" });
         let mock_server = MockServer::start();
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
@@ -113,7 +114,7 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .json_body(json!({"pin": "test-pin", "name": "test"}));
-            then.status(201).json_body(new_screen_array.clone());
+            then.status(201).json_body(created.clone());
         });
 
         let config = Config::new(mock_server.base_url());
@@ -122,7 +123,7 @@ mod tests {
         let v = screen_command.add("test-pin", Some("test".to_string()));
         post_mock.assert();
         assert!(v.is_ok());
-        assert_eq!(v.unwrap().value, new_screen_array);
+        assert_eq!(v.unwrap().value, created);
     }
 
     #[test]
