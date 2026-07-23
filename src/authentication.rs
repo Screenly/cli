@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::{env, fs};
 
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
@@ -81,42 +82,74 @@ fn read_store() -> Result<TokenStore, AuthenticationError> {
         return Ok(TokenStore::default());
     }
     let contents = fs::read_to_string(&path)?;
-    if let Ok(store) = serde_yaml::from_str::<TokenStore>(&contents) {
-        return Ok(store);
+    match serde_yaml::from_str::<TokenStore>(&contents) {
+        Ok(store) => Ok(store),
+        Err(yaml_err) => {
+            // Backward compat: the original format was a single plain-text
+            // token. Only migrate when the file actually looks like one.
+            // Any other parse failure (a hand-edit typo, a truncated file, a
+            // future schema change) must surface as an error rather than be
+            // silently reinterpreted as a token, which would drop every stored
+            // profile on the next write.
+            let trimmed = contents.trim();
+            if is_legacy_token(trimmed) {
+                let mut store = TokenStore::default();
+                store
+                    .tokens
+                    .insert("default".to_string(), trimmed.to_string());
+                store.active = Some("default".to_string());
+                Ok(store)
+            } else {
+                Err(AuthenticationError::Yaml(yaml_err))
+            }
+        }
     }
-    // Backward compat: plain text token → migrate to "default" profile
-    let token = contents.trim().to_string();
-    let mut store = TokenStore::default();
-    store.tokens.insert("default".to_string(), token);
-    store.active = Some("default".to_string());
-    Ok(store)
+}
+
+/// A legacy `~/.screenly` holds exactly one plain-text token: a single
+/// non-empty line with no YAML mapping punctuation.
+fn is_legacy_token(contents: &str) -> bool {
+    !contents.is_empty() && !contents.contains(':') && !contents.contains('\n')
 }
 
 fn write_store(store: &TokenStore) -> Result<(), AuthenticationError> {
     let path = screenly_path()?;
     let contents = serde_yaml::to_string(store)?;
 
-    // Write to a temp file and rename over the target so a concurrent reader
-    // never observes a half-written store and a crash mid-write can't corrupt it.
-    let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, contents)?;
-    restrict_permissions(&tmp_path)?;
+    // Write to a per-process temp file and rename over the target so a
+    // concurrent reader never observes a half-written store and a crash
+    // mid-write can't corrupt it. The pid suffix keeps two concurrent writers
+    // from sharing (and interleaving into) the same temp file.
+    let tmp_path = path.with_extension(format!("tmp.{}", std::process::id()));
+    let mut file = create_private_file(&tmp_path)?;
+    file.write_all(contents.as_bytes())?;
+    file.sync_all()?;
+    drop(file);
     fs::rename(&tmp_path, &path)?;
     Ok(())
 }
 
-/// The token store holds every profile's credentials, so keep it readable
-/// only by the owner. No-op on non-Unix platforms.
+/// Creates (or truncates) a file that the token store can be written to,
+/// owner-readable only from the moment it exists so the token is never
+/// briefly world-readable. Permissions are a no-op on non-Unix platforms.
 #[cfg(unix)]
-fn restrict_permissions(path: &std::path::Path) -> Result<(), AuthenticationError> {
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
-    Ok(())
+fn create_private_file(path: &std::path::Path) -> Result<fs::File, AuthenticationError> {
+    use std::os::unix::fs::OpenOptionsExt;
+    Ok(fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?)
 }
 
 #[cfg(not(unix))]
-fn restrict_permissions(_path: &std::path::Path) -> Result<(), AuthenticationError> {
-    Ok(())
+fn create_private_file(path: &std::path::Path) -> Result<fs::File, AuthenticationError> {
+    Ok(fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)?)
 }
 
 impl Authentication {
@@ -166,20 +199,20 @@ impl Authentication {
         Ok(store.active)
     }
 
-    /// Returns the stored profiles as `(name, is_active)` pairs sorted by name.
+    /// Returns the stored profiles sorted by name, without their tokens.
     /// Tokens are intentionally not exposed here to avoid accidental prints;
     /// use `fetch_profiles_with_info` when profile details are needed.
-    pub fn list_profiles() -> Result<Vec<(String, bool)>, AuthenticationError> {
+    pub fn list_profiles() -> Result<Vec<ProfileSummary>, AuthenticationError> {
         let store = read_store()?;
-        let mut profiles: Vec<(String, bool)> = store
+        let mut profiles: Vec<ProfileSummary> = store
             .tokens
             .keys()
-            .map(|name| {
-                let is_active = store.active.as_deref() == Some(name.as_str());
-                (name.clone(), is_active)
+            .map(|name| ProfileSummary {
+                is_active: store.active.as_deref() == Some(name.as_str()),
+                name: name.clone(),
             })
             .collect();
-        profiles.sort_by(|a, b| a.0.cmp(&b.0));
+        profiles.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(profiles)
     }
 
@@ -225,6 +258,12 @@ fn authenticated_client(token: &str) -> Result<reqwest::blocking::Client, Authen
 pub struct ProfileInfo {
     pub email: String,
     pub workspace: String,
+}
+
+/// A stored profile without its token, for listing profile names offline.
+pub struct ProfileSummary {
+    pub name: String,
+    pub is_active: bool,
 }
 
 pub struct ProfileEntry {
@@ -472,6 +511,84 @@ mod tests {
     }
 
     #[test]
+    fn test_read_store_malformed_yaml_returns_error_not_token() {
+        // A store that fails to parse (here: the required `tokens` key is
+        // misspelled) must surface an error, not be silently reinterpreted as
+        // a plain-text token, which would drop the stored profiles.
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            "active: prod\ntokenz:\n  prod: prod_token\n",
+        )
+        .unwrap();
+
+        assert!(matches!(read_store(), Err(AuthenticationError::Yaml(_))));
+    }
+
+    #[test]
+    fn test_legacy_plain_text_is_rewritten_as_yaml_on_first_write() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let path = tmp_dir.path().join(".screenly");
+        fs::write(&path, "legacy_token").unwrap();
+
+        // Reading migrates the legacy token into a store; writing it back must
+        // persist YAML, not the original plain text.
+        let store = read_store().unwrap();
+        write_store(&store).unwrap();
+
+        let contents = fs::read_to_string(&path).unwrap();
+        let parsed: TokenStore = serde_yaml::from_str(&contents).unwrap();
+        assert_eq!(parsed.tokens.get("default").unwrap(), "legacy_token");
+        assert_eq!(parsed.active.as_deref(), Some("default"));
+    }
+
+    #[test]
+    fn test_fetch_profiles_with_info_returns_details_per_profile() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [
+                ("prod".to_string(), "prod_token".to_string()),
+                ("stage".to_string(), "stage_token".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET).path("/v4.1/users/me");
+            then.status(200)
+                .json_body(serde_json::json!([{"email": "user@example.com"}]));
+        });
+        mock_server.mock(|when, then| {
+            when.method(GET).path("/v4.1/teams");
+            then.status(200)
+                .json_body(serde_json::json!([{"name": "My Team", "is_current": true}]));
+        });
+
+        let entries = fetch_profiles_with_info(&mock_server.base_url()).unwrap();
+        assert_eq!(entries.len(), 2);
+        // Sorted by name, so "prod" comes before "stage".
+        assert_eq!(entries[0].name, "prod");
+        assert!(entries[0].is_active);
+        assert_eq!(entries[0].info.as_ref().unwrap().email, "user@example.com");
+        assert_eq!(entries[0].info.as_ref().unwrap().workspace, "My Team");
+        assert!(!entries[1].is_active);
+    }
+
+    #[test]
     fn test_remove_token_should_remove_active_profile() {
         let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
@@ -672,10 +789,10 @@ mod tests {
 
         let profiles = Authentication::list_profiles().unwrap();
         assert_eq!(profiles.len(), 2);
-        let prod = profiles.iter().find(|(n, _)| n == "prod").unwrap();
-        let stage = profiles.iter().find(|(n, _)| n == "stage").unwrap();
-        assert!(prod.1);
-        assert!(!stage.1);
+        let prod = profiles.iter().find(|p| p.name == "prod").unwrap();
+        let stage = profiles.iter().find(|p| p.name == "stage").unwrap();
+        assert!(prod.is_active);
+        assert!(!stage.is_active);
     }
 
     #[test]
