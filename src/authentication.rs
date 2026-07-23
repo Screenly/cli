@@ -36,6 +36,16 @@ pub enum AuthenticationError {
     InvalidHeader(#[from] InvalidHeaderValue),
     #[error("yaml error: {0}")]
     Yaml(#[from] serde_yaml::Error),
+    #[error(
+        "The credentials file at {path} could not be parsed ({source}).\n\
+         Fix its contents, or delete it (`rm {path}`) and run `screenly login` to start fresh. \
+         Your stored profiles are left untouched until you do."
+    )]
+    CorruptStore {
+        path: String,
+        #[source]
+        source: serde_yaml::Error,
+    },
     #[error("unknown error")]
     Unknown,
 }
@@ -100,7 +110,10 @@ fn read_store() -> Result<TokenStore, AuthenticationError> {
                 store.active = Some("default".to_string());
                 Ok(store)
             } else {
-                Err(AuthenticationError::Yaml(yaml_err))
+                Err(AuthenticationError::CorruptStore {
+                    path: path.display().to_string(),
+                    source: yaml_err,
+                })
             }
         }
     }
@@ -524,7 +537,15 @@ mod tests {
         )
         .unwrap();
 
-        assert!(matches!(read_store(), Err(AuthenticationError::Yaml(_))));
+        match read_store() {
+            Err(e @ AuthenticationError::CorruptStore { .. }) => {
+                // The message tells the user where the file is and what to do.
+                let msg = e.to_string();
+                assert!(msg.contains(".screenly"));
+                assert!(msg.contains("screenly login"));
+            }
+            _ => panic!("expected CorruptStore error"),
+        }
     }
 
     #[test]

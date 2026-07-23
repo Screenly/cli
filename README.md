@@ -97,6 +97,8 @@ The `API_TOKEN` environment variable overrides the stored profiles when set, so 
 
 Plain-text `~/.screenly` files from older versions are migrated to the profile format automatically on first write.
 
+If `~/.screenly` becomes malformed (for example from a hand-edit), the CLI reports the problem and leaves the file untouched rather than discarding credentials. Fix the file's YAML, or delete it and run `screenly login` to start fresh.
+
 ## Output Formats
 
 All list and get commands support three output formats via the global `--output` (`-o`) flag:

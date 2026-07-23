@@ -39,6 +39,8 @@ fn get_authentication_error_message(e: &AuthenticationError) -> String {
         AuthenticationError::ProfileNotFound(name) => {
             format!("Active profile '{name}' not found. Run `screenly auth switch` to pick a valid profile.")
         }
+        // Already actionable and names the file; pass it through verbatim.
+        AuthenticationError::CorruptStore { .. } => e.to_string(),
         _ => {
             format!("Authentication error: {e}. Please run `screenly login` to authenticate.")
         }
@@ -752,7 +754,7 @@ pub fn handle_cli(cli: &Cli) {
                         std::process::exit(1);
                     }
                     _ => {
-                        error!("Error occurred: {e:?}");
+                        error!("{e}");
                         std::process::exit(1);
                     }
                 },
