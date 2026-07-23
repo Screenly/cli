@@ -238,7 +238,14 @@ pub fn post<T: Serialize + ?Sized>(
         return Ok(serde_json::Value::Null);
     }
 
-    Ok(serde_json::from_str(&response.text()?)?)
+    // A 201/200 with an empty body (e.g. if the server ever stops honoring
+    // `Prefer: return=representation`) must not fail the call after the
+    // resource has already been created.
+    let body = response.text()?;
+    if body.trim().is_empty() {
+        return Ok(serde_json::Value::Null);
+    }
+    Ok(serde_json::from_str(&body)?)
 }
 
 pub fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
@@ -700,8 +707,7 @@ mod tests {
 
     #[test]
     fn test_api_error_from_body_falls_back_to_status_on_unknown_key() {
-        let err =
-            api_error_from_body(r#"{"code": "ERR123"}"#, StatusCode::INTERNAL_SERVER_ERROR);
+        let err = api_error_from_body(r#"{"code": "ERR123"}"#, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(err.to_string(), "unexpected response status: 500");
     }
 

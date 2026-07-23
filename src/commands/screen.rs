@@ -4,6 +4,11 @@ use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{CommandError, Screens};
 
+/// Nested resources selected alongside each screen record on the v4.1 API.
+/// Shared by the CLI and MCP call sites so the select string can't drift.
+pub const SCREEN_SELECT: &str =
+    "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)";
+
 pub struct ScreenCommand {
     authentication: Authentication,
 }
@@ -14,14 +19,15 @@ impl ScreenCommand {
     }
 
     pub fn list(&self) -> anyhow::Result<Screens, CommandError> {
+        let endpoint = format!("v4.1/screens?select={SCREEN_SELECT}");
         Ok(Screens::new(commands::get(
             &self.authentication,
-            "v4.1/screens?select=*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)",
+            &endpoint,
         )?))
     }
 
     pub fn get(&self, id: &str) -> anyhow::Result<Screens, CommandError> {
-        let endpoint = format!("v4.1/screens?id=eq.{id}&select=*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)");
+        let endpoint = format!("v4.1/screens?id=eq.{id}&select={SCREEN_SELECT}");
 
         Ok(Screens::new(commands::get(
             &self.authentication,
@@ -117,6 +123,23 @@ mod tests {
         post_mock.assert();
         assert!(v.is_ok());
         assert_eq!(v.unwrap().value, new_screen_array);
+    }
+
+    #[test]
+    fn test_add_screen_handles_empty_created_body() {
+        // A 201 with no body must not fail the call after the screen is created.
+        let mock_server = MockServer::start();
+        let post_mock = mock_server.mock(|when, then| {
+            when.method(POST).path("/v4.1/screens");
+            then.status(201);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        let authentication = Authentication::new_with_config(config, "token");
+        let screen_command = ScreenCommand::new(authentication);
+        let result = screen_command.add("test-pin", None);
+        post_mock.assert();
+        assert!(result.is_ok());
     }
 
     #[test]
