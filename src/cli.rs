@@ -40,6 +40,20 @@ fn get_authentication_error_message(e: &AuthenticationError) -> String {
     }
 }
 
+/// Resolves the profile name a `login` should store under.
+///
+/// An explicit name is always honored. With no name given, a fresh install
+/// (no existing profiles) defaults to `"default"`; otherwise `None` is
+/// returned to signal that `--name` is required so an existing profile is
+/// not overwritten by accident.
+fn resolve_login_name(name: Option<&str>, existing: &[(String, bool)]) -> Option<String> {
+    match name {
+        Some(n) => Some(n.to_string()),
+        None if existing.is_empty() => Some("default".to_string()),
+        None => None,
+    }
+}
+
 /// Prints the stored profiles as a table with email and workspace columns,
 /// marking the active profile with a `*`.
 fn print_profiles_table(entries: &[ProfileEntry]) {
@@ -624,18 +638,12 @@ pub fn get_asset_title(
 pub fn handle_cli(cli: &Cli) {
     match &cli.command {
         Commands::Login { name } => {
-            let resolved_name = match name {
-                Some(n) => n.clone(),
+            let existing = Authentication::list_profiles().unwrap_or_default();
+            let resolved_name = match resolve_login_name(name.as_deref(), &existing) {
+                Some(resolved) => resolved,
                 None => {
-                    let existing = Authentication::list_profiles().unwrap_or_default();
-                    if existing.is_empty() {
-                        "default".to_string()
-                    } else {
-                        error!(
-                            "Multiple profiles exist. Please specify a profile name with --name."
-                        );
-                        std::process::exit(1);
-                    }
+                    error!("A profile already exists. Please specify a profile name with --name.");
+                    std::process::exit(1);
                 }
             };
             print!("Enter your API Token: ");
