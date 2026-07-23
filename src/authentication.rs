@@ -4,7 +4,6 @@ use std::{env, fs};
 use reqwest::header::{HeaderMap, InvalidHeaderValue};
 use reqwest::{header, StatusCode};
 use serde::{Deserialize, Serialize};
-use serde_yaml;
 use thiserror::Error;
 
 // For compatability reasons - let's leave build env as well.
@@ -34,7 +33,7 @@ pub enum AuthenticationError {
     MissingHomeDir(),
     #[error("invalid header error")]
     InvalidHeader(#[from] InvalidHeaderValue),
-    #[error("yaml error")]
+    #[error("yaml error: {0}")]
     Yaml(#[from] serde_yaml::Error),
     #[error("unknown error")]
     Unknown,
