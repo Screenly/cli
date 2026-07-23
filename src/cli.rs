@@ -10,8 +10,8 @@ use rpassword::read_password;
 use thiserror::Error;
 
 use crate::authentication::{
-    active_profile_name, fetch_profile_info, verify_and_store_token, Authentication,
-    AuthenticationError, Config,
+    active_profile_name, fetch_profile_info, fetch_profiles_with_info, verify_and_store_token,
+    Authentication, AuthenticationError, Config, ProfileEntry,
 };
 use crate::commands;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
@@ -36,6 +36,30 @@ fn get_authentication_error_message(e: &AuthenticationError) -> String {
         }
         _ => {
             format!("Authentication error: {e}. Please run `screenly login` to authenticate.")
+        }
+    }
+}
+
+/// Prints the stored profiles as a table with email and workspace columns,
+/// marking the active profile with a `*`.
+fn print_profiles_table(entries: &[ProfileEntry]) {
+    let name_w = entries.iter().map(|e| e.name.len()).max().unwrap_or(0);
+    let email_w = entries
+        .iter()
+        .filter_map(|e| e.info.as_ref().map(|i| i.email.len()))
+        .max()
+        .unwrap_or(0);
+
+    println!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email");
+    println!("  {:-<name_w$}  {:-<email_w$}  ---------", "", "");
+    for entry in entries {
+        let marker = if entry.is_active { "*" } else { " " };
+        match &entry.info {
+            Some(info) => println!(
+                "{marker} {:<name_w$}  {:<email_w$}  {}",
+                entry.name, info.email, info.workspace
+            ),
+            None => println!("{marker} {}", entry.name),
         }
     }
 }
@@ -697,76 +721,20 @@ pub fn handle_cli(cli: &Cli) {
             }
         },
         Commands::Auth(auth_command) => match auth_command {
-            AuthCommands::List {} => match Authentication::list_profiles() {
-                Ok(profiles) if profiles.is_empty() => {
+            AuthCommands::List {} => match fetch_profiles_with_info(&Config::default().url) {
+                Ok(entries) if entries.is_empty() => {
                     info!("No profiles stored. Run `screenly login` to add one.");
                 }
-                Ok(profiles) => {
-                    let api_url = Config::default().url;
-                    let rows: Vec<(String, bool, Option<(String, String)>)> = profiles
-                        .into_iter()
-                        .map(|(name, token, is_active)| {
-                            let info = fetch_profile_info(&token, &api_url)
-                                .ok()
-                                .map(|i| (i.email, i.workspace));
-                            (name, is_active, info)
-                        })
-                        .collect();
-
-                    let name_w = rows.iter().map(|(n, _, _)| n.len()).max().unwrap_or(0);
-                    let email_w = rows
-                        .iter()
-                        .filter_map(|(_, _, i)| i.as_ref().map(|(e, _)| e.len()))
-                        .max()
-                        .unwrap_or(0);
-
-                    println!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email");
-                    println!("  {:-<name_w$}  {:-<email_w$}  ---------", "", "");
-                    for (name, is_active, info) in rows {
-                        let marker = if is_active { "*" } else { " " };
-                        match info {
-                            Some((email, workspace)) => {
-                                println!("{marker} {name:<name_w$}  {email:<email_w$}  {workspace}")
-                            }
-                            None => println!("{marker} {name}"),
-                        }
-                    }
-                }
+                Ok(entries) => print_profiles_table(&entries),
                 Err(e) => {
-                    error!("Error occurred: {e:?}");
+                    error!("Error occurred: {e}");
                     std::process::exit(1);
                 }
             },
             AuthCommands::Switch { name } => match name {
                 None => {
-                    let api_url = Config::default().url;
-                    if let Ok(profiles) = Authentication::list_profiles() {
-                        let rows: Vec<(String, bool, Option<(String, String)>)> = profiles
-                            .into_iter()
-                            .map(|(name, token, is_active)| {
-                                let info = fetch_profile_info(&token, &api_url)
-                                    .ok()
-                                    .map(|i| (i.email, i.workspace));
-                                (name, is_active, info)
-                            })
-                            .collect();
-                        let name_w = rows.iter().map(|(n, _, _)| n.len()).max().unwrap_or(0);
-                        let email_w = rows
-                            .iter()
-                            .filter_map(|(_, _, i)| i.as_ref().map(|(e, _)| e.len()))
-                            .max()
-                            .unwrap_or(0);
-                        println!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email");
-                        println!("  {:-<name_w$}  {:-<email_w$}  ---------", "", "");
-                        for (name, is_active, info) in rows {
-                            let marker = if is_active { "*" } else { " " };
-                            match info {
-                                Some((email, workspace)) => println!(
-                                    "{marker} {name:<name_w$}  {email:<email_w$}  {workspace}"
-                                ),
-                                None => println!("{marker} {name}"),
-                            }
-                        }
+                    if let Ok(entries) = fetch_profiles_with_info(&Config::default().url) {
+                        print_profiles_table(&entries);
                     }
                 }
                 Some(name) => match Authentication::switch_profile(name) {

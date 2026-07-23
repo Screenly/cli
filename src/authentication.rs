@@ -166,14 +166,17 @@ impl Authentication {
         Ok(store.active)
     }
 
-    pub fn list_profiles() -> Result<Vec<(String, String, bool)>, AuthenticationError> {
+    /// Returns the stored profiles as `(name, is_active)` pairs sorted by name.
+    /// Tokens are intentionally not exposed here to avoid accidental prints;
+    /// use `fetch_profiles_with_info` when profile details are needed.
+    pub fn list_profiles() -> Result<Vec<(String, bool)>, AuthenticationError> {
         let store = read_store()?;
-        let mut profiles: Vec<(String, String, bool)> = store
+        let mut profiles: Vec<(String, bool)> = store
             .tokens
-            .iter()
-            .map(|(name, token)| {
+            .keys()
+            .map(|name| {
                 let is_active = store.active.as_deref() == Some(name.as_str());
-                (name.clone(), token.clone(), is_active)
+                (name.clone(), is_active)
             })
             .collect();
         profiles.sort_by(|a, b| a.0.cmp(&b.0));
@@ -222,6 +225,34 @@ fn authenticated_client(token: &str) -> Result<reqwest::blocking::Client, Authen
 pub struct ProfileInfo {
     pub email: String,
     pub workspace: String,
+}
+
+pub struct ProfileEntry {
+    pub name: String,
+    pub is_active: bool,
+    /// `None` when the profile's token could not be resolved against the API.
+    pub info: Option<ProfileInfo>,
+}
+
+/// Returns every stored profile together with its email/workspace fetched
+/// from the API. Tokens stay inside this module and are never returned.
+pub fn fetch_profiles_with_info(api_url: &str) -> Result<Vec<ProfileEntry>, AuthenticationError> {
+    let store = read_store()?;
+    let mut names: Vec<String> = store.tokens.keys().cloned().collect();
+    names.sort();
+    let entries = names
+        .into_iter()
+        .map(|name| {
+            let is_active = store.active.as_deref() == Some(name.as_str());
+            let info = fetch_profile_info(&store.tokens[&name], api_url).ok();
+            ProfileEntry {
+                name,
+                is_active,
+                info,
+            }
+        })
+        .collect();
+    Ok(entries)
 }
 
 pub fn fetch_profile_info(token: &str, api_url: &str) -> Result<ProfileInfo, AuthenticationError> {
@@ -493,10 +524,10 @@ mod tests {
 
         let profiles = Authentication::list_profiles().unwrap();
         assert_eq!(profiles.len(), 2);
-        let prod = profiles.iter().find(|(n, _, _)| n == "prod").unwrap();
-        let stage = profiles.iter().find(|(n, _, _)| n == "stage").unwrap();
-        assert!(prod.2);
-        assert!(!stage.2);
+        let prod = profiles.iter().find(|(n, _)| n == "prod").unwrap();
+        let stage = profiles.iter().find(|(n, _)| n == "stage").unwrap();
+        assert!(prod.1);
+        assert!(!stage.1);
     }
 
     #[test]
