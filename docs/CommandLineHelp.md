@@ -95,7 +95,7 @@ Logs in with the provided token and stores it for further use if valid. You can 
 
 ###### **Options:**
 
-* `--name <NAME>` — Profile name to store the token under. Required when other profiles already exist
+* `--name <NAME>` — Profile name to store the token under. Defaults to the active profile, or "default" on a fresh install
 
 
 
@@ -115,11 +115,7 @@ Logs out and removes the stored token
 
 Show information about the currently authenticated profile
 
-**Usage:** `screenly me [OPTIONS]`
-
-###### **Options:**
-
-* `-j`, `--json` — Enables JSON output
+**Usage:** `screenly me`
 
 
 
@@ -146,15 +142,13 @@ List stored authentication profiles
 
 ## `screenly auth switch`
 
-Switch the active authentication profile.
-
-Without an argument, prints the list of profiles instead of switching.
+Switch the active authentication profile
 
 **Usage:** `screenly auth switch [NAME]`
 
 ###### **Arguments:**
 
-* `<NAME>` — Profile name to activate. Omit to print the profile list
+* `<NAME>` — Profile name to activate. If omitted, the available profiles are listed and the command exits with an error
 
 
 

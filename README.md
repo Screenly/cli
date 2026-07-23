@@ -67,6 +67,36 @@ $ API_SERVER_NAME=local cargo build --release
 
 Explore available commands [here](https://developer.screenly.io/cli/#commands).
 
+## Authentication and profiles
+
+Credentials are stored in `~/.screenly` as named profiles, with one profile active at a time. This lets you keep several tokens (for example one per workspace) and switch between them.
+
+```bash
+# Log in. On a fresh install this creates the "default" profile; with a
+# profile already active it updates that profile (e.g. after a token rotation).
+$ screenly login
+
+# Log in under a specific profile name.
+$ screenly login --name work
+
+# Show the profile you are currently authenticated as.
+$ screenly me
+
+# List stored profiles (the active one is marked with *). Honors --output.
+$ screenly auth list
+
+# Switch the active profile.
+$ screenly auth switch work
+
+# Remove a profile. Without --name, removes the active one.
+$ screenly logout
+$ screenly logout --name work
+```
+
+The `API_TOKEN` environment variable overrides the stored profiles when set, so `me` and every other command authenticate with that token regardless of the active profile.
+
+Plain-text `~/.screenly` files from older versions are migrated to the profile format automatically on first write.
+
 ## Output Formats
 
 All list and get commands support three output formats via the global `--output` (`-o`) flag:
