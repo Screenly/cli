@@ -29,7 +29,7 @@ fn test_screen_list() {
             .path("/v4.1/screens")
             .query_param(
                 "select",
-                "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)",
+                "*,screen_configs(*),screen_pings(*),screen_reports(*),screen_statuses(*)",
             )
             .header("Authorization", "Token test_token");
         then.status(200)
@@ -53,7 +53,7 @@ fn test_screen_get() {
             .query_param("id", "eq.screen-uuid")
             .query_param(
                 "select",
-                "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)",
+                "*,screen_configs(*),screen_pings(*),screen_reports(*),screen_statuses(*)",
             )
             .header("Authorization", "Token test_token");
         then.status(200)

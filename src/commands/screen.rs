@@ -7,7 +7,7 @@ use crate::commands::{CommandError, Screens};
 /// Nested resources selected alongside each screen record on the v4.1 API.
 /// Shared by the CLI and MCP call sites so the select string can't drift.
 pub const SCREEN_SELECT: &str =
-    "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)";
+    "*,screen_configs(*),screen_pings(*),screen_reports(*),screen_statuses(*)";
 
 pub struct ScreenCommand {
     authentication: Authentication,
@@ -81,7 +81,7 @@ mod tests {
                 .path("/v4.1/screens")
                 .query_param(
                     "select",
-                    "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)",
+                    "*,screen_configs(*),screen_pings(*),screen_reports(*),screen_statuses(*)",
                 )
                 .header("Authorization", "Token token")
                 .header(
@@ -200,7 +200,7 @@ mod tests {
             when.method(GET)
                 .path("/v4.1/screens")
                 .query_param("id", "eq.017a5104-524b-33d8-8026-9087b59e7eb5")
-                .query_param("select", "*,screens_configs(*),screens_pings(*),screens_reports(*),screens_statuses(*)")
+                .query_param("select", "*,screen_configs(*),screen_pings(*),screen_reports(*),screen_statuses(*)")
                 .header("user-agent", format!("screenly-cli {}", env!("CARGO_PKG_VERSION")))
                 .header("Authorization", "Token token");
             then
