@@ -94,7 +94,28 @@ fn read_store() -> Result<TokenStore, AuthenticationError> {
 
 fn write_store(store: &TokenStore) -> Result<(), AuthenticationError> {
     let path = screenly_path()?;
-    fs::write(path, serde_yaml::to_string(store)?)?;
+    let contents = serde_yaml::to_string(store)?;
+
+    // Write to a temp file and rename over the target so a concurrent reader
+    // never observes a half-written store and a crash mid-write can't corrupt it.
+    let tmp_path = path.with_extension("tmp");
+    fs::write(&tmp_path, contents)?;
+    restrict_permissions(&tmp_path)?;
+    fs::rename(&tmp_path, &path)?;
+    Ok(())
+}
+
+/// The token store holds every profile's credentials, so keep it readable
+/// only by the owner. No-op on non-Unix platforms.
+#[cfg(unix)]
+fn restrict_permissions(path: &std::path::Path) -> Result<(), AuthenticationError> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restrict_permissions(_path: &std::path::Path) -> Result<(), AuthenticationError> {
     Ok(())
 }
 
