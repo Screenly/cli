@@ -1438,6 +1438,26 @@ mod tests {
     use crate::authentication::Config;
 
     #[test]
+    fn test_resolve_login_name_defaults_to_default_on_fresh_install() {
+        assert_eq!(resolve_login_name(None, &[]), Some("default".to_string()));
+    }
+
+    #[test]
+    fn test_resolve_login_name_honors_explicit_name() {
+        let existing = vec![("prod".to_string(), true)];
+        assert_eq!(
+            resolve_login_name(Some("stage"), &existing),
+            Some("stage".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_login_name_requires_name_when_profiles_exist() {
+        let existing = vec![("prod".to_string(), true)];
+        assert_eq!(resolve_login_name(None, &existing), None);
+    }
+
+    #[test]
     fn test_get_screen_name_should_return_correct_screen_name() {
         let _tmp_dir = tempdir().unwrap();
         let _tmp_dir = tempdir().unwrap();

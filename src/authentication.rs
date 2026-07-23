@@ -366,6 +366,43 @@ mod tests {
     }
 
     #[test]
+    fn test_verify_and_store_token_preserves_existing_profiles() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+
+        let existing = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [("prod".to_string(), "prod_token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&existing).unwrap(),
+        )
+        .unwrap();
+
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/");
+            then.status(404);
+        });
+
+        let config = Config::new(mock_server.base_url());
+        assert!(verify_and_store_token("stage_token", "stage", &config.url).is_ok());
+
+        let store: TokenStore =
+            serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
+                .unwrap();
+        // The pre-existing profile is retained and the new one becomes active.
+        assert_eq!(store.tokens.get("prod").unwrap(), "prod_token");
+        assert_eq!(store.tokens.get("stage").unwrap(), "stage_token");
+        assert_eq!(store.active.as_deref(), Some("stage"));
+    }
+
+    #[test]
     fn test_verify_and_store_token_when_token_is_invalid() {
         let tmp_dir = tempdir().unwrap();
 
@@ -451,12 +488,117 @@ mod tests {
         )
         .unwrap();
 
-        Authentication::remove_token(None).unwrap();
+        let new_active = Authentication::remove_token(None).unwrap();
+        assert!(new_active.is_none());
         let store: TokenStore =
             serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
                 .unwrap();
         assert!(store.tokens.is_empty());
         assert!(store.active.is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_write_store_restricts_permissions_to_owner() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+
+        let mut store = TokenStore::default();
+        store.tokens.insert("default".to_string(), "token".to_string());
+        store.active = Some("default".to_string());
+        write_store(&store).unwrap();
+
+        let mode = fs::metadata(tmp_dir.path().join(".screenly"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
+    fn test_remove_token_with_explicit_name_keeps_active() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [
+                ("prod".to_string(), "prod_token".to_string()),
+                ("stage".to_string(), "stage_token".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        // Removing a non-active profile by name leaves the active one intact.
+        let new_active = Authentication::remove_token(Some("stage")).unwrap();
+        assert_eq!(new_active.as_deref(), Some("prod"));
+        let store: TokenStore =
+            serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
+                .unwrap();
+        assert!(!store.tokens.contains_key("stage"));
+        assert_eq!(store.active.as_deref(), Some("prod"));
+    }
+
+    #[test]
+    fn test_remove_active_profile_picks_deterministic_new_active() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [
+                ("prod".to_string(), "prod_token".to_string()),
+                ("alpha".to_string(), "alpha_token".to_string()),
+                ("stage".to_string(), "stage_token".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        // Removing the active profile picks the alphabetically first remaining one.
+        let new_active = Authentication::remove_token(None).unwrap();
+        assert_eq!(new_active.as_deref(), Some("alpha"));
+        let store: TokenStore =
+            serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
+                .unwrap();
+        assert_eq!(store.active.as_deref(), Some("alpha"));
+    }
+
+    #[test]
+    fn test_remove_token_with_unknown_name_errors() {
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("prod".to_string()),
+            tokens: [("prod".to_string(), "prod_token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            Authentication::remove_token(Some("ghost")),
+            Err(AuthenticationError::ProfileNotFound(_))
+        ));
     }
 
     #[test]
@@ -582,6 +724,30 @@ mod tests {
         let result = fetch_profile_info("valid_token", &mock_server.base_url());
         assert!(result.is_ok());
         let info = result.unwrap();
+        assert_eq!(info.email, "user@example.com");
+        assert_eq!(info.workspace, "My Team");
+    }
+
+    #[test]
+    fn test_fetch_profile_info_accepts_object_response() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/users/me")
+                .header("Authorization", "Token valid_token");
+            // A single object, not wrapped in an array.
+            then.status(200)
+                .json_body(serde_json::json!({"email": "user@example.com"}));
+        });
+        mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/teams")
+                .header("Authorization", "Token valid_token");
+            then.status(200)
+                .json_body(serde_json::json!([{"name": "My Team", "is_current": true}]));
+        });
+
+        let info = fetch_profile_info("valid_token", &mock_server.base_url()).unwrap();
         assert_eq!(info.email, "user@example.com");
         assert_eq!(info.workspace, "My Team");
     }
