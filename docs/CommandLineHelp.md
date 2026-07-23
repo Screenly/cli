@@ -135,13 +135,15 @@ List stored authentication profiles
 
 ## `screenly auth switch`
 
-Switch the active authentication profile
+Switch the active authentication profile.
+
+Without an argument, prints the list of profiles instead of switching.
 
 **Usage:** `screenly auth switch [NAME]`
 
 ###### **Arguments:**
 
-* `<NAME>` — Profile name to activate
+* `<NAME>` — Profile name to activate. Omit to print the profile list
 
 
 
