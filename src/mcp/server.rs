@@ -220,7 +220,10 @@ impl ScreenlyMcpServer {
 impl ScreenlyMcpServer {
     // ============ SCREEN TOOLS ============
 
-    #[tool(description = "List all screens with their status, hardware info, and sync state.")]
+    #[tool(
+        description = "List all screens with their status, hardware info, and sync state.",
+        annotations(title = "List Screens", read_only_hint = true, open_world_hint = false)
+    )]
     fn screen_list(&self) -> String {
         match ScreenTools::list(&self.auth) {
             Ok(result) => result,
@@ -228,7 +231,10 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Get a screen by UUID.")]
+    #[tool(
+        description = "Get a screen by UUID.",
+        annotations(title = "Get Screen", read_only_hint = true, open_world_hint = false)
+    )]
     fn screen_get(&self, Parameters(UuidParam { uuid }): Parameters<UuidParam>) -> String {
         match ScreenTools::get(&self.auth, &uuid) {
             Ok(result) => result,
@@ -238,7 +244,10 @@ impl ScreenlyMcpServer {
 
     // ============ ASSET TOOLS ============
 
-    #[tool(description = "List all assets with their type, status, and metadata.")]
+    #[tool(
+        description = "List all assets with their type, status, and metadata.",
+        annotations(title = "List Assets", read_only_hint = true, open_world_hint = false)
+    )]
     fn asset_list(&self) -> String {
         match AssetTools::list(&self.auth) {
             Ok(result) => result,
@@ -246,7 +255,10 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Get an asset by UUID.")]
+    #[tool(
+        description = "Get an asset by UUID.",
+        annotations(title = "Get Asset", read_only_hint = true, open_world_hint = false)
+    )]
     fn asset_get(&self, Parameters(UuidParam { uuid }): Parameters<UuidParam>) -> String {
         match AssetTools::get(&self.auth, &uuid) {
             Ok(result) => result,
@@ -254,7 +266,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Create a new asset from a URL. Supports web pages, images, and videos.")]
+    #[tool(
+        description = "Create a new asset from a URL. Supports web pages, images, and videos.",
+        annotations(
+            title = "Create Asset",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn asset_create(
         &self,
         Parameters(AssetCreateParam { title, source_url }): Parameters<AssetCreateParam>,
@@ -265,7 +286,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Update an asset's properties (title, js_injection, headers).")]
+    #[tool(
+        description = "Update an asset's properties (title, js_injection, headers).",
+        annotations(
+            title = "Update Asset",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn asset_update(
         &self,
         Parameters(AssetUpdateParam {
@@ -281,7 +311,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Delete an asset by UUID.")]
+    #[tool(
+        description = "Delete an asset by UUID.",
+        annotations(
+            title = "Delete Asset",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn asset_delete(&self, Parameters(UuidParam { uuid }): Parameters<UuidParam>) -> String {
         match AssetTools::delete(&self.auth, &uuid) {
             Ok(result) => result,
@@ -291,7 +330,14 @@ impl ScreenlyMcpServer {
 
     // ============ ASSET GROUP TOOLS ============
 
-    #[tool(description = "List all asset groups (folders for organizing assets).")]
+    #[tool(
+        description = "List all asset groups (folders for organizing assets).",
+        annotations(
+            title = "List Asset Groups",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn asset_group_list(&self) -> String {
         match AssetGroupTools::list(&self.auth) {
             Ok(result) => result,
@@ -299,7 +345,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Create a new asset group.")]
+    #[tool(
+        description = "Create a new asset group.",
+        annotations(
+            title = "Create Asset Group",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn asset_group_create(
         &self,
         Parameters(TitleParam { title }): Parameters<TitleParam>,
@@ -310,7 +365,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Update an asset group.")]
+    #[tool(
+        description = "Update an asset group.",
+        annotations(
+            title = "Update Asset Group",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn asset_group_update(
         &self,
         Parameters(AssetGroupUpdateParam { uuid, title }): Parameters<AssetGroupUpdateParam>,
@@ -321,7 +385,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Delete an asset group. WARNING: Also deletes all assets in the group.")]
+    #[tool(
+        description = "Delete an asset group. WARNING: Also deletes all assets in the group.",
+        annotations(
+            title = "Delete Asset Group",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn asset_group_delete(&self, Parameters(UuidParam { uuid }): Parameters<UuidParam>) -> String {
         match AssetGroupTools::delete(&self.auth, &uuid) {
             Ok(result) => result,
@@ -331,7 +404,14 @@ impl ScreenlyMcpServer {
 
     // ============ PLAYLIST TOOLS ============
 
-    #[tool(description = "List all playlists.")]
+    #[tool(
+        description = "List all playlists.",
+        annotations(
+            title = "List Playlists",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn playlist_list(&self) -> String {
         match PlaylistTools::list(&self.auth) {
             Ok(result) => result,
@@ -339,7 +419,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Create a new playlist.")]
+    #[tool(
+        description = "Create a new playlist.",
+        annotations(
+            title = "Create Playlist",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn playlist_create(
         &self,
         Parameters(PlaylistCreateParam {
@@ -355,7 +444,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Update a playlist.")]
+    #[tool(
+        description = "Update a playlist.",
+        annotations(
+            title = "Update Playlist",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn playlist_update(
         &self,
         Parameters(PlaylistUpdateParam {
@@ -372,7 +470,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Delete a playlist by UUID.")]
+    #[tool(
+        description = "Delete a playlist by UUID.",
+        annotations(
+            title = "Delete Playlist",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn playlist_delete(&self, Parameters(UuidParam { uuid }): Parameters<UuidParam>) -> String {
         match PlaylistTools::delete(&self.auth, &uuid) {
             Ok(result) => result,
@@ -382,7 +489,14 @@ impl ScreenlyMcpServer {
 
     // ============ PLAYLIST ITEM TOOLS ============
 
-    #[tool(description = "List all items in a playlist.")]
+    #[tool(
+        description = "List all items in a playlist.",
+        annotations(
+            title = "List Playlist Items",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn playlist_item_list(&self, Parameters(UuidParam { uuid }): Parameters<UuidParam>) -> String {
         match PlaylistItemTools::list(&self.auth, &uuid) {
             Ok(result) => result,
@@ -390,7 +504,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Add an asset to a playlist.")]
+    #[tool(
+        description = "Add an asset to a playlist.",
+        annotations(
+            title = "Add Asset to Playlist",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn playlist_item_create(
         &self,
         Parameters(PlaylistItemCreateParam {
@@ -407,7 +530,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Update a playlist item (duration, position).")]
+    #[tool(
+        description = "Update a playlist item (duration, position).",
+        annotations(
+            title = "Update Playlist Item",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn playlist_item_update(
         &self,
         Parameters(PlaylistItemUpdateParam {
@@ -424,7 +556,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Remove an item from a playlist.")]
+    #[tool(
+        description = "Remove an item from a playlist.",
+        annotations(
+            title = "Remove Playlist Item",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn playlist_item_delete(
         &self,
         Parameters(PlaylistItemDeleteParam {
@@ -440,7 +581,10 @@ impl ScreenlyMcpServer {
 
     // ============ LABEL TOOLS ============
 
-    #[tool(description = "List all labels. Labels group screens and target playlists.")]
+    #[tool(
+        description = "List all labels. Labels group screens and target playlists.",
+        annotations(title = "List Labels", read_only_hint = true, open_world_hint = false)
+    )]
     fn label_list(&self) -> String {
         match LabelTools::list(&self.auth) {
             Ok(result) => result,
@@ -448,7 +592,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Create a new label.")]
+    #[tool(
+        description = "Create a new label.",
+        annotations(
+            title = "Create Label",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn label_create(&self, Parameters(NameParam { name }): Parameters<NameParam>) -> String {
         match LabelTools::create(&self.auth, &name) {
             Ok(result) => result,
@@ -456,7 +609,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Update a label.")]
+    #[tool(
+        description = "Update a label.",
+        annotations(
+            title = "Update Label",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn label_update(
         &self,
         Parameters(LabelUpdateParam { uuid, name }): Parameters<LabelUpdateParam>,
@@ -467,7 +629,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Delete a label.")]
+    #[tool(
+        description = "Delete a label.",
+        annotations(
+            title = "Delete Label",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn label_delete(&self, Parameters(UuidParam { uuid }): Parameters<UuidParam>) -> String {
         match LabelTools::delete(&self.auth, &uuid) {
             Ok(result) => result,
@@ -475,7 +646,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Attach a label to a screen.")]
+    #[tool(
+        description = "Attach a label to a screen.",
+        annotations(
+            title = "Attach Label to Screen",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn label_link_screen(
         &self,
         Parameters(LabelScreenParam {
@@ -489,7 +669,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Remove a label from a screen.")]
+    #[tool(
+        description = "Remove a label from a screen.",
+        annotations(
+            title = "Detach Label from Screen",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn label_unlink_screen(
         &self,
         Parameters(LabelScreenParam {
@@ -503,7 +692,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Attach a label to a playlist.")]
+    #[tool(
+        description = "Attach a label to a playlist.",
+        annotations(
+            title = "Attach Label to Playlist",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn label_link_playlist(
         &self,
         Parameters(LabelPlaylistParam {
@@ -517,7 +715,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Remove a label from a playlist.")]
+    #[tool(
+        description = "Remove a label from a playlist.",
+        annotations(
+            title = "Detach Label from Playlist",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn label_unlink_playlist(
         &self,
         Parameters(LabelPlaylistParam {
@@ -533,7 +740,14 @@ impl ScreenlyMcpServer {
 
     // ============ SHARED PLAYLIST TOOLS ============
 
-    #[tool(description = "List shared playlists.")]
+    #[tool(
+        description = "List shared playlists.",
+        annotations(
+            title = "List Shared Playlists",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn shared_playlist_list(&self) -> String {
         match SharedPlaylistTools::list(&self.auth) {
             Ok(result) => result,
@@ -541,7 +755,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Share a playlist with another team.")]
+    #[tool(
+        description = "Share a playlist with another team.",
+        annotations(
+            title = "Share Playlist with Team",
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
     fn shared_playlist_create(
         &self,
         Parameters(SharedPlaylistParam {
@@ -555,7 +778,16 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "Unshare a playlist from a team.")]
+    #[tool(
+        description = "Unshare a playlist from a team.",
+        annotations(
+            title = "Unshare Playlist from Team",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn shared_playlist_delete(
         &self,
         Parameters(SharedPlaylistParam {
@@ -571,7 +803,14 @@ impl ScreenlyMcpServer {
 
     // ============ EDGE APP TOOLS ============
 
-    #[tool(description = "List all Edge Apps.")]
+    #[tool(
+        description = "List all Edge Apps.",
+        annotations(
+            title = "List Edge Apps",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn edge_app_list(&self) -> String {
         match EdgeAppTools::list(&self.auth) {
             Ok(result) => result,
@@ -579,7 +818,14 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "List settings for an Edge App.")]
+    #[tool(
+        description = "List settings for an Edge App.",
+        annotations(
+            title = "List Edge App Settings",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn edge_app_list_settings(
         &self,
         Parameters(AppUuidParam { app_uuid }): Parameters<AppUuidParam>,
@@ -590,7 +836,14 @@ impl ScreenlyMcpServer {
         }
     }
 
-    #[tool(description = "List instances of an Edge App.")]
+    #[tool(
+        description = "List instances of an Edge App.",
+        annotations(
+            title = "List Edge App Instances",
+            read_only_hint = true,
+            open_world_hint = false
+        )
+    )]
     fn edge_app_list_instances(
         &self,
         Parameters(AppUuidParam { app_uuid }): Parameters<AppUuidParam>,

@@ -10,3 +10,6 @@
 
 # Build output for nix
 result*
+
+# Local MCP Bundle builds (release artifacts)
+*.mcpb

@@ -92,12 +92,8 @@ $ screenly --output json screen list > screens.json
 ```
 
 > [!NOTE]
-> In debug builds, the CLI outputs log messages to stdout. Use `RUST_LOG=off` to suppress them
-> when redirecting output to a file:
-> ```bash
-> $ RUST_LOG=off screenly --output csv screen list > screens.csv
-> $ RUST_LOG=off screenly --output json screen list > screens.json
-> ```
+> Log messages go to stderr, so redirecting stdout to a file captures only command output.
+> Use `RUST_LOG` to change the log level, or `RUST_LOG=off` to silence logging entirely.
 
 ## MCP Server (AI Assistant Integration)
 
@@ -124,9 +120,21 @@ The server communicates over stdio and exposes the full Screenly API as tools.
 | **Shared Playlists** | `shared_playlist_list`, `shared_playlist_create`, `shared_playlist_delete` |
 | **Edge Apps** | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances` |
 
+Every tool is annotated with behaviour hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`), so MCP clients can tell read-only tools apart from ones that modify or delete data and prompt for confirmation before destructive actions.
+
 ### Configuration Examples
 
-#### Cursor / Claude Desktop
+#### Claude Desktop Extension (`.mcpb`)
+
+For [Claude Desktop](https://claude.ai/download), the easiest option is the one-click MCP Bundle, which requires no manual JSON editing:
+
+1. Download `screenly-cli-<your-platform>.mcpb` from the [latest release](https://github.com/Screenly/cli/releases/latest) (for example `screenly-cli-aarch64-apple-darwin.mcpb` on an Apple Silicon Mac).
+2. Open the file. Claude Desktop shows an installation dialog.
+3. Paste your Screenly API token when prompted.
+
+The token is stored in your operating system's keychain rather than a plaintext config file. See [`mcpb/README.md`](mcpb/README.md) for details.
+
+#### Cursor / other clients
 
 Add to your MCP configuration file:
 

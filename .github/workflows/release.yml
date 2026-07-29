@@ -50,14 +50,17 @@ jobs:
             os: macos-15
             rust: stable
             target: x86_64-apple-darwin
+            mcpb_platform: darwin
           - build: macos-aarch64
             os: macos-15
             rust: stable
             target: aarch64-apple-darwin
+            mcpb_platform: darwin
           - build: windows
             os: ubuntu-22.04
             rust: stable
             target: x86_64-pc-windows-gnu
+            mcpb_platform: win32
           - build: windows-32
             os: ubuntu-22.04
             rust: stable
@@ -104,6 +107,28 @@ jobs:
             tar czvf ../../../screenly-cli-${{ matrix.target }}.tar.gz screenly
           fi
           cd -
+
+      # Only desktop targets are bundled: Claude Desktop runs on macOS and Windows.
+      - name: Package MCP Bundle
+        if: matrix.mcpb_platform != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mcpb-build/server
+          cp mcpb/README.md mcpb-build/
+          if [[ "${{ matrix.build }}" == windows* ]]; then
+            cp "target/${{ matrix.target }}/release/screenly.exe" mcpb-build/server/
+          else
+            cp "target/${{ matrix.target }}/release/screenly" mcpb-build/server/
+          fi
+          # The committed manifest carries a 0.0.0 placeholder so the version cannot
+          # drift from Cargo.toml; the tag is the single source of truth.
+          jq --arg version "${GITHUB_REF_NAME#v}" \
+             --arg platform "${{ matrix.mcpb_platform }}" \
+             '.version = $version | .compatibility.platforms = [$platform]' \
+             mcpb/manifest.json > mcpb-build/manifest.json
+          npx --yes @anthropic-ai/mcpb@2 pack \
+            mcpb-build "screenly-cli-${{ matrix.target }}.mcpb"
 
       - name: Publish
         uses: softprops/action-gh-release@v1
