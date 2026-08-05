@@ -61,13 +61,19 @@ token at any time from the Screenly console.
 Screenly's privacy policy is available at
 <https://www.screenly.io/privacy-policy/>.
 
-This extension connects only to the Screenly API at `api.screenly.io` over HTTPS. Requests
-are made directly from your machine to Screenly using the API token you supply.
+This extension connects to the Screenly API at `api.screenlyapp.com` over HTTPS (or another
+Screenly API host if configured via `API_BASE_URL`). Requests are made directly from your
+machine using the API token you supply.
 
 The data returned to Claude is the data you ask for: your screens, assets, playlists,
-labels, and Edge Apps, along with their metadata. The extension collects no analytics, sends
-no telemetry, and transmits data to no third party other than Screenly itself. Your API
-token is sent only to Screenly, as the credential for those API requests.
+labels, and Edge Apps, along with their metadata. Your API token is sent only to Screenly,
+as the credential for those API requests.
+
+Separately, the Screenly CLI initializes [Sentry](https://sentry.io) crash reporting on
+startup (including when run as this extension). If the process panics, diagnostic details
+such as the stack trace and device/OS context may be sent to Sentry's ingest endpoint
+(`*.ingest.sentry.io`). This is used for reliability debugging, not product analytics.
+Screenly's handling of that data is covered by the privacy policy linked above.
 
 ## Support
 
