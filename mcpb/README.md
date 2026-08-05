@@ -118,7 +118,7 @@ npm install -g @anthropic-ai/mcpb
 cargo build --release
 
 mkdir -p build/server
-cp mcpb/manifest.json mcpb/README.md build/
+cp mcpb/manifest.json mcpb/README.md mcpb/icon.png build/
 cp target/release/screenly build/server/
 mcpb pack build screenly.mcpb
 ```

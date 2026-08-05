@@ -115,7 +115,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p mcpb-build/server
-          cp mcpb/README.md mcpb-build/
+          cp mcpb/README.md mcpb/icon.png mcpb-build/
           if [[ "${{ matrix.build }}" == windows* ]]; then
             cp "target/${{ matrix.target }}/release/screenly.exe" mcpb-build/server/
           else

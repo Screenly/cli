@@ -17,6 +17,7 @@
   "documentation": "https://developer.screenly.io/mcp",
   "support": "https://github.com/Screenly/cli/issues",
   "license": "MIT",
+  "icon": "icon.png",
   "keywords": [
     "digital-signage",
     "screenly",
