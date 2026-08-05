@@ -635,3 +635,77 @@ fn test_edge_app_list_instances() {
     let result = EdgeAppTools::list_instances(&auth, "app-uuid");
     assert!(result.is_ok());
 }
+
+/// Guard against the 33-tool catalog drifting between the MCPB manifest and
+/// the `#[tool]` definitions in `server.rs` (names + descriptions).
+#[test]
+fn test_mcpb_manifest_tools_match_server() {
+    use regex::Regex;
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::PathBuf;
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(manifest_dir.join("mcpb/manifest.json"))
+            .expect("mcpb/manifest.json should exist"),
+    )
+    .expect("mcpb/manifest.json should be valid JSON");
+
+    assert_eq!(
+        manifest["tools_generated"], false,
+        "tools_generated must stay false while the tools array is the source of truth"
+    );
+
+    let mut manifest_tools = BTreeMap::new();
+    for tool in manifest["tools"]
+        .as_array()
+        .expect("manifest tools must be an array")
+    {
+        let name = tool["name"].as_str().expect("tool name").to_string();
+        let description = tool["description"]
+            .as_str()
+            .expect("tool description")
+            .to_string();
+        assert!(
+            manifest_tools.insert(name.clone(), description).is_none(),
+            "duplicate tool in manifest: {name}"
+        );
+    }
+
+    let server_src = fs::read_to_string(manifest_dir.join("src/mcp/server.rs"))
+        .expect("src/mcp/server.rs should exist");
+    let tool_re =
+        Regex::new(r#"(?s)#\[tool\(\s*description\s*=\s*"([^"]+)"[\s\S]*?\)\]\s*fn\s+(\w+)"#)
+            .unwrap();
+
+    let mut server_tools = BTreeMap::new();
+    for caps in tool_re.captures_iter(&server_src) {
+        let description = caps[1].to_string();
+        let name = caps[2].to_string();
+        assert!(
+            server_tools.insert(name.clone(), description).is_none(),
+            "duplicate tool in server.rs: {name}"
+        );
+    }
+
+    assert_eq!(
+        server_tools.len(),
+        33,
+        "expected 33 #[tool] handlers in server.rs, found {}",
+        server_tools.len()
+    );
+    assert_eq!(
+        manifest_tools.keys().collect::<Vec<_>>(),
+        server_tools.keys().collect::<Vec<_>>(),
+        "tool names in mcpb/manifest.json must match src/mcp/server.rs"
+    );
+
+    for (name, server_description) in &server_tools {
+        assert_eq!(
+            manifest_tools.get(name).map(String::as_str),
+            Some(server_description.as_str()),
+            "description drift for tool `{name}`"
+        );
+    }
+}
