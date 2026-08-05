@@ -126,13 +126,18 @@ Every tool is annotated with behaviour hints (`readOnlyHint`, `destructiveHint`,
 
 #### Claude Desktop Extension (`.mcpb`)
 
-For [Claude Desktop](https://claude.ai/download), the easiest option is the one-click MCP Bundle, which requires no manual JSON editing:
+For [Claude Desktop](https://claude.ai/download), the expected install path is
+**Desktop Extensions** (Settings → Extensions) — the same idea as installing
+the CLI with Homebrew. Once Screenly is listed, install it there and paste your
+API token when prompted. No manual JSON editing required.
 
-1. Download `screenly-cli-<your-platform>.mcpb` from the [latest release](https://github.com/Screenly/cli/releases/latest) (for example `screenly-cli-aarch64-apple-darwin.mcpb` on an Apple Silicon Mac).
-2. Open the file. Claude Desktop shows an installation dialog.
-3. Paste your Screenly API token when prompted.
+For testing before the listing is live, you can sideload a `.mcpb` from the
+[latest release](https://github.com/Screenly/cli/releases/latest). macOS release bundles are
+not Developer ID–signed yet (same as the CLI `.tar.gz` artifacts); a browser download may be
+blocked by Gatekeeper. If that happens, use **System Settings → Privacy & Security → Open Anyway**.
+Details: [`mcpb/README.md`](mcpb/README.md).
 
-The token is stored in your operating system's keychain rather than a plaintext config file. See [`mcpb/README.md`](mcpb/README.md) for details.
+The token is stored in your operating system's keychain rather than a plaintext config file.
 
 #### Cursor / other clients
 

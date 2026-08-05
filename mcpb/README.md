@@ -8,12 +8,35 @@ can be installed into Claude Desktop with a single click, with no terminal setup
 
 ## Installation
 
+### Recommended: Claude Desktop Extensions
+
+Once listed, install Screenly from **Desktop Extensions** in Claude Desktop
+(Settings → Extensions) — the same idea as installing the CLI with Homebrew.
+Claude handles download and setup; you only need to paste your Screenly API token
+when prompted.
+
+You can generate a token in the [Screenly console](https://console.screenly.io) under
+**Settings → Tokens**.
+
+### Sideload from a GitHub release (testing / pre-listing)
+
 1. Download `screenly-cli-<your-platform>.mcpb` from the
    [latest release](https://github.com/Screenly/cli/releases/latest), for example
    `screenly-cli-aarch64-apple-darwin.mcpb` on an Apple Silicon Mac.
 2. Open the file. Claude Desktop shows an installation dialog.
-3. Paste your Screenly API token when prompted. You can generate a token in the
-   [Screenly console](https://console.screenly.io) under **Settings → Tokens**.
+3. Paste your Screenly API token when prompted.
+
+#### macOS Gatekeeper note
+
+Release `.mcpb` bundles currently ship the same unsigned macOS binary as the CLI
+`.tar.gz` artifacts. A bundle downloaded in a browser may be blocked by Gatekeeper.
+
+If Claude Desktop cannot start the extension after a sideload install, open
+**System Settings → Privacy & Security**, look for the blocked `screenly`
+message, and click **Open Anyway**. Then try the extension again.
+
+Prefer the Desktop Extensions install once it is available. Developer ID signing and
+notarization for release binaries is tracked separately and is not unique to the MCP bundle.
 
 ## What you can do
 
