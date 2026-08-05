@@ -273,7 +273,7 @@ impl ScreenlyMcpServer {
             read_only_hint = false,
             destructive_hint = false,
             idempotent_hint = false,
-            open_world_hint = false
+            open_world_hint = true
         )
     )]
     fn asset_create(
@@ -291,7 +291,7 @@ impl ScreenlyMcpServer {
         annotations(
             title = "Update Asset",
             read_only_hint = false,
-            destructive_hint = false,
+            destructive_hint = true,
             idempotent_hint = true,
             open_world_hint = false
         )
@@ -370,7 +370,7 @@ impl ScreenlyMcpServer {
         annotations(
             title = "Update Asset Group",
             read_only_hint = false,
-            destructive_hint = false,
+            destructive_hint = true,
             idempotent_hint = true,
             open_world_hint = false
         )
@@ -449,7 +449,7 @@ impl ScreenlyMcpServer {
         annotations(
             title = "Update Playlist",
             read_only_hint = false,
-            destructive_hint = false,
+            destructive_hint = true,
             idempotent_hint = true,
             open_world_hint = false
         )
@@ -535,7 +535,7 @@ impl ScreenlyMcpServer {
         annotations(
             title = "Update Playlist Item",
             read_only_hint = false,
-            destructive_hint = false,
+            destructive_hint = true,
             idempotent_hint = true,
             open_world_hint = false
         )
@@ -614,7 +614,7 @@ impl ScreenlyMcpServer {
         annotations(
             title = "Update Label",
             read_only_hint = false,
-            destructive_hint = false,
+            destructive_hint = true,
             idempotent_hint = true,
             open_world_hint = false
         )
@@ -652,7 +652,7 @@ impl ScreenlyMcpServer {
             title = "Attach Label to Screen",
             read_only_hint = false,
             destructive_hint = false,
-            idempotent_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -698,7 +698,7 @@ impl ScreenlyMcpServer {
             title = "Attach Label to Playlist",
             read_only_hint = false,
             destructive_hint = false,
-            idempotent_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]
@@ -761,7 +761,7 @@ impl ScreenlyMcpServer {
             title = "Share Playlist with Team",
             read_only_hint = false,
             destructive_hint = false,
-            idempotent_hint = false,
+            idempotent_hint = true,
             open_world_hint = false
         )
     )]

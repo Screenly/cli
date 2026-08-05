@@ -66,8 +66,8 @@ anything destructive.
 | Shared Playlists | `shared_playlist_list`, `shared_playlist_create`, `shared_playlist_delete` |
 | Edge Apps | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances` |
 
-Twelve of these tools are read-only. Eight are destructive and delete content or remove
-associations.
+Twelve of these tools are read-only. Thirteen are marked destructive (deletes, unlinks,
+and updates that overwrite existing fields) so clients can prompt before running them.
 
 ## Authentication
 
