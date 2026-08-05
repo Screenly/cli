@@ -51,16 +51,19 @@ jobs:
             rust: stable
             target: x86_64-apple-darwin
             mcpb_platform: darwin
+            mcpb_alias: macos-x64
           - build: macos-aarch64
             os: macos-15
             rust: stable
             target: aarch64-apple-darwin
             mcpb_platform: darwin
+            mcpb_alias: macos-arm64
           - build: windows
             os: ubuntu-22.04
             rust: stable
             target: x86_64-pc-windows-gnu
             mcpb_platform: win32
+            mcpb_alias: windows-x64
           - build: windows-32
             os: ubuntu-22.04
             rust: stable
@@ -138,8 +141,11 @@ jobs:
               | .server.mcp_config.command = ("${__dirname}/" + $entry_point)
               | del(.server.mcp_config.platform_overrides)' \
              mcpb/manifest.json > mcpb-build/manifest.json
-          npx --yes @anthropic-ai/mcpb@2 pack \
+          npx --yes @anthropic-ai/mcpb@2.1.2 pack \
             mcpb-build "screenly-cli-${{ matrix.target }}.mcpb"
+          # Friendlier alias next to the rustc-target name (both are published).
+          cp "screenly-cli-${{ matrix.target }}.mcpb" \
+            "screenly-${{ matrix.mcpb_alias }}.mcpb"
 
       - name: Publish
         uses: softprops/action-gh-release@v1
