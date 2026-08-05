@@ -123,9 +123,20 @@ jobs:
           fi
           # The committed manifest carries a 0.0.0 placeholder so the version cannot
           # drift from Cargo.toml; the tag is the single source of truth.
+          # Windows packs screenly.exe, so entry_point/command must match the artifact.
+          if [[ "${{ matrix.build }}" == windows* ]]; then
+            entry_point="server/screenly.exe"
+          else
+            entry_point="server/screenly"
+          fi
           jq --arg version "${GITHUB_REF_NAME#v}" \
              --arg platform "${{ matrix.mcpb_platform }}" \
-             '.version = $version | .compatibility.platforms = [$platform]' \
+             --arg entry_point "$entry_point" \
+             '.version = $version
+              | .compatibility.platforms = [$platform]
+              | .server.entry_point = $entry_point
+              | .server.mcp_config.command = ("${__dirname}/" + $entry_point)
+              | del(.server.mcp_config.platform_overrides)' \
              mcpb/manifest.json > mcpb-build/manifest.json
           npx --yes @anthropic-ai/mcpb@2 pack \
             mcpb-build "screenly-cli-${{ matrix.target }}.mcpb"
