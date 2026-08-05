@@ -15,8 +15,8 @@ Once listed, install Screenly from **Desktop Extensions** in Claude Desktop
 Claude handles download and setup; you only need to paste your Screenly API token
 when prompted.
 
-You can generate a token in the [Screenly console](https://console.screenly.io) under
-**Settings → Tokens**.
+You can generate a token at `https://[your-workspace].screenlyapp.com` under
+**Settings → Security → API tokens**.
 
 ### Sideload from a GitHub release (testing / pre-listing)
 
