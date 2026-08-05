@@ -640,10 +640,11 @@ fn test_edge_app_list_instances() {
 /// the `#[tool]` definitions in `server.rs` (names + descriptions).
 #[test]
 fn test_mcpb_manifest_tools_match_server() {
-    use regex::Regex;
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::PathBuf;
+
+    use regex::Regex;
 
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let manifest: serde_json::Value = serde_json::from_str(
