@@ -188,6 +188,10 @@
     {
       "name": "edge_app_list_instances",
       "description": "List instances of an Edge App."
+    },
+    {
+      "name": "edge_app_publish_from_html",
+      "description": "Publish HTML as an Edge App. Wraps the page for digital signage (screenly.js + theme CSS variables). Omit app_id to create; pass app_id to deploy a new revision."
     }
   ],
   "compatibility": {

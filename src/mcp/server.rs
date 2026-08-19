@@ -184,6 +184,22 @@ pub struct AppUuidParam {
     pub app_uuid: String,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct EdgeAppPublishFromHtmlParam {
+    #[schemars(description = "Name of the Edge App")]
+    pub name: String,
+    #[schemars(
+        description = "Full HTML source of the page or Claude Artifact. Fragments are wrapped into a complete document."
+    )]
+    pub html: String,
+    #[schemars(
+        description = "Existing Edge App UUID. Omit to create a new app. Pass this to publish an HTML update as a new revision (same as screenly edge-app deploy)."
+    )]
+    pub app_id: Option<String>,
+    #[schemars(description = "Optional description stored on the Edge App version")]
+    pub description: Option<String>,
+}
+
 // ============ SERVER STRUCT ============
 
 /// MCP Server for Screenly API
@@ -853,6 +869,37 @@ impl ScreenlyMcpServer {
             Err(e) => json!({"error": e}).to_string(),
         }
     }
+
+    #[tool(
+        description = "Publish HTML as an Edge App. Wraps the page for digital signage (screenly.js + theme CSS variables). Omit app_id to create; pass app_id to deploy a new revision.",
+        annotations(
+            title = "Publish Edge App from HTML",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
+    fn edge_app_publish_from_html(
+        &self,
+        Parameters(EdgeAppPublishFromHtmlParam {
+            name,
+            html,
+            app_id,
+            description,
+        }): Parameters<EdgeAppPublishFromHtmlParam>,
+    ) -> String {
+        match EdgeAppTools::publish_from_html(
+            &self.auth,
+            &name,
+            &html,
+            app_id.as_deref(),
+            description.as_deref(),
+        ) {
+            Ok(result) => result,
+            Err(e) => json!({"error": e}).to_string(),
+        }
+    }
 }
 
 // ============ SERVER HANDLER ============
@@ -870,7 +917,11 @@ impl rmcp::ServerHandler for ScreenlyMcpServer {
             Examples: 'TRUE' (always show), '$WEEKDAY IN {1,2,3,4,5}' (weekdays only), \
             '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM), \
             '$TIME >= 32400000 AND $TIME <= 61200000 AND NOT $WEEKDAY IN {0, 6}' (business hours). \
-            Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM.",
+            Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM.\n\n\
+            EDGE APPS FROM HTML: To turn a Claude Artifact or webpage into a Screenly Edge App, \
+            call edge_app_publish_from_html with the full HTML source. Omit app_id to create. \
+            To update later, pass the same HTML (revised) plus the app_id from the first response \
+            so Screenly deploys a new revision.",
         )
     }
 }

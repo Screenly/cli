@@ -636,7 +636,25 @@ fn test_edge_app_list_instances() {
     assert!(result.is_ok());
 }
 
-/// Guard against the 33-tool catalog drifting between the MCPB manifest and
+#[test]
+fn test_edge_app_publish_from_html_rejects_empty_name() {
+    let mock_server = MockServer::start();
+    let auth = setup_auth(&mock_server);
+    let result = EdgeAppTools::publish_from_html(&auth, "  ", "<h1>Hi</h1>", None, None);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("name is required"));
+}
+
+#[test]
+fn test_edge_app_publish_from_html_rejects_empty_html() {
+    let mock_server = MockServer::start();
+    let auth = setup_auth(&mock_server);
+    let result = EdgeAppTools::publish_from_html(&auth, "Lobby Board", "   ", None, None);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("html is empty"));
+}
+
+/// Guard against the tool catalog drifting between the MCPB manifest and
 /// the `#[tool]` definitions in `server.rs` (names + descriptions).
 #[test]
 fn test_mcpb_manifest_tools_match_server() {
@@ -692,8 +710,8 @@ fn test_mcpb_manifest_tools_match_server() {
 
     assert_eq!(
         server_tools.len(),
-        33,
-        "expected 33 #[tool] handlers in server.rs, found {}",
+        34,
+        "expected 34 #[tool] handlers in server.rs, found {}",
         server_tools.len()
     );
     assert_eq!(

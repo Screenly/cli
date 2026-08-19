@@ -49,10 +49,11 @@ Once installed, you can ask Claude to:
 - Organise content with asset groups and labels
 - Share a playlist with another team
 - Inspect Edge Apps, their settings, and their instances
+- Publish a Claude Artifact or HTML page as an Edge App, and push HTML updates as new revisions
 
 ## Capabilities
 
-The bundle exposes 33 tools. Every tool is annotated so Claude knows whether it only reads
+The bundle exposes 34 tools. Every tool is annotated so Claude knows whether it only reads
 data or modifies your account, which means Claude will ask for confirmation before doing
 anything destructive.
 
@@ -65,10 +66,11 @@ anything destructive.
 | Playlist Items | `playlist_item_list`, `playlist_item_create`, `playlist_item_update`, `playlist_item_delete` |
 | Labels | `label_list`, `label_create`, `label_update`, `label_delete`, `label_link_screen`, `label_unlink_screen`, `label_link_playlist`, `label_unlink_playlist` |
 | Shared Playlists | `shared_playlist_list`, `shared_playlist_create`, `shared_playlist_delete` |
-| Edge Apps | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances` |
+| Edge Apps | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances`, `edge_app_publish_from_html` |
 
-Twelve of these tools are read-only. Thirteen are marked destructive (deletes, unlinks,
-and updates that overwrite existing fields) so clients can prompt before running them.
+Twelve of these tools are read-only. Fourteen are marked destructive (deletes, unlinks,
+updates that overwrite existing fields, and Edge App publishes) so clients can prompt
+before running them.
 
 ## Authentication
 
