@@ -143,7 +143,10 @@ const THEME_BOOTSTRAP_SCRIPT: &str = r#"<script data-screenly-mcp-theme="1">
 
   onReady(function () {
     try { startSignage(); } catch (e) {}
-    if (window.screenly && typeof screenly.signalReady === "function") {
+    if (!window.screenly) return;
+    if (typeof screenly.signalReadyForRendering === "function") {
+      try { screenly.signalReadyForRendering(); } catch (e) {}
+    } else if (typeof screenly.signalReady === "function") {
       try { screenly.signalReady(); } catch (e) {}
     }
   });
@@ -413,6 +416,7 @@ mod wrap_tests {
         assert!(wrapped.contains(SIGNAGE_STYLE_MARKER));
         assert!(wrapped.contains("[role=\"tab\"]"));
         assert!(wrapped.contains("DWELL_MS"));
+        assert!(wrapped.contains("signalReadyForRendering"));
     }
 
     #[test]
