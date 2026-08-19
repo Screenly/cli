@@ -1,6 +1,7 @@
 //! Edge App MCP tools.
 
 use std::fs;
+use std::path::Path;
 
 use serde_json::json;
 
@@ -13,11 +14,18 @@ use crate::commands::edge_app::EdgeAppCommand;
 
 /// Marker attribute so wrap is idempotent when HTML is published again.
 const THEME_BOOTSTRAP_MARKER: &str = "data-screenly-mcp-theme";
+const SIGNAGE_STYLE_MARKER: &str = "data-screenly-mcp-signage";
 
 const SCREENLY_JS_SRC: &str = "screenly.js?version=1";
 
-/// Theme bootstrap aligned with `@screenly/edge-apps` `setupTheme()`:
-/// map Screenly branding settings onto CSS custom properties, then signal ready.
+const SIGNAGE_STYLE: &str = r#"<style data-screenly-mcp-signage="1">
+html, body { height: 100%; margin: 0; }
+html { -webkit-user-select: none; user-select: none; }
+a, button, [role="tab"], [role="button"] { cursor: default; }
+</style>"#;
+
+/// Theme + unattended signage: branding CSS variables, then auto-show tiles/pages
+/// that would otherwise need a mouse or keyboard.
 const THEME_BOOTSTRAP_SCRIPT: &str = r#"<script data-screenly-mcp-theme="1">
 (function () {
   var settings = (window.screenly && screenly.settings) || {};
@@ -34,9 +42,111 @@ const THEME_BOOTSTRAP_SCRIPT: &str = r#"<script data-screenly-mcp-theme="1">
   setVar("--theme-color-accent", accent);
   setVar("--theme-color-light", light);
   setVar("--theme-color-dark", dark);
-  if (window.screenly && typeof screenly.signalReady === "function") {
-    try { screenly.signalReady(); } catch (e) {}
+
+  var DWELL_MS = 8000;
+
+  function isHidden(el) {
+    if (!el || el.nodeType !== 1) return true;
+    if (el.hasAttribute("hidden")) return true;
+    var s = window.getComputedStyle(el);
+    return s.display === "none" || s.visibility === "hidden";
   }
+
+  function showOnly(items, index) {
+    items.forEach(function (el, i) {
+      var on = i === index;
+      if (on) el.removeAttribute("hidden");
+      else el.setAttribute("hidden", "");
+      el.style.display = on ? "" : "none";
+      el.setAttribute("aria-hidden", on ? "false" : "true");
+      el.classList.toggle("active", on);
+      el.classList.toggle("show", on);
+    });
+  }
+
+  function collectPages() {
+    var panels = document.querySelectorAll('[role="tabpanel"]');
+    if (panels.length > 1) return Array.prototype.slice.call(panels);
+    var selectors = [
+      ".slide", ".carousel-item", ".page", ".tile", ".view",
+      "[data-page]", "[data-slide]", "[data-view]"
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var found = document.querySelectorAll(selectors[i]);
+      if (found.length > 1) return Array.prototype.slice.call(found);
+    }
+    var nodes = document.querySelectorAll("body *");
+    for (var j = 0; j < nodes.length; j++) {
+      var parent = nodes[j];
+      var kids = [];
+      for (var k = 0; k < parent.children.length; k++) {
+        var child = parent.children[k];
+        var tag = child.tagName;
+        if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "META") continue;
+        kids.push(child);
+      }
+      if (kids.length < 2) continue;
+      var hiddenCount = kids.filter(isHidden).length;
+      if (hiddenCount >= 1 && hiddenCount < kids.length) return kids;
+    }
+    return [];
+  }
+
+  function startSignage() {
+    document.querySelectorAll("details").forEach(function (el) { el.open = true; });
+    document.querySelectorAll("dialog").forEach(function (el) {
+      try { if (typeof el.show === "function") el.show(); }
+      catch (e) { el.setAttribute("open", ""); }
+    });
+
+    var tabs = document.querySelectorAll('[role="tab"]');
+    if (tabs.length > 1) {
+      var tabIndex = 0;
+      try { tabs[0].click(); } catch (e) {}
+      setInterval(function () {
+        tabIndex = (tabIndex + 1) % tabs.length;
+        try { tabs[tabIndex].click(); } catch (e) {}
+      }, DWELL_MS);
+      return;
+    }
+
+    var pages = collectPages();
+    if (pages.length > 1) {
+      var pageIndex = 0;
+      showOnly(pages, 0);
+      setInterval(function () {
+        pageIndex = (pageIndex + 1) % pages.length;
+        showOnly(pages, pageIndex);
+      }, DWELL_MS);
+      return;
+    }
+
+    var scroller = document.scrollingElement || document.documentElement;
+    if (scroller && scroller.scrollHeight > scroller.clientHeight + 40) {
+      var dir = 1;
+      setInterval(function () {
+        var max = scroller.scrollHeight - scroller.clientHeight;
+        scroller.scrollTop += dir;
+        if (scroller.scrollTop >= max) dir = -1;
+        if (scroller.scrollTop <= 0) dir = 1;
+      }, 40);
+    }
+  }
+
+  function onReady(fn) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", fn);
+    } else {
+      fn();
+    }
+  }
+
+  onReady(function () {
+    try { startSignage(); } catch (e) {}
+    if (window.screenly && typeof screenly.signalReady === "function") {
+      try { screenly.signalReady(); } catch (e) {}
+    }
+  });
 })();
 </script>"#;
 
@@ -149,15 +259,45 @@ impl EdgeAppTools {
             .deploy(Some(path), Some(false))
             .map_err(|e| format!("Failed to deploy Edge App: {}", e))?;
 
+        let (instance_id, instance_created) =
+            ensure_instance(auth, &app_id, name, &dir_path.join("instance.yml"))?;
+
         serde_json::to_string_pretty(&json!({
             "app_id": app_id,
+            "instance_id": instance_id,
+            "instance_created": instance_created,
             "name": name,
             "revision": revision,
             "created": created,
-            "message": "Reuse app_id with this tool to publish an HTML update as a new Edge App revision.",
+            "message": "The instance appears in Screenly Content and can be scheduled on a screen. Reuse app_id to publish an HTML update as a new revision.",
         }))
         .map_err(|e| format!("Failed to serialize response: {}", e))
     }
+}
+
+fn ensure_instance(
+    auth: &Authentication,
+    app_id: &str,
+    name: &str,
+    instance_manifest_path: &Path,
+) -> Result<(Option<String>, bool), String> {
+    let command = edge_app_command(auth);
+    let listed = command
+        .list_instances(app_id)
+        .map_err(|e| format!("Failed to list Edge App instances: {}", e))?;
+
+    if let Some(id) = listed.value.as_array().and_then(|rows| {
+        rows.iter()
+            .find_map(|row| row.get("id").and_then(|v| v.as_str()))
+            .map(ToOwned::to_owned)
+    }) {
+        return Ok((Some(id), false));
+    }
+
+    let instance_id = command
+        .create_instance(instance_manifest_path, app_id, name)
+        .map_err(|e| format!("Failed to create Edge App instance: {}", e))?;
+    Ok((Some(instance_id), true))
 }
 
 fn edge_app_command(auth: &Authentication) -> EdgeAppCommand {
@@ -188,6 +328,7 @@ pub(crate) fn wrap_html_for_edge_app(html: &str) -> Result<String, String> {
              <meta charset=\"utf-8\">\n\
              <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n\
              {screenly_script}\n\
+             {SIGNAGE_STYLE}\n\
              </head>\n\
              <body>\n\
              {html}\n\
@@ -204,6 +345,14 @@ pub(crate) fn wrap_html_for_edge_app(html: &str) -> Result<String, String> {
             .or_else(|| inject_after_tag(&out, "<head>", &format!("\n{screenly_script}\n")))
             .ok_or_else(|| {
                 "HTML document is missing a <head> element to inject screenly.js".to_string()
+            })?;
+    }
+
+    if !out.contains(SIGNAGE_STYLE_MARKER) {
+        out = inject_before_tag(&out, "</head>", &format!("{SIGNAGE_STYLE}\n"))
+            .or_else(|| inject_after_tag(&out, "<head>", &format!("\n{SIGNAGE_STYLE}\n")))
+            .ok_or_else(|| {
+                "HTML document is missing a <head> element to inject signage styles".to_string()
             })?;
     }
 
@@ -261,6 +410,9 @@ mod wrap_tests {
         assert!(wrapped.contains(THEME_BOOTSTRAP_MARKER));
         assert!(wrapped.contains("<h1>Hello</h1>"));
         assert!(wrapped.contains("--screenly-color-accent"));
+        assert!(wrapped.contains(SIGNAGE_STYLE_MARKER));
+        assert!(wrapped.contains("[role=\"tab\"]"));
+        assert!(wrapped.contains("DWELL_MS"));
     }
 
     #[test]
@@ -285,6 +437,7 @@ mod wrap_tests {
         let twice = wrap_html_for_edge_app(&once).unwrap();
         assert_eq!(twice.matches(SCREENLY_JS_SRC).count(), 1);
         assert_eq!(twice.matches(THEME_BOOTSTRAP_MARKER).count(), 1);
+        assert_eq!(twice.matches(SIGNAGE_STYLE_MARKER).count(), 1);
     }
 
     #[test]

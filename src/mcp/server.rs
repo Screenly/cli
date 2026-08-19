@@ -871,7 +871,7 @@ impl ScreenlyMcpServer {
     }
 
     #[tool(
-        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for digital signage (screenly.js + theme CSS variables). Omit app_id to create; pass app_id to deploy a new revision.",
+        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for unattended digital signage (no mouse/keyboard; auto-rotates tiles/pages), creates an instance so it appears in Content, and deploys. Omit app_id to create; pass app_id to update.",
         annotations(
             title = "Publish Screenly App from HTML",
             read_only_hint = false,
@@ -920,9 +920,10 @@ impl rmcp::ServerHandler for ScreenlyMcpServer {
             Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM.\n\n\
             SCREENLY APPS FROM HTML: If the user asks to upload HTML or a Claude Artifact as a \
             Screenly app, app, or Edge App, call edge_app_publish_from_html with the full HTML \
-            source (not asset_create, which needs a public URL). Omit app_id to create. \
-            To update later, pass the revised HTML plus the app_id from the first response \
-            so Screenly deploys a new revision.",
+            source (not asset_create, which needs a public URL). This creates the app, deploys it, \
+            and creates an instance so it appears in Content and can be scheduled on a screen. \
+            Omit app_id to create. To update later, pass the revised HTML plus the app_id from \
+            the first response so Screenly deploys a new revision; existing instances update automatically.",
         )
     }
 }
