@@ -189,7 +189,7 @@ pub struct EdgeAppPublishFromHtmlParam {
     #[schemars(description = "Name of the Edge App")]
     pub name: String,
     #[schemars(
-        description = "Full HTML source of the page or Claude Artifact. Fragments are wrapped into a complete document."
+        description = "Full HTML source of the page or Claude Artifact. Use this when uploading HTML as a Screenly app. Fragments are wrapped into a complete document."
     )]
     pub html: String,
     #[schemars(
@@ -871,9 +871,9 @@ impl ScreenlyMcpServer {
     }
 
     #[tool(
-        description = "Publish HTML as an Edge App. Wraps the page for digital signage (screenly.js + theme CSS variables). Omit app_id to create; pass app_id to deploy a new revision.",
+        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for digital signage (screenly.js + theme CSS variables). Omit app_id to create; pass app_id to deploy a new revision.",
         annotations(
-            title = "Publish Edge App from HTML",
+            title = "Publish Screenly App from HTML",
             read_only_hint = false,
             destructive_hint = true,
             idempotent_hint = false,
@@ -918,9 +918,10 @@ impl rmcp::ServerHandler for ScreenlyMcpServer {
             '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM), \
             '$TIME >= 32400000 AND $TIME <= 61200000 AND NOT $WEEKDAY IN {0, 6}' (business hours). \
             Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM.\n\n\
-            EDGE APPS FROM HTML: To turn a Claude Artifact or webpage into a Screenly Edge App, \
-            call edge_app_publish_from_html with the full HTML source. Omit app_id to create. \
-            To update later, pass the same HTML (revised) plus the app_id from the first response \
+            SCREENLY APPS FROM HTML: If the user asks to upload HTML or a Claude Artifact as a \
+            Screenly app, app, or Edge App, call edge_app_publish_from_html with the full HTML \
+            source (not asset_create, which needs a public URL). Omit app_id to create. \
+            To update later, pass the revised HTML plus the app_id from the first response \
             so Screenly deploys a new revision.",
         )
     }
