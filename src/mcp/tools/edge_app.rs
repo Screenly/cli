@@ -12,7 +12,7 @@ use crate::commands::edge_app::manifest::{
 use crate::commands::edge_app::EdgeAppCommand;
 
 /// Marker attribute so wrap is idempotent when HTML is published again.
-pub(crate) const THEME_BOOTSTRAP_MARKER: &str = "data-screenly-mcp-theme";
+const THEME_BOOTSTRAP_MARKER: &str = "data-screenly-mcp-theme";
 
 const SCREENLY_JS_SRC: &str = "screenly.js?version=1";
 
@@ -97,11 +97,11 @@ impl EdgeAppTools {
 
         let wrapped = wrap_html_for_edge_app(html)?;
         let dir = tempfile::tempdir()
-            .map_err(|e| format!("Failed to create temporary Edge App directory: {e}"))?;
+            .map_err(|e| format!("Failed to create temporary Edge App directory: {}", e))?;
         let dir_path = dir.path();
 
         fs::write(dir_path.join("index.html"), &wrapped)
-            .map_err(|e| format!("Failed to write index.html: {e}"))?;
+            .map_err(|e| format!("Failed to write index.html: {}", e))?;
 
         let existing_id = app_id
             .map(str::trim)
@@ -111,7 +111,7 @@ impl EdgeAppTools {
         let created = existing_id.is_none();
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
-            id: existing_id.clone(),
+            id: existing_id,
             description: description
                 .map(str::trim)
                 .filter(|d| !d.is_empty())
@@ -126,17 +126,17 @@ impl EdgeAppTools {
 
         let manifest_path = dir_path.join("screenly.yml");
         EdgeAppManifest::save_to_file(&manifest, &manifest_path)
-            .map_err(|e| format!("Failed to write screenly.yml: {e}"))?;
+            .map_err(|e| format!("Failed to write screenly.yml: {}", e))?;
 
         let command = edge_app_command(auth);
         if created {
             command
                 .create_in_place(name, &manifest_path)
-                .map_err(|e| format!("Failed to create Edge App: {e}"))?;
+                .map_err(|e| format!("Failed to create Edge App: {}", e))?;
         }
 
         let app_id = EdgeAppManifest::new(&manifest_path)
-            .map_err(|e| format!("Failed to read Edge App id: {e}"))?
+            .map_err(|e| format!("Failed to read Edge App id: {}", e))?
             .id
             .ok_or_else(|| "Edge App id missing after create".to_string())?;
 
@@ -147,7 +147,7 @@ impl EdgeAppTools {
 
         let revision = command
             .deploy(Some(path), Some(false))
-            .map_err(|e| format!("Failed to deploy Edge App: {e}"))?;
+            .map_err(|e| format!("Failed to deploy Edge App: {}", e))?;
 
         serde_json::to_string_pretty(&json!({
             "app_id": app_id,
@@ -156,7 +156,7 @@ impl EdgeAppTools {
             "created": created,
             "message": "Reuse app_id with this tool to publish an HTML update as a new Edge App revision.",
         }))
-        .map_err(|e| format!("Failed to serialize response: {e}"))
+        .map_err(|e| format!("Failed to serialize response: {}", e))
     }
 }
 
@@ -182,7 +182,18 @@ pub(crate) fn wrap_html_for_edge_app(html: &str) -> Result<String, String> {
 
     if !has_html_shell {
         return Ok(format!(
-            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n{screenly_script}\n</head>\n<body>\n{html}\n{THEME_BOOTSTRAP_SCRIPT}\n</body>\n</html>\n"
+            "<!DOCTYPE html>\n\
+             <html lang=\"en\">\n\
+             <head>\n\
+             <meta charset=\"utf-8\">\n\
+             <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n\
+             {screenly_script}\n\
+             </head>\n\
+             <body>\n\
+             {html}\n\
+             {THEME_BOOTSTRAP_SCRIPT}\n\
+             </body>\n\
+             </html>\n"
         ));
     }
 
