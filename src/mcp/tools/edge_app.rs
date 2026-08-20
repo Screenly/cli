@@ -1,8 +1,11 @@
 //! Edge App MCP tools.
 
+use std::collections::BTreeMap;
+use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::authentication::Authentication;
@@ -11,6 +14,23 @@ use crate::commands::edge_app::manifest::{
     EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
 };
 use crate::commands::edge_app::EdgeAppCommand;
+
+/// Override path for the local name → app/instance cache (used in tests).
+const MCP_EDGE_APPS_PATH_ENV: &str = "SCREENLY_MCP_EDGE_APPS_PATH";
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+struct McpEdgeAppRecord {
+    app_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    instance_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+struct McpEdgeAppRegistry {
+    /// Exact display name → last published Edge App / instance.
+    #[serde(default)]
+    apps: BTreeMap<String, McpEdgeAppRecord>,
+}
 
 /// Marker attribute so wrap is idempotent when HTML is published again.
 const THEME_BOOTSTRAP_MARKER: &str = "data-screenly-mcp-theme";
@@ -194,8 +214,9 @@ impl EdgeAppTools {
 
     /// Create or update an Edge App from HTML (Claude Artifact / webpage).
     ///
-    /// Omitting `app_id` creates a new app. Passing `app_id` deploys a new revision,
-    /// the same as `screenly edge-app deploy`.
+    /// Omitting `app_id` creates a new app unless the same `name` was published
+    /// before on this machine (`~/.screenly/mcp-edge-apps.json`). Passing
+    /// `app_id` always deploys a new revision for that app.
     pub fn publish_from_html(
         auth: &Authentication,
         name: &str,
@@ -216,10 +237,17 @@ impl EdgeAppTools {
         fs::write(dir_path.join("index.html"), &wrapped)
             .map_err(|e| format!("Failed to write index.html: {}", e))?;
 
-        let existing_id = app_id
+        let explicit_id = app_id
             .map(str::trim)
             .filter(|id| !id.is_empty())
             .map(ToOwned::to_owned);
+        let remembered = if explicit_id.is_none() {
+            lookup_remembered_app(name)
+        } else {
+            None
+        };
+        let from_memory = remembered.is_some();
+        let existing_id = explicit_id.or_else(|| remembered.map(|r| r.app_id));
 
         let created = existing_id.is_none();
         let manifest = EdgeAppManifest {
@@ -265,6 +293,8 @@ impl EdgeAppTools {
         let (instance_id, instance_created) =
             ensure_instance(auth, &app_id, name, &dir_path.join("instance.yml"))?;
 
+        remember_published_app(name, &app_id, instance_id.as_deref())?;
+
         serde_json::to_string_pretty(&json!({
             "app_id": app_id,
             "instance_id": instance_id,
@@ -272,10 +302,71 @@ impl EdgeAppTools {
             "name": name,
             "revision": revision,
             "created": created,
-            "message": "The instance appears in Screenly Content and can be scheduled on a screen. Reuse app_id to publish an HTML update as a new revision.",
+            "resolved_from_memory": from_memory,
+            "message": "IDs are saved locally under ~/.screenly/mcp-edge-apps.json for this name. Later, call this tool again with the same name (and updated HTML) to deploy a new revision; app_id is optional when the name is remembered.",
         }))
         .map_err(|e| format!("Failed to serialize response: {}", e))
     }
+}
+
+fn registry_path() -> Result<PathBuf, String> {
+    if let Ok(path) = env::var(MCP_EDGE_APPS_PATH_ENV) {
+        let path = path.trim();
+        if !path.is_empty() {
+            return Ok(PathBuf::from(path));
+        }
+    }
+
+    let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
+    Ok(home.join(".screenly").join("mcp-edge-apps.json"))
+}
+
+fn load_registry() -> Result<McpEdgeAppRegistry, String> {
+    let path = registry_path()?;
+    if !path.exists() {
+        return Ok(McpEdgeAppRegistry::default());
+    }
+
+    let data = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+    if data.trim().is_empty() {
+        return Ok(McpEdgeAppRegistry::default());
+    }
+
+    serde_json::from_str(&data).map_err(|e| format!("Failed to parse {}: {}", path.display(), e))
+}
+
+fn save_registry(registry: &McpEdgeAppRegistry) -> Result<(), String> {
+    let path = registry_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create {}: {}", parent.display(), e))?;
+    }
+
+    let data = serde_json::to_string_pretty(registry)
+        .map_err(|e| format!("Failed to serialize Edge App memory: {}", e))?;
+    fs::write(&path, format!("{data}\n"))
+        .map_err(|e| format!("Failed to write {}: {}", path.display(), e))
+}
+
+fn lookup_remembered_app(name: &str) -> Option<McpEdgeAppRecord> {
+    load_registry().ok()?.apps.get(name).cloned()
+}
+
+fn remember_published_app(
+    name: &str,
+    app_id: &str,
+    instance_id: Option<&str>,
+) -> Result<(), String> {
+    let mut registry = load_registry()?;
+    registry.apps.insert(
+        name.to_string(),
+        McpEdgeAppRecord {
+            app_id: app_id.to_string(),
+            instance_id: instance_id.map(ToOwned::to_owned),
+        },
+    );
+    save_registry(&registry)
 }
 
 fn ensure_instance(
@@ -447,5 +538,31 @@ mod wrap_tests {
     #[test]
     fn wrap_rejects_empty_html() {
         assert!(wrap_html_for_edge_app("   ").is_err());
+    }
+}
+
+#[cfg(test)]
+mod registry_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn remember_and_lookup_round_trip() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("mcp-edge-apps.json");
+        let path_str = path.to_str().unwrap();
+
+        temp_env::with_var(MCP_EDGE_APPS_PATH_ENV, Some(path_str), || {
+            assert!(lookup_remembered_app("Lobby Board").is_none());
+            remember_published_app("Lobby Board", "app-1", Some("inst-1")).unwrap();
+
+            let remembered = lookup_remembered_app("Lobby Board").unwrap();
+            assert_eq!(remembered.app_id, "app-1");
+            assert_eq!(remembered.instance_id.as_deref(), Some("inst-1"));
+
+            remember_published_app("Lobby Board", "app-1", Some("inst-2")).unwrap();
+            let updated = lookup_remembered_app("Lobby Board").unwrap();
+            assert_eq!(updated.instance_id.as_deref(), Some("inst-2"));
+        });
     }
 }

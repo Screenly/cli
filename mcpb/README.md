@@ -49,7 +49,7 @@ Once installed, you can ask Claude to:
 - Organise content with asset groups and labels
 - Share a playlist with another team
 - Inspect Edge Apps, their settings, and their instances
-- Publish a Claude Artifact or HTML page as a Screenly app (Edge App), install an instance in Content, and push HTML updates as new revisions
+- Publish a Claude Artifact or HTML page as a Screenly app (Edge App), install an instance in Content, remember app/instance ids by name for later updates, and push HTML updates as new revisions
 
 ## Capabilities
 

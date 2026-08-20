@@ -193,7 +193,7 @@ pub struct EdgeAppPublishFromHtmlParam {
     )]
     pub html: String,
     #[schemars(
-        description = "Existing Edge App UUID. Omit to create a new app. Pass this to publish an HTML update as a new revision (same as screenly edge-app deploy)."
+        description = "Existing Edge App UUID. Prefer this when known. If omitted, the tool reuses the app_id saved locally for this exact name from a previous publish on this machine, or creates a new app."
     )]
     pub app_id: Option<String>,
     #[schemars(description = "Optional description stored on the Edge App version")]
@@ -871,7 +871,7 @@ impl ScreenlyMcpServer {
     }
 
     #[tool(
-        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for unattended digital signage (no mouse/keyboard; auto-rotates tiles/pages), creates an instance so it appears in Content, and deploys. Omit app_id to create; pass app_id to update.",
+        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for unattended digital signage (no mouse/keyboard; auto-rotates tiles/pages), creates an instance so it appears in Content, and deploys. Remembers app_id/instance_id by name on this machine. Omit app_id to create or to update a remembered name; pass app_id to target a specific app.",
         annotations(
             title = "Publish Screenly App from HTML",
             read_only_hint = false,
@@ -922,8 +922,10 @@ impl rmcp::ServerHandler for ScreenlyMcpServer {
             Screenly app, app, or Edge App, call edge_app_publish_from_html with the full HTML \
             source (not asset_create, which needs a public URL). This creates the app, deploys it, \
             and creates an instance so it appears in Content and can be scheduled on a screen. \
-            Omit app_id to create. To update later, pass the revised HTML plus the app_id from \
-            the first response so Screenly deploys a new revision; existing instances update automatically.",
+            The tool saves app_id and instance_id locally by name (~/.screenly/mcp-edge-apps.json). \
+            To update later, call again with the same name and revised HTML; pass app_id when known, \
+            otherwise the remembered name is enough. Keep the returned app_id and instance_id in mind \
+            for the rest of the conversation.",
         )
     }
 }
