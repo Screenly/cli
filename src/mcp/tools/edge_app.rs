@@ -18,6 +18,10 @@ use crate::commands::edge_app::EdgeAppCommand;
 /// Override path for the local name → app/instance cache (used in tests).
 const MCP_EDGE_APPS_PATH_ENV: &str = "SCREENLY_MCP_EDGE_APPS_PATH";
 
+/// Default Edge App icon for Claude Artifact publishes (screenly.yml `icon`).
+const DEFAULT_CLAUDE_APP_ICON: &str =
+    "https://playground.srly.io/edge-apps/icons/claude-app-default.svg";
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct McpEdgeAppRecord {
     app_id: String,
@@ -257,6 +261,7 @@ impl EdgeAppTools {
                 .map(str::trim)
                 .filter(|d| !d.is_empty())
                 .map(ToOwned::to_owned),
+            icon: Some(DEFAULT_CLAUDE_APP_ICON.to_owned()),
             ready_signal: Some(true),
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
