@@ -92,12 +92,8 @@ $ screenly --output json screen list > screens.json
 ```
 
 > [!NOTE]
-> In debug builds, the CLI outputs log messages to stdout. Use `RUST_LOG=off` to suppress them
-> when redirecting output to a file:
-> ```bash
-> $ RUST_LOG=off screenly --output csv screen list > screens.csv
-> $ RUST_LOG=off screenly --output json screen list > screens.json
-> ```
+> Log messages go to stderr, so redirecting stdout to a file captures only command output.
+> Use `RUST_LOG` to change the log level, or `RUST_LOG=off` to silence logging entirely.
 
 ## MCP Server (AI Assistant Integration)
 
@@ -124,9 +120,26 @@ The server communicates over stdio and exposes the full Screenly API as tools.
 | **Shared Playlists** | `shared_playlist_list`, `shared_playlist_create`, `shared_playlist_delete` |
 | **Edge Apps** | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances` |
 
+Every tool is annotated with behaviour hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`), so MCP clients can tell read-only tools apart from ones that modify or delete data and prompt for confirmation before destructive actions.
+
 ### Configuration Examples
 
-#### Cursor / Claude Desktop
+#### Claude Desktop Extension (`.mcpb`)
+
+For [Claude Desktop](https://claude.ai/download), the expected install path is
+**Desktop Extensions** (Settings → Extensions) — the same idea as installing
+the CLI with Homebrew. Once Screenly is listed, install it there and paste your
+API token when prompted. No manual JSON editing required.
+
+For testing before the listing is live, you can sideload a `.mcpb` from the
+[latest release](https://github.com/Screenly/cli/releases/latest). macOS release bundles are
+not Developer ID–signed yet (same as the CLI `.tar.gz` artifacts); a browser download may be
+blocked by Gatekeeper. If that happens, use **System Settings → Privacy & Security → Open Anyway**.
+Details: [`mcpb/README.md`](mcpb/README.md).
+
+The token is stored in your operating system's keychain rather than a plaintext config file.
+
+#### Cursor / other clients
 
 Add to your MCP configuration file:
 
