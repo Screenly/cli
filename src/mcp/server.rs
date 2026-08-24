@@ -880,7 +880,7 @@ impl ScreenlyMcpServer {
             open_world_hint = true
         )
     )]
-    fn edge_app_publish_from_html(
+    async fn edge_app_publish_from_html(
         &self,
         Parameters(EdgeAppPublishFromHtmlParam {
             name,
@@ -889,15 +889,21 @@ impl ScreenlyMcpServer {
             description,
         }): Parameters<EdgeAppPublishFromHtmlParam>,
     ) -> String {
-        match EdgeAppTools::publish_from_html(
-            &self.auth,
-            &name,
-            &html,
-            app_id.as_deref(),
-            description.as_deref(),
-        ) {
-            Ok(result) => result,
-            Err(e) => json!({"error": e}).to_string(),
+        let auth = Arc::clone(&self.auth);
+        match tokio::task::spawn_blocking(move || {
+            EdgeAppTools::publish_from_html(
+                &auth,
+                &name,
+                &html,
+                app_id.as_deref(),
+                description.as_deref(),
+            )
+        })
+        .await
+        {
+            Ok(Ok(result)) => result,
+            Ok(Err(e)) => json!({"error": e}).to_string(),
+            Err(e) => json!({"error": format!("Publish task failed: {e}")}).to_string(),
         }
     }
 }

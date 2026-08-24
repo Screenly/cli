@@ -695,7 +695,7 @@ fn test_mcpb_manifest_tools_match_server() {
     let server_src = fs::read_to_string(manifest_dir.join("src/mcp/server.rs"))
         .expect("src/mcp/server.rs should exist");
     let tool_re =
-        Regex::new(r#"(?s)#\[tool\(\s*description\s*=\s*"([^"]+)"[\s\S]*?\)\]\s*fn\s+(\w+)"#)
+        Regex::new(r#"(?s)#\[tool\(\s*description\s*=\s*"([^"]+)"[\s\S]*?\)\]\s*(?:async\s+)?fn\s+(\w+)"#)
             .unwrap();
 
     let mut server_tools = BTreeMap::new();

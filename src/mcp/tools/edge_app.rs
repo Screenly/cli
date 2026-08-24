@@ -13,6 +13,9 @@ use crate::commands;
 use crate::commands::edge_app::manifest::{
     EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
 };
+use crate::commands::edge_app::utils::{
+    transform_edge_app_path_to_manifest, transform_instance_path_to_instance_manifest,
+};
 use crate::commands::edge_app::EdgeAppCommand;
 
 /// Override path for the local name → app/instance cache (used in tests).
@@ -224,6 +227,7 @@ impl EdgeAppTools {
         let dir = tempfile::tempdir()
             .map_err(|e| format!("Failed to create temporary Edge App directory: {}", e))?;
         let dir_path = dir.path();
+        let (manifest_path, instance_manifest_path, path) = publish_dir_paths(dir_path)?;
 
         fs::write(dir_path.join("index.html"), &wrapped)
             .map_err(|e| format!("Failed to write index.html: {}", e))?;
@@ -232,13 +236,18 @@ impl EdgeAppTools {
             .map(str::trim)
             .filter(|id| !id.is_empty())
             .map(ToOwned::to_owned);
-        let remembered = if explicit_id.is_none() {
-            lookup_remembered_app(auth, name)
-        } else {
-            None
-        };
-        let from_memory = remembered.is_some();
-        let existing_id = explicit_id.or_else(|| remembered.map(|r| r.app_id));
+        let remembered = lookup_remembered_app(auth, name);
+        let from_memory = explicit_id.is_none() && remembered.is_some();
+        let existing_id = explicit_id
+            .clone()
+            .or_else(|| remembered.as_ref().map(|r| r.app_id.clone()));
+        let preferred_instance_id = remembered.as_ref().and_then(|r| {
+            if existing_id.as_deref() == Some(r.app_id.as_str()) {
+                r.instance_id.clone()
+            } else {
+                None
+            }
+        });
 
         let created = existing_id.is_none();
         let manifest = EdgeAppManifest {
@@ -257,9 +266,8 @@ impl EdgeAppTools {
             ..Default::default()
         };
 
-        let manifest_path = dir_path.join("screenly.yml");
         EdgeAppManifest::save_to_file(&manifest, &manifest_path)
-            .map_err(|e| format!("Failed to write screenly.yml: {}", e))?;
+            .map_err(|e| format!("Failed to write {}: {}", manifest_path.display(), e))?;
 
         let command = edge_app_command(auth);
         if created {
@@ -273,25 +281,25 @@ impl EdgeAppTools {
             .id
             .ok_or_else(|| "Edge App id missing after create".to_string())?;
 
-        let path = dir_path
-            .to_str()
-            .ok_or_else(|| "Edge App path is not valid UTF-8".to_string())?
-            .to_string();
-
         let revision = command
             .deploy(Some(path), Some(false))
             .map_err(|e| format!("Failed to deploy Edge App: {}", e))?;
 
         // Create/deploy already happened. Instance + local memory must not hide app_id.
         let mut warnings: Vec<String> = Vec::new();
-        let (instance_id, instance_created) =
-            match ensure_instance(auth, &app_id, name, &dir_path.join("instance.yml")) {
-                Ok(pair) => pair,
-                Err(e) => {
-                    warnings.push(e);
-                    (None, false)
-                }
-            };
+        let (instance_id, instance_created) = match ensure_instance(
+            auth,
+            &app_id,
+            name,
+            preferred_instance_id.as_deref(),
+            &instance_manifest_path,
+        ) {
+            Ok(pair) => pair,
+            Err(e) => {
+                warnings.push(e);
+                (None, false)
+            }
+        };
 
         let saved_to_memory =
             match remember_published_app(auth, name, &app_id, instance_id.as_deref()) {
@@ -342,6 +350,18 @@ fn publish_follow_up_message(saved_to_memory: bool) -> &'static str {
 fn serialize_publish_success(response: PublishFromHtmlResponse) -> Result<String, String> {
     serde_json::to_string_pretty(&response)
         .map_err(|e| format!("Failed to serialize response: {}", e))
+}
+
+fn publish_dir_paths(dir_path: &Path) -> Result<(PathBuf, PathBuf, String), String> {
+    let path = dir_path
+        .to_str()
+        .ok_or_else(|| "Edge App path is not valid UTF-8".to_string())?
+        .to_string();
+    let manifest_path = transform_edge_app_path_to_manifest(&Some(path.clone()))
+        .map_err(|e| format!("Failed to resolve Edge App manifest path: {e}"))?;
+    let instance_path = transform_instance_path_to_instance_manifest(&Some(path.clone()))
+        .map_err(|e| format!("Failed to resolve Edge App instance path: {e}"))?;
+    Ok((manifest_path, instance_path, path))
 }
 
 fn registry_path() -> Result<PathBuf, String> {
@@ -468,6 +488,7 @@ fn ensure_instance(
     auth: &Authentication,
     app_id: &str,
     name: &str,
+    preferred_instance_id: Option<&str>,
     instance_manifest_path: &Path,
 ) -> Result<(Option<String>, bool), String> {
     let command = edge_app_command(auth);
@@ -475,11 +496,8 @@ fn ensure_instance(
         .list_instances(app_id)
         .map_err(|e| format!("Failed to list Edge App instances: {}", e))?;
 
-    if let Some(id) = listed.value.as_array().and_then(|rows| {
-        rows.iter()
-            .find_map(|row| row.get("id").and_then(|v| v.as_str()))
-            .map(ToOwned::to_owned)
-    }) {
+    let rows = listed.value.as_array().cloned().unwrap_or_default();
+    if let Some(id) = pick_existing_instance(&rows, preferred_instance_id, name) {
         return Ok((Some(id), false));
     }
 
@@ -487,6 +505,40 @@ fn ensure_instance(
         .create_instance(instance_manifest_path, app_id, name)
         .map_err(|e| format!("Failed to create Edge App instance: {}", e))?;
     Ok((Some(instance_id), true))
+}
+
+fn pick_existing_instance(
+    rows: &[serde_json::Value],
+    preferred_instance_id: Option<&str>,
+    name: &str,
+) -> Option<String> {
+    if let Some(preferred) = preferred_instance_id.filter(|id| !id.is_empty()) {
+        if rows
+            .iter()
+            .any(|row| row.get("id").and_then(|v| v.as_str()) == Some(preferred))
+        {
+            return Some(preferred.to_string());
+        }
+    }
+
+    if let Some(id) = rows.iter().find_map(|row| {
+        if row.get("name").and_then(|v| v.as_str()) == Some(name) {
+            row.get("id").and_then(|v| v.as_str()).map(ToOwned::to_owned)
+        } else {
+            None
+        }
+    }) {
+        return Some(id);
+    }
+
+    if rows.len() == 1 {
+        return rows[0]
+            .get("id")
+            .and_then(|v| v.as_str())
+            .map(ToOwned::to_owned);
+    }
+
+    None
 }
 
 fn edge_app_command(auth: &Authentication) -> EdgeAppCommand {
@@ -804,5 +856,45 @@ mod registry_tests {
             .as_str()
             .unwrap()
             .contains("Keep this app_id"));
+    }
+
+    #[test]
+    fn pick_existing_instance_prefers_remembered_id_then_name() {
+        let rows = vec![
+            json!({"id": "inst-a", "name": "Other"}),
+            json!({"id": "inst-b", "name": "Lobby Board"}),
+        ];
+        assert_eq!(
+            pick_existing_instance(&rows, Some("inst-a"), "Lobby Board").as_deref(),
+            Some("inst-a")
+        );
+        assert_eq!(
+            pick_existing_instance(&rows, Some("gone"), "Lobby Board").as_deref(),
+            Some("inst-b")
+        );
+        assert_eq!(
+            pick_existing_instance(&rows, None, "Missing").as_deref(),
+            None
+        );
+        assert_eq!(
+            pick_existing_instance(&[json!({"id": "only", "name": "X"})], None, "Y").as_deref(),
+            Some("only")
+        );
+    }
+
+    #[test]
+    fn publish_dir_paths_honours_manifest_and_instance_env() {
+        let dir = tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("MANIFEST_FILE_NAME", Some("custom.yml")),
+                ("INSTANCE_FILE_NAME", Some("inst.yml")),
+            ],
+            || {
+                let (manifest, instance, _) = publish_dir_paths(dir.path()).unwrap();
+                assert_eq!(manifest.file_name().and_then(|n| n.to_str()), Some("custom.yml"));
+                assert_eq!(instance.file_name().and_then(|n| n.to_str()), Some("inst.yml"));
+            },
+        );
     }
 }
