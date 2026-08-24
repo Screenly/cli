@@ -210,7 +210,9 @@ impl EdgeAppCommand {
         let manifest_path = transform_edge_app_path_to_manifest(&path)?;
 
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
-        let manifest = EdgeAppManifest::new(&manifest_path)?;
+        let mut manifest = EdgeAppManifest::new(&manifest_path)?;
+        manifest.assign_setting_priorities();
+        EdgeAppManifest::save_to_file(&manifest, &manifest_path)?;
 
         let actual_app_id = match self.get_app_id(path.clone()) {
             Ok(id) => id,
@@ -757,16 +759,6 @@ mod tests {
             manifest.settings,
             vec![
                 Setting {
-                    name: "greeting".to_string(),
-                    title: Some("greeting title".to_string()),
-                    type_: SettingType::String,
-                    default_value: Some("Unknown".to_string()),
-                    optional: true,
-                    is_global: false,
-                    help_text: "An example of a string setting that is used in index.html"
-                        .to_string(),
-                },
-                Setting {
                     name: "secret_word".to_string(),
                     title: Some("secret title".to_string()),
                     type_: SettingType::Secret,
@@ -774,6 +766,16 @@ mod tests {
                     optional: true,
                     is_global: false,
                     help_text: "An example of a secret setting that is used in index.html"
+                        .to_string(),
+                },
+                Setting {
+                    name: "greeting".to_string(),
+                    title: Some("greeting title".to_string()),
+                    type_: SettingType::String,
+                    default_value: Some("Unknown".to_string()),
+                    optional: true,
+                    is_global: false,
+                    help_text: "An example of a string setting that is used in index.html"
                         .to_string(),
                 }
             ]
@@ -1189,7 +1191,13 @@ mod tests {
                     "default_value": "",
                     "title": "atitle",
                     "optional": false,
-                    "help_text": "help text",
+                    "help_text": {
+                        "schema_version": 1,
+                        "properties": {
+                            "help_text": "help text",
+                            "priority": 0,
+                        },
+                    },
                 }));
             then.status(201).json_body(json!(
             [{
@@ -1219,7 +1227,13 @@ mod tests {
                     "default_value": "",
                     "title": "ntitle",
                     "optional": false,
-                    "help_text": "help text",
+                    "help_text": {
+                        "schema_version": 1,
+                        "properties": {
+                            "help_text": "help text",
+                            "priority": 1,
+                        },
+                    },
                 }));
             then.status(200).json_body(json!(
             [{

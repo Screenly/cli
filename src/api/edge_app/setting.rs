@@ -73,14 +73,29 @@ pub fn deserialize_settings<'de, D>(deserializer: D) -> Result<Vec<Setting>, D::
 where
     D: Deserializer<'de>,
 {
-    let map: HashMap<String, Setting> = serde::Deserialize::deserialize(deserializer)?;
-    let mut settings: Vec<Setting> = map
-        .into_iter()
-        .map(|(name, mut setting)| {
-            setting.name = name;
-            setting
-        })
-        .collect();
+    struct SettingsVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for SettingsVisitor {
+        type Value = Vec<Setting>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a map of settings")
+        }
+
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::MapAccess<'de>,
+        {
+            let mut settings = Vec::new();
+            while let Some((name, mut setting)) = map.next_entry::<String, Setting>()? {
+                setting.name = name;
+                settings.push(setting);
+            }
+            Ok(settings)
+        }
+    }
+
+    let settings = deserializer.deserialize_map(SettingsVisitor)?;
 
     for setting in &settings {
         if setting.type_ == SettingType::Secret && setting.default_value.is_some() {
@@ -97,7 +112,6 @@ where
         }
     }
 
-    settings.sort_by_key(|s| s.name.clone());
     Ok(settings)
 }
 
@@ -223,6 +237,60 @@ where
                 serde::de::Error::custom(format!("Failed to serialize help_text: {err}"))
             })
         }
+    }
+}
+
+const HELP_TEXT_NAME_OVERRIDES: &[&str] = &[
+    "message_body",
+    "rss_url",
+    "bypass_cors",
+    "cache_interval",
+    "limit",
+    "override_coordinates",
+    "override_locale",
+    "override_timezone",
+    "target_timestamp",
+    "stop_id",
+    "azure_ad_scope",
+    "azure_ad_resource",
+    "theme",
+];
+
+pub fn help_text_with_priority(name: &str, help_text: &str, priority: usize) -> String {
+    if HELP_TEXT_NAME_OVERRIDES.contains(&name) {
+        return help_text.to_string();
+    }
+
+    let mut value: Value = serde_json::from_str(help_text).unwrap_or(Value::Null);
+
+    let is_schema = value
+        .as_object()
+        .map(|obj| {
+            obj.contains_key("schema_version")
+                && obj.get("properties").is_some_and(Value::is_object)
+        })
+        .unwrap_or(false);
+
+    if is_schema {
+        if let Some(properties) = value.get_mut("properties").and_then(Value::as_object_mut) {
+            properties.insert("priority".to_string(), json!(priority));
+        }
+        return serde_json::to_string(&value).unwrap_or_else(|_| help_text.to_string());
+    }
+
+    json!({
+        "schema_version": 1,
+        "properties": {
+            "help_text": help_text,
+            "priority": priority,
+        }
+    })
+    .to_string()
+}
+
+pub fn assign_setting_priorities(settings: &mut [Setting]) {
+    for (priority, setting) in settings.iter_mut().enumerate() {
+        setting.help_text = help_text_with_priority(&setting.name, &setting.help_text, priority);
     }
 }
 
