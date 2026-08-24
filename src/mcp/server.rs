@@ -871,7 +871,7 @@ impl ScreenlyMcpServer {
     }
 
     #[tool(
-        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for unattended digital signage (no mouse/keyboard; auto-rotates tiles/pages), creates an instance so it appears in Content, and deploys. Remembers app_id/instance_id by name on this machine. Omit app_id to create or to update a remembered name; pass app_id to target a specific app.",
+        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for unattended digital signage (no mouse/keyboard; auto-rotates tab panels and carousel slides), creates an instance so it appears in Content, and deploys. Remembers app_id/instance_id by name on this machine. Omit app_id to create or to update a remembered name; pass app_id to target a specific app.",
         annotations(
             title = "Publish Screenly App from HTML",
             read_only_hint = false,

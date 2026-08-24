@@ -53,8 +53,8 @@ html { -webkit-user-select: none; user-select: none; }
 a, button, [role="tab"], [role="button"] { cursor: default; }
 </style>"#;
 
-/// Theme + unattended signage: branding CSS variables, then auto-show tiles/pages
-/// that would otherwise need a mouse or keyboard.
+/// Theme CSS variables, then rotate only explicit slideshow markers
+/// (`[role="tabpanel"]`, `.carousel-item`, `[data-slide]`, `[data-screenly-page]`).
 const THEME_BOOTSTRAP_SCRIPT: &str = r#"<script data-screenly-mcp-theme="1">
 (function () {
   var settings = (window.screenly && screenly.settings) || {};
@@ -74,19 +74,20 @@ const THEME_BOOTSTRAP_SCRIPT: &str = r#"<script data-screenly-mcp-theme="1">
 
   var DWELL_MS = 8000;
 
-  function isHidden(el) {
-    if (!el || el.nodeType !== 1) return true;
-    if (el.hasAttribute("hidden")) return true;
-    var s = window.getComputedStyle(el);
-    return s.display === "none" || s.visibility === "hidden";
-  }
-
   function showOnly(items, index) {
     items.forEach(function (el, i) {
       var on = i === index;
-      if (on) el.removeAttribute("hidden");
-      else el.setAttribute("hidden", "");
-      el.style.display = on ? "" : "none";
+      if (!el.hasAttribute("data-screenly-orig-display")) {
+        el.setAttribute("data-screenly-orig-display", el.style.display);
+      }
+      var orig = el.getAttribute("data-screenly-orig-display");
+      if (on) {
+        el.removeAttribute("hidden");
+        el.style.display = (orig && orig !== "none") ? orig : "block";
+      } else {
+        el.setAttribute("hidden", "");
+        el.style.display = "none";
+      }
       el.setAttribute("aria-hidden", on ? "false" : "true");
       el.classList.toggle("active", on);
       el.classList.toggle("show", on);
@@ -94,40 +95,20 @@ const THEME_BOOTSTRAP_SCRIPT: &str = r#"<script data-screenly-mcp-theme="1">
   }
 
   function collectPages() {
-    var panels = document.querySelectorAll('[role="tabpanel"]');
-    if (panels.length > 1) return Array.prototype.slice.call(panels);
     var selectors = [
-      ".slide", ".carousel-item", ".page", ".tile", ".view",
-      "[data-page]", "[data-slide]", "[data-view]"
+      '[role="tabpanel"]',
+      ".carousel-item",
+      "[data-slide]",
+      "[data-screenly-page]"
     ];
     for (var i = 0; i < selectors.length; i++) {
       var found = document.querySelectorAll(selectors[i]);
       if (found.length > 1) return Array.prototype.slice.call(found);
     }
-    var nodes = document.querySelectorAll("body *");
-    for (var j = 0; j < nodes.length; j++) {
-      var parent = nodes[j];
-      var kids = [];
-      for (var k = 0; k < parent.children.length; k++) {
-        var child = parent.children[k];
-        var tag = child.tagName;
-        if (tag === "SCRIPT" || tag === "STYLE" || tag === "LINK" || tag === "META") continue;
-        kids.push(child);
-      }
-      if (kids.length < 2) continue;
-      var hiddenCount = kids.filter(isHidden).length;
-      if (hiddenCount >= 1 && hiddenCount < kids.length) return kids;
-    }
     return [];
   }
 
   function startSignage() {
-    document.querySelectorAll("details").forEach(function (el) { el.open = true; });
-    document.querySelectorAll("dialog").forEach(function (el) {
-      try { if (typeof el.show === "function") el.show(); }
-      catch (e) { el.setAttribute("open", ""); }
-    });
-
     var tabs = document.querySelectorAll('[role="tab"]');
     if (tabs.length > 1) {
       var tabIndex = 0;
@@ -239,6 +220,7 @@ impl EdgeAppTools {
         }
 
         let wrapped = wrap_html_for_edge_app(html)?;
+        let ready_signal = has_screenly_js_script(&wrapped);
         let dir = tempfile::tempdir()
             .map_err(|e| format!("Failed to create temporary Edge App directory: {}", e))?;
         let dir_path = dir.path();
@@ -267,7 +249,7 @@ impl EdgeAppTools {
                 .filter(|d| !d.is_empty())
                 .map(ToOwned::to_owned),
             icon: Some(DEFAULT_CLAUDE_APP_ICON.to_owned()),
-            ready_signal: Some(true),
+            ready_signal: Some(ready_signal),
             entrypoint: Some(Entrypoint {
                 entrypoint_type: EntrypointType::File,
                 uri: None,
@@ -547,7 +529,7 @@ pub(crate) fn wrap_html_for_edge_app(html: &str) -> Result<String, String> {
 
     let mut out = html.to_string();
 
-    if !lower.contains("screenly.js") {
+    if !has_screenly_js_script(&out) {
         out = inject_before_tag(&out, "</head>", &format!("{screenly_script}\n"))
             .or_else(|| inject_after_tag(&out, "<head>", &format!("\n{screenly_script}\n")))
             .ok_or_else(|| {
@@ -577,6 +559,23 @@ pub(crate) fn wrap_html_for_edge_app(html: &str) -> Result<String, String> {
     }
 
     Ok(out)
+}
+
+/// True when an opening `<script src=…>` tag points at `screenly.js`.
+/// A comment or code sample that merely mentions the filename does not count.
+fn has_screenly_js_script(html: &str) -> bool {
+    let lower = html.to_ascii_lowercase();
+    let mut rest = lower.as_str();
+    while let Some(idx) = rest.find("<script") {
+        let after = &rest[idx + 7..];
+        let tag_end = after.find('>').unwrap_or(after.len());
+        let tag = &after[..tag_end];
+        if tag.contains("src=") && tag.contains("screenly.js") {
+            return true;
+        }
+        rest = after;
+    }
+    false
 }
 
 fn inject_before_tag(html: &str, tag: &str, snippet: &str) -> Option<String> {
@@ -621,6 +620,10 @@ mod wrap_tests {
         assert!(wrapped.contains("[role=\"tab\"]"));
         assert!(wrapped.contains("DWELL_MS"));
         assert!(wrapped.contains("signalReadyForRendering"));
+        assert!(wrapped.contains("data-screenly-orig-display"));
+        assert!(!wrapped.contains(".tile"));
+        assert!(!wrapped.contains("querySelectorAll(\"dialog\")"));
+        assert!(!wrapped.contains("querySelectorAll(\"body *\")"));
     }
 
     #[test]
@@ -651,6 +654,42 @@ mod wrap_tests {
     #[test]
     fn wrap_rejects_empty_html() {
         assert!(wrap_html_for_edge_app("   ").is_err());
+    }
+
+    #[test]
+    fn wrap_injects_screenly_js_when_filename_only_appears_in_a_comment() {
+        let html = r#"<!DOCTYPE html>
+<html>
+<head>
+<!-- loads screenly.js on the player -->
+<title>Board</title>
+</head>
+<body><p>News</p></body>
+</html>"#;
+        let wrapped = wrap_html_for_edge_app(html).unwrap();
+        assert_eq!(wrapped.matches(SCREENLY_JS_SRC).count(), 1);
+        assert!(has_screenly_js_script(&wrapped));
+    }
+
+    #[test]
+    fn wrap_skips_inject_when_script_src_already_loads_screenly_js() {
+        let html = r#"<!DOCTYPE html>
+<html>
+<head>
+<script src="screenly.js?version=1"></script>
+<title>Board</title>
+</head>
+<body><p>News</p></body>
+</html>"#;
+        let wrapped = wrap_html_for_edge_app(html).unwrap();
+        assert_eq!(wrapped.matches("screenly.js").count(), 1);
+        assert!(has_screenly_js_script(&wrapped));
+    }
+
+    #[test]
+    fn has_screenly_js_script_ignores_inline_script_text() {
+        let html = r#"<script>console.log("screenly.js")</script>"#;
+        assert!(!has_screenly_js_script(html));
     }
 }
 
