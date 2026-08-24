@@ -6,6 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::authentication::Authentication;
 use crate::commands;
@@ -35,9 +36,9 @@ struct McpEdgeAppRecord {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct McpEdgeAppRegistry {
-    /// Exact display name → last published Edge App / instance.
+    /// `{api_url}|{token fingerprint}` → display name → last published ids.
     #[serde(default)]
-    apps: BTreeMap<String, McpEdgeAppRecord>,
+    scopes: BTreeMap<String, BTreeMap<String, McpEdgeAppRecord>>,
 }
 
 /// Marker attribute so wrap is idempotent when HTML is published again.
@@ -250,7 +251,7 @@ impl EdgeAppTools {
             .filter(|id| !id.is_empty())
             .map(ToOwned::to_owned);
         let remembered = if explicit_id.is_none() {
-            lookup_remembered_app(name)
+            lookup_remembered_app(auth, name)
         } else {
             None
         };
@@ -310,13 +311,14 @@ impl EdgeAppTools {
                 }
             };
 
-        let saved_to_memory = match remember_published_app(name, &app_id, instance_id.as_deref()) {
-            Ok(()) => true,
-            Err(e) => {
-                warnings.push(format!("Failed to save app_id locally: {e}"));
-                false
-            }
-        };
+        let saved_to_memory =
+            match remember_published_app(auth, name, &app_id, instance_id.as_deref()) {
+                Ok(()) => true,
+                Err(e) => {
+                    warnings.push(format!("Failed to save app_id locally: {e}"));
+                    false
+                }
+            };
 
         serialize_publish_success(PublishFromHtmlResponse {
             app_id,
@@ -402,24 +404,82 @@ fn save_registry(registry: &McpEdgeAppRegistry) -> Result<(), String> {
         .map_err(|e| format!("Failed to write {}: {}", path.display(), e))
 }
 
-fn lookup_remembered_app(name: &str) -> Option<McpEdgeAppRecord> {
-    load_registry().ok()?.apps.get(name).cloned()
+fn registry_scope(auth: &Authentication) -> String {
+    let url = auth.config.url.trim().trim_end_matches('/');
+    format!("{url}|{}", token_fingerprint(&auth.token))
+}
+
+fn token_fingerprint(token: &str) -> String {
+    hex::encode(Sha256::digest(token.trim().as_bytes()))
+}
+
+fn lookup_in_registry(auth: &Authentication, name: &str) -> Option<McpEdgeAppRecord> {
+    load_registry()
+        .ok()?
+        .scopes
+        .get(&registry_scope(auth))?
+        .get(name)
+        .cloned()
+}
+
+/// Returns the remembered ids for this API host + token, or `None` if the app
+/// is gone (entry is then dropped). Network errors keep the cached id.
+fn lookup_remembered_app(auth: &Authentication, name: &str) -> Option<McpEdgeAppRecord> {
+    let record = lookup_in_registry(auth, name)?;
+    match app_exists_in_account(auth, &record.app_id) {
+        Ok(true) => Some(record),
+        Ok(false) => {
+            let _ = forget_published_app(auth, name);
+            None
+        }
+        Err(_) => Some(record),
+    }
 }
 
 fn remember_published_app(
+    auth: &Authentication,
     name: &str,
     app_id: &str,
     instance_id: Option<&str>,
 ) -> Result<(), String> {
     let mut registry = load_registry()?;
-    registry.apps.insert(
-        name.to_string(),
-        McpEdgeAppRecord {
-            app_id: app_id.to_string(),
-            instance_id: instance_id.map(ToOwned::to_owned),
-        },
-    );
+    registry
+        .scopes
+        .entry(registry_scope(auth))
+        .or_default()
+        .insert(
+            name.to_string(),
+            McpEdgeAppRecord {
+                app_id: app_id.to_string(),
+                instance_id: instance_id.map(ToOwned::to_owned),
+            },
+        );
     save_registry(&registry)
+}
+
+fn forget_published_app(auth: &Authentication, name: &str) -> Result<(), String> {
+    let mut registry = load_registry()?;
+    let scope = registry_scope(auth);
+    let empty = if let Some(apps) = registry.scopes.get_mut(&scope) {
+        apps.remove(name);
+        apps.is_empty()
+    } else {
+        false
+    };
+    if empty {
+        registry.scopes.remove(&scope);
+    }
+    save_registry(&registry)
+}
+
+fn app_exists_in_account(auth: &Authentication, app_id: &str) -> Result<bool, String> {
+    let endpoint = format!("v4/edge-apps?select=id&id=eq.{app_id}&deleted=eq.false");
+    let result = commands::get(auth, &endpoint)
+        .map_err(|e| format!("Failed to look up Edge App {app_id}: {e}"))?;
+    Ok(result
+        .as_array()
+        .map(|rows| !rows.is_empty())
+        .unwrap_or(false))
 }
 
 fn ensure_instance(
@@ -597,25 +657,71 @@ mod wrap_tests {
 #[cfg(test)]
 mod registry_tests {
     use super::*;
+    use crate::authentication::Config;
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+    use serde_json::json;
     use tempfile::tempdir;
+
+    fn test_auth(url: &str, token: &str) -> Authentication {
+        Authentication::new_with_config(Config::new(url.to_string()), token)
+    }
+
+    fn with_registry<R>(f: impl FnOnce() -> R) -> R {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("mcp-edge-apps.json");
+        let path_str = path.to_str().unwrap().to_string();
+        temp_env::with_var(MCP_EDGE_APPS_PATH_ENV, Some(path_str.as_str()), f)
+    }
 
     #[test]
     fn remember_and_lookup_round_trip() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("mcp-edge-apps.json");
-        let path_str = path.to_str().unwrap();
+        with_registry(|| {
+            let auth = test_auth("https://api.example.com", "token-a");
+            assert!(lookup_in_registry(&auth, "Lobby Board").is_none());
+            remember_published_app(&auth, "Lobby Board", "app-1", Some("inst-1")).unwrap();
 
-        temp_env::with_var(MCP_EDGE_APPS_PATH_ENV, Some(path_str), || {
-            assert!(lookup_remembered_app("Lobby Board").is_none());
-            remember_published_app("Lobby Board", "app-1", Some("inst-1")).unwrap();
-
-            let remembered = lookup_remembered_app("Lobby Board").unwrap();
+            let remembered = lookup_in_registry(&auth, "Lobby Board").unwrap();
             assert_eq!(remembered.app_id, "app-1");
             assert_eq!(remembered.instance_id.as_deref(), Some("inst-1"));
 
-            remember_published_app("Lobby Board", "app-1", Some("inst-2")).unwrap();
-            let updated = lookup_remembered_app("Lobby Board").unwrap();
+            remember_published_app(&auth, "Lobby Board", "app-1", Some("inst-2")).unwrap();
+            let updated = lookup_in_registry(&auth, "Lobby Board").unwrap();
             assert_eq!(updated.instance_id.as_deref(), Some("inst-2"));
+        });
+    }
+
+    #[test]
+    fn registry_is_scoped_by_api_url_and_token() {
+        with_registry(|| {
+            let prod_a = test_auth("https://api.example.com", "token-a");
+            let prod_b = test_auth("https://api.example.com", "token-b");
+            let staging_a = test_auth("https://staging.example.com", "token-a");
+
+            remember_published_app(&prod_a, "Lobby Board", "app-prod-a", None).unwrap();
+
+            assert!(lookup_in_registry(&prod_b, "Lobby Board").is_none());
+            assert!(lookup_in_registry(&staging_a, "Lobby Board").is_none());
+            assert_eq!(
+                lookup_in_registry(&prod_a, "Lobby Board").unwrap().app_id,
+                "app-prod-a"
+            );
+        });
+    }
+
+    #[test]
+    fn stale_remembered_id_is_forgotten() {
+        with_registry(|| {
+            let server = MockServer::start();
+            server.mock(|when, then| {
+                when.method(GET).path("/v4/edge-apps");
+                then.status(200).json_body(json!([]));
+            });
+            let auth = test_auth(&server.base_url(), "token-a");
+            remember_published_app(&auth, "Lobby Board", "gone-app", None).unwrap();
+            assert!(lookup_in_registry(&auth, "Lobby Board").is_some());
+            assert!(lookup_remembered_app(&auth, "Lobby Board").is_none());
+            assert!(lookup_in_registry(&auth, "Lobby Board").is_none());
         });
     }
 
