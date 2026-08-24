@@ -922,7 +922,7 @@ impl rmcp::ServerHandler for ScreenlyMcpServer {
             Screenly app, app, or Edge App, call edge_app_publish_from_html with the full HTML \
             source (not asset_create, which needs a public URL). This creates the app, deploys it, \
             and creates an instance so it appears in Content and can be scheduled on a screen. \
-            The tool saves app_id and instance_id locally by name (~/.screenly/mcp-edge-apps.json). \
+            The tool saves app_id and instance_id locally by name (~/.screenly.d/mcp-edge-apps.json). \
             To update later, call again with the same name and revised HTML; pass app_id when known, \
             otherwise the remembered name is enough. Keep the returned app_id and instance_id in mind \
             for the rest of the conversation.",

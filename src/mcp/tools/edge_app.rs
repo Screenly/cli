@@ -6,7 +6,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use crate::authentication::Authentication;
 use crate::commands;
@@ -17,6 +16,11 @@ use crate::commands::edge_app::EdgeAppCommand;
 
 /// Override path for the local name → app/instance cache (used in tests).
 const MCP_EDGE_APPS_PATH_ENV: &str = "SCREENLY_MCP_EDGE_APPS_PATH";
+
+/// Directory next to the `~/.screenly` *token file* — that path is a regular
+/// file (`authentication.rs`), so we cannot store JSON under `~/.screenly/`.
+const MCP_EDGE_APPS_DIR_NAME: &str = ".screenly.d";
+const MCP_EDGE_APPS_FILE_NAME: &str = "mcp-edge-apps.json";
 
 /// Default Edge App icon for Claude Artifact publishes (screenly.yml `icon`).
 const DEFAULT_CLAUDE_APP_ICON: &str =
@@ -219,7 +223,7 @@ impl EdgeAppTools {
     /// Create or update an Edge App from HTML (Claude Artifact / webpage).
     ///
     /// Omitting `app_id` creates a new app unless the same `name` was published
-    /// before on this machine (`~/.screenly/mcp-edge-apps.json`). Passing
+    /// before on this machine (`~/.screenly.d/mcp-edge-apps.json`). Passing
     /// `app_id` always deploys a new revision for that app.
     pub fn publish_from_html(
         auth: &Authentication,
@@ -295,23 +299,65 @@ impl EdgeAppTools {
             .deploy(Some(path), Some(false))
             .map_err(|e| format!("Failed to deploy Edge App: {}", e))?;
 
+        // Create/deploy already happened. Instance + local memory must not hide app_id.
+        let mut warnings: Vec<String> = Vec::new();
         let (instance_id, instance_created) =
-            ensure_instance(auth, &app_id, name, &dir_path.join("instance.yml"))?;
+            match ensure_instance(auth, &app_id, name, &dir_path.join("instance.yml")) {
+                Ok(pair) => pair,
+                Err(e) => {
+                    warnings.push(e);
+                    (None, false)
+                }
+            };
 
-        remember_published_app(name, &app_id, instance_id.as_deref())?;
+        let saved_to_memory = match remember_published_app(name, &app_id, instance_id.as_deref()) {
+            Ok(()) => true,
+            Err(e) => {
+                warnings.push(format!("Failed to save app_id locally: {e}"));
+                false
+            }
+        };
 
-        serde_json::to_string_pretty(&json!({
-            "app_id": app_id,
-            "instance_id": instance_id,
-            "instance_created": instance_created,
-            "name": name,
-            "revision": revision,
-            "created": created,
-            "resolved_from_memory": from_memory,
-            "message": "IDs are saved locally under ~/.screenly/mcp-edge-apps.json for this name. Later, call this tool again with the same name (and updated HTML) to deploy a new revision; app_id is optional when the name is remembered.",
-        }))
-        .map_err(|e| format!("Failed to serialize response: {}", e))
+        serialize_publish_success(PublishFromHtmlResponse {
+            app_id,
+            instance_id,
+            instance_created,
+            name: name.to_string(),
+            revision,
+            created,
+            resolved_from_memory: from_memory,
+            saved_to_memory,
+            warnings,
+            message: publish_follow_up_message(saved_to_memory).to_string(),
+        })
     }
+}
+
+#[derive(Serialize)]
+struct PublishFromHtmlResponse {
+    app_id: String,
+    instance_id: Option<String>,
+    instance_created: bool,
+    name: String,
+    revision: u32,
+    created: bool,
+    resolved_from_memory: bool,
+    saved_to_memory: bool,
+    warnings: Vec<String>,
+    message: String,
+}
+
+fn publish_follow_up_message(saved_to_memory: bool) -> &'static str {
+    if saved_to_memory {
+        "IDs are saved locally under ~/.screenly.d/mcp-edge-apps.json for this name. Later, call this tool again with the same name (and updated HTML) to deploy a new revision; app_id is optional when the name is remembered."
+    } else {
+        "Keep this app_id. Local memory could not be updated; pass app_id on the next publish to update the same app."
+    }
+}
+
+fn serialize_publish_success(response: PublishFromHtmlResponse) -> Result<String, String> {
+    serde_json::to_string_pretty(&response)
+        .map_err(|e| format!("Failed to serialize response: {}", e))
 }
 
 fn registry_path() -> Result<PathBuf, String> {
@@ -323,7 +369,9 @@ fn registry_path() -> Result<PathBuf, String> {
     }
 
     let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
-    Ok(home.join(".screenly").join("mcp-edge-apps.json"))
+    Ok(home
+        .join(MCP_EDGE_APPS_DIR_NAME)
+        .join(MCP_EDGE_APPS_FILE_NAME))
 }
 
 fn load_registry() -> Result<McpEdgeAppRegistry, String> {
@@ -569,5 +617,47 @@ mod registry_tests {
             let updated = lookup_remembered_app("Lobby Board").unwrap();
             assert_eq!(updated.instance_id.as_deref(), Some("inst-2"));
         });
+    }
+
+    #[test]
+    fn default_registry_path_is_not_the_token_file() {
+        temp_env::with_var_unset(MCP_EDGE_APPS_PATH_ENV, || {
+            let path = registry_path().unwrap();
+            assert_eq!(
+                path.file_name().and_then(|n| n.to_str()),
+                Some(MCP_EDGE_APPS_FILE_NAME)
+            );
+            assert_eq!(
+                path.parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str()),
+                Some(MCP_EDGE_APPS_DIR_NAME)
+            );
+        });
+    }
+
+    #[test]
+    fn success_json_keeps_app_id_when_bookkeeping_fails() {
+        let raw = serialize_publish_success(PublishFromHtmlResponse {
+            app_id: "app-1".to_string(),
+            instance_id: None,
+            instance_created: false,
+            name: "Lobby Board".to_string(),
+            revision: 3,
+            created: true,
+            resolved_from_memory: false,
+            saved_to_memory: false,
+            warnings: vec!["Failed to save app_id locally: File exists".to_string()],
+            message: publish_follow_up_message(false).to_string(),
+        })
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(value["app_id"], "app-1");
+        assert_eq!(value["saved_to_memory"], false);
+        assert_eq!(value["warnings"].as_array().unwrap().len(), 1);
+        assert!(value["message"]
+            .as_str()
+            .unwrap()
+            .contains("Keep this app_id"));
     }
 }
