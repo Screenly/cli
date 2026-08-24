@@ -483,6 +483,7 @@ Edge App settings support additional input field types beyond plain text and pas
   - `properties.type`: One of `datetime`, `number`, `select`, `boolean`, `textarea`, `url`.
   - `properties.help_text`: Human-friendly description shown in the UI.
   - `properties.options` (only for `select`): Array of `{ label, value }` options.
+  - `properties.priority`: Optional integer controlling the order settings render in the install/edit UI (ascending). If omitted, `screenly edge-app deploy` auto-assigns one from the setting's position in the manifest's `settings:` mapping, so settings render in declaration order by default — set an explicit value only to override that default.
 - **Storage**: Use `type: string` for all non-secret fields; use `type: secret` for password-like fields. The UI will coerce values appropriately (e.g., booleans) but values are stored as strings unless `type: secret`.
 - **Defaults**: Provide `default_value` at the setting level. For booleans, use `'true'` or `'false'` as strings.
 
@@ -586,6 +587,32 @@ settings:
       properties:
         help_text: The URL of the website
         type: url
+```
+
+**Explicit display order override**
+
+```yaml
+settings:
+  number_field:
+    type: string
+    title: Attendee Count
+    optional: false
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: The expected count of attendees
+        type: number
+        priority: 2
+  date_time_field:
+    type: string
+    title: Start Date Time
+    optional: false
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: The start date and time of the event
+        type: datetime
+        priority: 1
 ```
 
 Notes:
