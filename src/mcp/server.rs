@@ -903,7 +903,7 @@ impl ScreenlyMcpServer {
         {
             Ok(Ok(result)) => result,
             Ok(Err(e)) => json!({"error": e}).to_string(),
-            Err(e) => json!({"error": format!("Publish task failed: {e}")}).to_string(),
+            Err(e) => json!({"error": format!("Publish task failed: {}", e)}).to_string(),
         }
     }
 }

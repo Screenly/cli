@@ -305,7 +305,7 @@ impl EdgeAppTools {
             match remember_published_app(auth, name, &app_id, instance_id.as_deref()) {
                 Ok(()) => true,
                 Err(e) => {
-                    warnings.push(format!("Failed to save app_id locally: {e}"));
+                    warnings.push(format!("Failed to save app_id locally: {}", e));
                     false
                 }
             };
@@ -358,9 +358,9 @@ fn publish_dir_paths(dir_path: &Path) -> Result<(PathBuf, PathBuf, String), Stri
         .ok_or_else(|| "Edge App path is not valid UTF-8".to_string())?
         .to_string();
     let manifest_path = transform_edge_app_path_to_manifest(&Some(path.clone()))
-        .map_err(|e| format!("Failed to resolve Edge App manifest path: {e}"))?;
+        .map_err(|e| format!("Failed to resolve Edge App manifest path: {}", e))?;
     let instance_path = transform_instance_path_to_instance_manifest(&Some(path.clone()))
-        .map_err(|e| format!("Failed to resolve Edge App instance path: {e}"))?;
+        .map_err(|e| format!("Failed to resolve Edge App instance path: {}", e))?;
     Ok((manifest_path, instance_path, path))
 }
 
@@ -477,7 +477,7 @@ fn forget_published_app(auth: &Authentication, name: &str) -> Result<(), String>
 fn app_exists_in_account(auth: &Authentication, app_id: &str) -> Result<bool, String> {
     let endpoint = format!("v4/edge-apps?select=id&id=eq.{app_id}&deleted=eq.false");
     let result = commands::get(auth, &endpoint)
-        .map_err(|e| format!("Failed to look up Edge App {app_id}: {e}"))?;
+        .map_err(|e| format!("Failed to look up Edge App {}: {}", app_id, e))?;
     Ok(result
         .as_array()
         .map(|rows| !rows.is_empty())
@@ -523,7 +523,9 @@ fn pick_existing_instance(
 
     if let Some(id) = rows.iter().find_map(|row| {
         if row.get("name").and_then(|v| v.as_str()) == Some(name) {
-            row.get("id").and_then(|v| v.as_str()).map(ToOwned::to_owned)
+            row.get("id")
+                .and_then(|v| v.as_str())
+                .map(ToOwned::to_owned)
         } else {
             None
         }
@@ -892,8 +894,14 @@ mod registry_tests {
             ],
             || {
                 let (manifest, instance, _) = publish_dir_paths(dir.path()).unwrap();
-                assert_eq!(manifest.file_name().and_then(|n| n.to_str()), Some("custom.yml"));
-                assert_eq!(instance.file_name().and_then(|n| n.to_str()), Some("inst.yml"));
+                assert_eq!(
+                    manifest.file_name().and_then(|n| n.to_str()),
+                    Some("custom.yml")
+                );
+                assert_eq!(
+                    instance.file_name().and_then(|n| n.to_str()),
+                    Some("inst.yml")
+                );
             },
         );
     }
