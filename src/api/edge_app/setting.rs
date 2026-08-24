@@ -256,7 +256,7 @@ const HELP_TEXT_NAME_OVERRIDES: &[&str] = &[
     "theme",
 ];
 
-pub fn help_text_with_priority(name: &str, help_text: &str, priority: usize) -> String {
+pub fn help_text_with_display_order(name: &str, help_text: &str, display_order: usize) -> String {
     if HELP_TEXT_NAME_OVERRIDES.contains(&name) {
         return help_text.to_string();
     }
@@ -273,7 +273,7 @@ pub fn help_text_with_priority(name: &str, help_text: &str, priority: usize) -> 
 
     if is_schema {
         if let Some(properties) = value.get_mut("properties").and_then(Value::as_object_mut) {
-            properties.insert("priority".to_string(), json!(priority));
+            properties.insert("display_order".to_string(), json!(display_order));
         }
         return serde_json::to_string(&value).unwrap_or_else(|_| help_text.to_string());
     }
@@ -282,15 +282,16 @@ pub fn help_text_with_priority(name: &str, help_text: &str, priority: usize) -> 
         "schema_version": 1,
         "properties": {
             "help_text": help_text,
-            "priority": priority,
+            "display_order": display_order,
         }
     })
     .to_string()
 }
 
-pub fn assign_setting_priorities(settings: &mut [Setting]) {
-    for (priority, setting) in settings.iter_mut().enumerate() {
-        setting.help_text = help_text_with_priority(&setting.name, &setting.help_text, priority);
+pub fn assign_setting_display_orders(settings: &mut [Setting]) {
+    for (display_order, setting) in settings.iter_mut().enumerate() {
+        setting.help_text =
+            help_text_with_display_order(&setting.name, &setting.help_text, display_order);
     }
 }
 
