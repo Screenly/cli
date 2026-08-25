@@ -204,14 +204,22 @@ impl Formatter for ProfilesTable {
     }
 }
 
+/// Reports an authentication error and exits.
+///
+/// Every command that touches the credential store funnels its unhandled
+/// authentication errors through here, so a corrupt store or a missing profile
+/// reads the same whichever command hit it, and never surfaces as a `Debug`
+/// dump.
+fn exit_with_authentication_error(e: &AuthenticationError) -> ! {
+    error!("{}", get_authentication_error_message(e));
+    std::process::exit(1);
+}
+
 /// Creates an Authentication instance or exits with a user-friendly error message.
 fn get_authentication() -> Authentication {
     match Authentication::new() {
         Ok(auth) => auth,
-        Err(e) => {
-            error!("{}", get_authentication_error_message(&e));
-            std::process::exit(1);
-        }
+        Err(e) => exit_with_authentication_error(&e),
     }
 }
 
@@ -762,10 +770,7 @@ pub fn handle_cli(cli: &Cli) {
                         error!("Token verification failed.");
                         std::process::exit(1);
                     }
-                    _ => {
-                        error!("{e}");
-                        std::process::exit(1);
-                    }
+                    _ => exit_with_authentication_error(&e),
                 },
             }
         }
@@ -825,10 +830,7 @@ pub fn handle_cli(cli: &Cli) {
                 error!("Profile '{profile}' not found.");
                 std::process::exit(1);
             }
-            Err(e) => {
-                error!("Error occurred: {e}");
-                std::process::exit(1);
-            }
+            Err(e) => exit_with_authentication_error(&e),
         },
         Commands::Auth(auth_command) => match auth_command {
             AuthCommands::List {} => match fetch_profiles_with_info(&Config::default().url) {
@@ -838,26 +840,28 @@ pub fn handle_cli(cli: &Cli) {
                         output,
                     );
                 }
-                Err(e) => {
-                    error!("Error occurred: {e}");
-                    std::process::exit(1);
-                }
+                Err(e) => exit_with_authentication_error(&e),
             },
             AuthCommands::Switch { name } => match name {
                 None => {
                     // A missing argument is a usage error, so exit non-zero
                     // (scripts can detect it) but still print the available
                     // profile names as a hint. Names come from the local store,
-                    // so this needs no network round-trips.
+                    // so this needs no network round-trips. Read them before
+                    // reporting the usage error: if the store itself is
+                    // unreadable, that is the only message worth printing.
+                    let profiles = match Authentication::list_profiles() {
+                        Ok(profiles) => profiles,
+                        Err(e) => exit_with_authentication_error(&e),
+                    };
+                    if profiles.is_empty() {
+                        error!("No profiles stored. Run `screenly login` to add one.");
+                        std::process::exit(1);
+                    }
                     error!("No profile name given. Specify one of the profiles below:");
-                    match Authentication::list_profiles() {
-                        Ok(profiles) => {
-                            for profile in profiles {
-                                let marker = if profile.is_active { "*" } else { " " };
-                                println!("{marker} {}", profile.name);
-                            }
-                        }
-                        Err(e) => error!("Could not read profiles: {e}"),
+                    for profile in profiles {
+                        let marker = if profile.is_active { "*" } else { " " };
+                        println!("{marker} {}", profile.name);
                     }
                     std::process::exit(1);
                 }
@@ -869,10 +873,7 @@ pub fn handle_cli(cli: &Cli) {
                         error!("Profile '{name}' not found.");
                         std::process::exit(1);
                     }
-                    Err(e) => {
-                        error!("Error occurred: {e:?}");
-                        std::process::exit(1);
-                    }
+                    Err(e) => exit_with_authentication_error(&e),
                 },
             },
         },
