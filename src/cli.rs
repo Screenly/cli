@@ -5,6 +5,7 @@ use std::{env, fs, io};
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
 use log::{error, info};
+use prettytable::{Cell, Row};
 use reqwest::StatusCode;
 use rpassword::read_password;
 use serde_json::json;
@@ -63,55 +64,31 @@ fn resolve_login_name(name: Option<&str>, active: Option<&str>) -> String {
     }
 }
 
-/// Renders the stored profiles as an aligned table, marking the active
-/// profile with `*`. Returns a `String` so it can be unit-tested and reused
-/// across output formats. Column widths account for the header labels and for
-/// the `(unavailable)` placeholder shown when a profile's info can't be
-/// fetched.
+/// Shown for a profile whose token could not be resolved against the API. The
+/// profile is stored, it just can't be described right now.
+const PROFILE_INFO_UNAVAILABLE: &str = "(unavailable)";
+
+/// Renders the stored profiles as a table, marking the active profile with `*`.
+///
+/// Uses `prettytable` like every other list command, so `auth list` looks like
+/// `screen list` and column widths (including non-ASCII names) are the table's
+/// problem rather than this function's.
 fn format_profiles_table(entries: &[ProfileEntry]) -> String {
-    // Resolve each row's cells first so the widths cover placeholders too.
-    let rows: Vec<(&str, String, String, bool)> = entries
-        .iter()
-        .map(|e| match &e.info {
-            Some(info) => (
-                e.name.as_str(),
-                info.email.clone(),
-                info.workspace.clone(),
-                e.is_active,
-            ),
-            None => (
-                e.name.as_str(),
-                "(unavailable)".to_string(),
-                "(unavailable)".to_string(),
-                e.is_active,
-            ),
-        })
-        .collect();
-
-    let name_w = rows
-        .iter()
-        .map(|r| r.0.len())
-        .max()
-        .unwrap_or(0)
-        .max("Profile".len());
-    let email_w = rows
-        .iter()
-        .map(|r| r.1.len())
-        .max()
-        .unwrap_or(0)
-        .max("Email".len());
-
-    let mut lines = vec![
-        format!("  {:<name_w$}  {:<email_w$}  Workspace", "Profile", "Email"),
-        format!("  {:-<name_w$}  {:-<email_w$}  ---------", "", ""),
-    ];
-    for (name, email, workspace, is_active) in &rows {
-        let marker = if *is_active { "*" } else { " " };
-        lines.push(format!(
-            "{marker} {name:<name_w$}  {email:<email_w$}  {workspace}"
-        ));
+    let mut table = prettytable::Table::new();
+    table.add_row(Row::from(vec!["Active", "Profile", "Email", "Workspace"]));
+    for entry in entries {
+        let (email, workspace) = match &entry.info {
+            Some(info) => (info.email.as_str(), info.workspace.as_str()),
+            None => (PROFILE_INFO_UNAVAILABLE, PROFILE_INFO_UNAVAILABLE),
+        };
+        table.add_row(Row::new(vec![
+            Cell::new(if entry.is_active { "*" } else { "" }),
+            Cell::new(&entry.name),
+            Cell::new(email),
+            Cell::new(workspace),
+        ]));
     }
-    lines.join("\n")
+    table.to_string()
 }
 
 /// The current profile's details, rendered for the `me` command.
@@ -1572,11 +1549,11 @@ mod tests {
     }
 
     #[test]
-    fn test_format_profiles_table_aligns_headers_and_placeholders() {
+    fn test_format_profiles_table_marks_active_and_shows_placeholders() {
         use crate::authentication::{ProfileEntry, ProfileInfo};
 
-        // A short name/email (shorter than the headers) and a profile with no
-        // info at all -- both used to break alignment.
+        // A short name, a non-ASCII name (byte length != display width), and a
+        // profile whose info could not be fetched.
         let entries = vec![
             ProfileEntry {
                 name: "a".to_string(),
@@ -1591,27 +1568,37 @@ mod tests {
                 is_active: false,
                 info: None,
             },
+            ProfileEntry {
+                name: "работа".to_string(),
+                is_active: false,
+                info: Some(ProfileInfo {
+                    email: "ru@y.z".to_string(),
+                    workspace: "Команда".to_string(),
+                }),
+            },
         ];
 
         let table = format_profiles_table(&entries);
         let lines: Vec<&str> = table.lines().collect();
 
-        // Header column is at least as wide as "Profile" even though the
-        // widest name ("staging") is exactly 7 chars.
-        assert!(lines[0].starts_with("  Profile  "));
+        // prettytable draws the borders, so every line is the same display
+        // width regardless of how many bytes a name takes.
+        let widths: Vec<usize> = lines.iter().map(|l| l.chars().count()).collect();
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "ragged table: {widths:?}\n{table}"
+        );
 
-        // The Email and Workspace columns start at the same offset on the
-        // header and on every data row (lines[0] header, [1] rule, [2..] data).
-        let email_col = lines[0].find("Email").unwrap();
-        let ws_col = lines[0].find("Workspace").unwrap();
-        assert_eq!(lines[2].find("x@y.z"), Some(email_col));
-        assert_eq!(lines[2].find("Team"), Some(ws_col));
-        // Row with missing info renders a placeholder in the same columns
-        // rather than dropping them.
-        assert_eq!(lines[3].find("(unavailable)"), Some(email_col));
-
-        // Active profile is marked.
-        assert!(lines[2].starts_with("* a"));
+        assert!(table.contains("Active"));
+        assert!(table.contains("Workspace"));
+        // The active profile is marked, the others are not.
+        let row_a = lines.iter().find(|l| l.contains(" a ")).unwrap();
+        assert!(row_a.contains("*"));
+        let row_staging = lines.iter().find(|l| l.contains("staging")).unwrap();
+        assert!(!row_staging.contains("*"));
+        // A profile with no info keeps its row and both columns.
+        assert_eq!(row_staging.matches("(unavailable)").count(), 2);
+        assert!(table.contains("работа"));
     }
 
     #[test]
