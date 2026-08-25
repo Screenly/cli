@@ -484,6 +484,7 @@ Edge App settings support additional input field types beyond plain text and pas
   - `properties.help_text`: Human-friendly description shown in the UI.
   - `properties.options` (only for `select`): Array of `{ label, value }` options.
   - `properties.display_order`: Optional integer controlling the order settings render in the install/edit UI (ascending). If omitted, `screenly edge-app deploy` auto-assigns one from the setting's position in the manifest's `settings:` mapping, so settings render in declaration order by default. Set an explicit value only to override that default. An explicitly authored `display_order` is never overwritten by the automatic assignment. Note that `deploy` only sends the computed order to the backend; it never rewrites your manifest file.
+  - `properties.depends_on`: Optional `{ setting, values }` object that makes this field's visibility depend on another setting's current value. The field only renders (and is submitted) while `setting`'s current value is one of `values`, otherwise it's hidden and skipped. A malformed or stale reference (a typo in `setting`, or a setting later renamed or removed) fails open, so the field stays visible rather than disappearing. A field with `depends_on` can still be marked `optional: false`; its required-ness is only enforced while the field is visible, and is skipped along with the rest of validation while it's hidden.
 - **Storage**: Use `type: string` for all non-secret fields; use `type: secret` for password-like fields. The UI will coerce values appropriately (e.g., booleans) but values are stored as strings unless `type: secret`.
 - **Defaults**: Provide `default_value` at the setting level. For booleans, use `'true'` or `'false'` as strings.
 
@@ -614,6 +615,43 @@ settings:
         type: datetime
         display_order: 1
 ```
+
+**Conditional visibility**
+
+```yaml
+settings:
+  refresh_mode:
+    type: string
+    title: Refresh Mode
+    default_value: automatic
+    optional: true
+    help_text:
+      schema_version: 1
+      properties:
+        type: select
+        help_text: Choose how often the content refreshes
+        options:
+          - label: Automatic
+            value: automatic
+          - label: Manual
+            value: manual
+  refresh_interval_seconds:
+    type: string
+    title: Refresh Interval (seconds)
+    default_value: '300'
+    optional: true
+    help_text:
+      schema_version: 1
+      properties:
+        help_text: How often to refresh the content, in seconds
+        type: number
+        depends_on:
+          setting: refresh_mode
+          values:
+            - automatic
+```
+
+In this example, `refresh_interval_seconds` only appears in the install and edit UI while `refresh_mode` is set to `automatic`. Picking `manual` hides it, and its value isn't collected or written on save.
 
 Notes:
 
