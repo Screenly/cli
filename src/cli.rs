@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::{env, fs, io};
 
@@ -62,6 +62,33 @@ fn resolve_login_name(name: Option<&str>, active: Option<&str>) -> String {
         Some(n) => n.to_string(),
         None => active.unwrap_or("default").to_string(),
     }
+}
+
+/// Reads the API token for `login`.
+///
+/// With stdin on a terminal, prompts and reads without echoing. With stdin
+/// redirected, reads it as a plain line: there is no terminal to disable echo
+/// on, and `read_password` fails outright rather than degrading, which used to
+/// panic. `--token-stdin` forces the non-interactive path even on a terminal,
+/// for scripts that want no prompt at all.
+fn read_login_token(force_stdin: bool) -> io::Result<String> {
+    if force_stdin || !io::stdin().is_terminal() {
+        return read_token_line(&mut io::stdin().lock());
+    }
+    print!("Enter your API Token: ");
+    io::stdout().flush()?;
+    Ok(read_password()?.trim().to_string())
+}
+
+/// Reads one line as a token.
+///
+/// Trimmed because a token never contains surrounding whitespace, and the
+/// trailing newline from `echo` or a here-doc would otherwise be stored as part
+/// of it and sent in the Authorization header.
+fn read_token_line(reader: &mut impl BufRead) -> io::Result<String> {
+    let mut line = String::new();
+    reader.read_line(&mut line)?;
+    Ok(line.trim().to_string())
 }
 
 /// Shown for a profile whose token could not be resolved against the API. The
@@ -250,6 +277,9 @@ pub enum Commands {
         /// profile, or "default" on a fresh install.
         #[arg(long)]
         name: Option<String>,
+        /// Read the token from stdin instead of prompting, for scripts: `echo "$TOKEN" | screenly login --token-stdin`. Implied when stdin is not a terminal.
+        #[arg(long)]
+        token_stdin: bool,
     },
     /// Removes a stored authentication profile. Removing the active profile leaves no profile active; other profiles are kept.
     Logout {
@@ -730,12 +760,20 @@ pub fn handle_cli(cli: &Cli) {
     };
 
     match &cli.command {
-        Commands::Login { name } => {
+        Commands::Login { name, token_stdin } => {
             let active = active_profile_name();
             let resolved_name = resolve_login_name(name.as_deref(), active.as_deref());
-            print!("Enter your API Token: ");
-            std::io::stdout().flush().unwrap();
-            let token = read_password().unwrap();
+            let token = match read_login_token(*token_stdin) {
+                Ok(token) => token,
+                Err(e) => {
+                    error!("Could not read the API token: {e}");
+                    std::process::exit(1);
+                }
+            };
+            if token.is_empty() {
+                error!("No API token provided. Pipe one in (`echo \"$TOKEN\" | screenly login --token-stdin`) or run `screenly login` on a terminal to be prompted.");
+                std::process::exit(1);
+            }
             match verify_and_store_token(&token, &resolved_name, &Config::default().url) {
                 Ok(()) => {
                     info!("Login credentials have been saved under profile '{resolved_name}'.");
@@ -1513,6 +1551,37 @@ mod tests {
 
     use super::*;
     use crate::authentication::Config;
+
+    #[test]
+    fn test_read_token_line_trims_the_trailing_newline() {
+        // `echo "$TOKEN" |` appends a newline. Storing it would send it in the
+        // Authorization header.
+        let mut input = "tok_abc123\n".as_bytes();
+        assert_eq!(read_token_line(&mut input).unwrap(), "tok_abc123");
+
+        // A here-doc or a Windows-authored file can add a CR too.
+        let mut crlf = "tok_abc123\r\n".as_bytes();
+        assert_eq!(read_token_line(&mut crlf).unwrap(), "tok_abc123");
+
+        // Surrounding whitespace is not part of a token either.
+        let mut padded = "  tok_abc123  \n".as_bytes();
+        assert_eq!(read_token_line(&mut padded).unwrap(), "tok_abc123");
+    }
+
+    #[test]
+    fn test_read_token_line_takes_only_the_first_line() {
+        // Extra lines on stdin must not end up in the token.
+        let mut input = "tok_abc123\nnot_the_token\n".as_bytes();
+        assert_eq!(read_token_line(&mut input).unwrap(), "tok_abc123");
+    }
+
+    #[test]
+    fn test_read_token_line_on_empty_input_is_empty_not_an_error() {
+        // Closed/empty stdin reads as empty, which the caller reports as
+        // "no token provided" rather than failing obscurely.
+        let mut input = "".as_bytes();
+        assert_eq!(read_token_line(&mut input).unwrap(), "");
+    }
 
     #[test]
     fn test_resolve_login_name_defaults_to_default_on_fresh_install() {

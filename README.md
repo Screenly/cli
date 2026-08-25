@@ -79,6 +79,11 @@ $ screenly login
 # Log in under a specific profile name.
 $ screenly login --name work
 
+# Log in without a prompt, for scripts and CI. --token-stdin is optional when
+# stdin is already a pipe or a file, and required to skip the prompt on a
+# terminal.
+$ echo "$SCREENLY_TOKEN" | screenly login --token-stdin --name ci
+
 # Show the profile you are currently authenticated as.
 $ screenly me
 

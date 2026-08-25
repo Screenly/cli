@@ -96,6 +96,7 @@ Logs in with the provided token and stores it for further use if valid. You can 
 ###### **Options:**
 
 * `--name <NAME>` — Profile name to store the token under. Defaults to the active profile, or "default" on a fresh install
+* `--token-stdin` — Read the token from stdin instead of prompting, for scripts: `echo "$TOKEN" | screenly login --token-stdin`. Implied when stdin is not a terminal
 
 
 
