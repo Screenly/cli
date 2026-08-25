@@ -1,9 +1,8 @@
 //! Edge App MCP tools.
 
 use std::collections::BTreeMap;
-use std::env;
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -86,7 +85,8 @@ const THEME_BOOTSTRAP_SCRIPT: &str = r#"<script data-screenly-mcp-theme="1">
       var orig = el.getAttribute("data-screenly-orig-display");
       if (on) {
         el.removeAttribute("hidden");
-        el.style.display = (orig && orig !== "none") ? orig : "block";
+        el.style.display = orig;
+        if (window.getComputedStyle(el).display === "none") el.style.display = "block";
       } else {
         el.setAttribute("hidden", "");
         el.style.display = "none";
@@ -223,7 +223,7 @@ impl EdgeAppTools {
         }
 
         let wrapped = wrap_html_for_edge_app(html)?;
-        let ready_signal = has_screenly_js_script(&wrapped);
+        let ready_signal = ready_signal_for_html(&wrapped);
         let dir = tempfile::tempdir()
             .map_err(|e| format!("Failed to create temporary Edge App directory: {}", e))?;
         let dir_path = dir.path();
@@ -616,18 +616,65 @@ pub(crate) fn wrap_html_for_edge_app(html: &str) -> Result<String, String> {
 }
 
 /// True when an opening `<script src=…>` tag points at `screenly.js`.
-/// A comment or code sample that merely mentions the filename does not count.
+/// Comments and inline script text that merely mention the filename do not count.
 fn has_screenly_js_script(html: &str) -> bool {
+    for_each_tag_outside_comments(html, |tag| {
+        opening_tag_name(tag) == "script" && tag.contains("src=") && tag.contains("screenly.js")
+    })
+}
+
+/// `<base href>` makes relative `screenly.js` resolve off-origin, so the player
+/// never gets `window.screenly` and must not wait on `ready_signal`.
+fn html_has_base_tag(html: &str) -> bool {
+    for_each_tag_outside_comments(html, |tag| opening_tag_name(tag) == "base")
+}
+
+fn ready_signal_for_html(html: &str) -> bool {
+    has_screenly_js_script(html) && !html_has_base_tag(html)
+}
+
+fn opening_tag_name(tag: &str) -> &str {
+    tag.trim_start()
+        .split(|c: char| c.is_ascii_whitespace() || c == '/')
+        .next()
+        .unwrap_or("")
+}
+
+/// Walks opening-tag interiors (`foo bar=baz` from `<foo bar=baz>`), skipping `<!-- -->`.
+fn for_each_tag_outside_comments(html: &str, mut on_tag: impl FnMut(&str) -> bool) -> bool {
     let lower = html.to_ascii_lowercase();
     let mut rest = lower.as_str();
-    while let Some(idx) = rest.find("<script") {
-        let after = &rest[idx + 7..];
+    while !rest.is_empty() {
+        if let Some(comment_at) = rest.find("<!--") {
+            let before = &rest[..comment_at];
+            if scan_tags(before, &mut on_tag) {
+                return true;
+            }
+            rest = &rest[comment_at + 4..];
+            match rest.find("-->") {
+                Some(end) => rest = &rest[end + 3..],
+                None => break,
+            }
+            continue;
+        }
+        return scan_tags(rest, &mut on_tag);
+    }
+    false
+}
+
+fn scan_tags(html: &str, on_tag: &mut impl FnMut(&str) -> bool) -> bool {
+    let mut rest = html;
+    while let Some(idx) = rest.find('<') {
+        let after = &rest[idx + 1..];
+        if after.starts_with('!') || after.starts_with('/') {
+            rest = after;
+            continue;
+        }
         let tag_end = after.find('>').unwrap_or(after.len());
-        let tag = &after[..tag_end];
-        if tag.contains("src=") && tag.contains("screenly.js") {
+        if on_tag(&after[..tag_end]) {
             return true;
         }
-        rest = after;
+        rest = &after[tag_end.min(after.len())..];
     }
     false
 }
@@ -675,6 +722,7 @@ mod wrap_tests {
         assert!(wrapped.contains("DWELL_MS"));
         assert!(wrapped.contains("signalReadyForRendering"));
         assert!(wrapped.contains("data-screenly-orig-display"));
+        assert!(wrapped.contains("getComputedStyle(el).display === \"none\""));
         assert!(!wrapped.contains(".tile"));
         assert!(!wrapped.contains("querySelectorAll(\"dialog\")"));
         assert!(!wrapped.contains("querySelectorAll(\"body *\")"));
@@ -745,16 +793,50 @@ mod wrap_tests {
         let html = r#"<script>console.log("screenly.js")</script>"#;
         assert!(!has_screenly_js_script(html));
     }
+
+    #[test]
+    fn wrap_injects_when_screenly_js_script_is_only_inside_a_comment() {
+        let html = r#"<!DOCTYPE html>
+<html>
+<head>
+<!-- <script src="screenly.js"></script> -->
+<title>Board</title>
+</head>
+<body><p>News</p></body>
+</html>"#;
+        assert!(!has_screenly_js_script(html));
+        let wrapped = wrap_html_for_edge_app(html).unwrap();
+        assert_eq!(wrapped.matches(SCREENLY_JS_SRC).count(), 1);
+        assert!(has_screenly_js_script(&wrapped));
+        assert!(ready_signal_for_html(&wrapped));
+    }
+
+    #[test]
+    fn ready_signal_is_off_when_document_has_a_base_tag() {
+        let html = r#"<!DOCTYPE html>
+<html>
+<head>
+<base href="https://example.com/">
+<title>Board</title>
+</head>
+<body><p>News</p></body>
+</html>"#;
+        let wrapped = wrap_html_for_edge_app(html).unwrap();
+        assert!(has_screenly_js_script(&wrapped));
+        assert!(html_has_base_tag(&wrapped));
+        assert!(!ready_signal_for_html(&wrapped));
+    }
 }
 
 #[cfg(test)]
 mod registry_tests {
-    use super::*;
-    use crate::authentication::Config;
     use httpmock::Method::GET;
     use httpmock::MockServer;
     use serde_json::json;
     use tempfile::tempdir;
+
+    use super::*;
+    use crate::authentication::Config;
 
     fn test_auth(url: &str, token: &str) -> Authentication {
         Authentication::new_with_config(Config::new(url.to_string()), token)
