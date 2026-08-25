@@ -61,7 +61,7 @@ Command line interface is intended for quick interaction with Screenly through t
 ###### **Subcommands:**
 
 * `login` — Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
-* `logout` — Logs out and removes the stored token
+* `logout` — Removes a stored authentication profile. Removing the active profile leaves no profile active; other profiles are kept
 * `me` — Show information about the currently authenticated profile
 * `auth` — Manage stored authentication profiles
 * `screen` — Screen related commands
@@ -101,7 +101,7 @@ Logs in with the provided token and stores it for further use if valid. You can 
 
 ## `screenly logout`
 
-Logs out and removes the stored token
+Removes a stored authentication profile. Removing the active profile leaves no profile active; other profiles are kept
 
 **Usage:** `screenly logout [OPTIONS]`
 

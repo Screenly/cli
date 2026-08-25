@@ -251,7 +251,7 @@ pub enum Commands {
         #[arg(long)]
         name: Option<String>,
     },
-    /// Logs out and removes the stored token.
+    /// Removes a stored authentication profile. Removing the active profile leaves no profile active; other profiles are kept.
     Logout {
         /// Profile name to remove. Removes the active profile if not specified.
         #[arg(long)]
