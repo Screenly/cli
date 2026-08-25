@@ -160,6 +160,12 @@ impl Formatter for ProfilesTable {
 
     fn format(&self, output_type: OutputType) -> String {
         match output_type {
+            // The "no profiles" hint is only useful to a human. The machine
+            // formats render an empty array / a bare header instead, so a
+            // consumer piping `--output json` always gets parseable output.
+            OutputType::HumanReadable if self.0.is_empty() => {
+                "No profiles stored. Run `screenly login` to add one.".to_string()
+            }
             OutputType::HumanReadable => format_profiles_table(&self.0),
             OutputType::Json => {
                 let arr: Vec<serde_json::Value> = self
@@ -817,9 +823,6 @@ pub fn handle_cli(cli: &Cli) {
         },
         Commands::Auth(auth_command) => match auth_command {
             AuthCommands::List {} => match fetch_profiles_with_info(&Config::default().url) {
-                Ok(entries) if entries.is_empty() => {
-                    info!("No profiles stored. Run `screenly login` to add one.");
-                }
                 Ok(entries) => {
                     handle_command_execution_result(
                         Ok::<_, CommandError>(ProfilesTable(entries)),
@@ -1539,6 +1542,23 @@ mod tests {
         // Plain `login` with a profile already active updates that profile
         // rather than failing (the re-login-after-rotation flow).
         assert_eq!(resolve_login_name(None, Some("prod")), "prod");
+    }
+
+    #[test]
+    fn test_empty_profiles_table_still_renders_machine_formats() {
+        // With no profiles stored, `--output json` must stay parseable and
+        // `--output csv` must keep its header. Only the human-readable form
+        // switches to a hint.
+        let table = ProfilesTable(vec![]);
+
+        assert_eq!(table.format(OutputType::Json), "[]");
+        assert_eq!(
+            table.format(OutputType::Csv),
+            "Profile,Active,Email,Workspace\n"
+        );
+        assert!(table
+            .format(OutputType::HumanReadable)
+            .contains("No profiles stored"));
     }
 
     #[test]
