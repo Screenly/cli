@@ -12,8 +12,8 @@ use serde_json::json;
 use thiserror::Error;
 
 use crate::authentication::{
-    active_profile_name, fetch_profile_info, fetch_profiles_with_info, verify_and_store_token,
-    Authentication, AuthenticationError, Config, ProfileEntry,
+    active_profile_name, api_token_from_env, fetch_profile_info, fetch_profiles_with_info,
+    verify_and_store_token, Authentication, AuthenticationError, Config, ProfileEntry,
 };
 use crate::commands;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
@@ -762,7 +762,7 @@ pub fn handle_cli(cli: &Cli) {
                     // read_token() prefers API_TOKEN over the stored profile,
                     // so the label must follow the same precedence, otherwise
                     // it names the wrong profile when both are present.
-                    let profile = if env::var("API_TOKEN").is_ok() {
+                    let profile = if api_token_from_env().is_some() {
                         "(from API_TOKEN env)".to_string()
                     } else {
                         active_profile_name().unwrap_or_else(|| "unknown".to_string())

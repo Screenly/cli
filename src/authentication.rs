@@ -85,6 +85,16 @@ impl Config {
     }
 }
 
+/// The token from `API_TOKEN`, which overrides the stored profiles.
+///
+/// An empty value counts as unset. Exporting an empty variable is what a shell
+/// does when it interpolates a missing secret (the CLI's own GitHub Action does
+/// exactly this when `screenly_api_token` is not configured), and authenticating
+/// with an empty token only produces a confusing 401 far from the cause.
+pub fn api_token_from_env() -> Option<String> {
+    env::var("API_TOKEN").ok().filter(|t| !t.is_empty())
+}
+
 fn screenly_path() -> Result<std::path::PathBuf, AuthenticationError> {
     dirs::home_dir()
         .map(|h| h.join(".screenly"))
@@ -210,7 +220,7 @@ impl Authentication {
     }
 
     fn read_token() -> Result<String, AuthenticationError> {
-        if let Ok(token) = env::var("API_TOKEN") {
+        if let Some(token) = api_token_from_env() {
             return Ok(token);
         }
         let store = read_store()?;
@@ -563,6 +573,43 @@ mod tests {
         )
         .unwrap();
         assert_eq!(Authentication::read_token().unwrap(), "env_token");
+    }
+
+    #[test]
+    fn test_read_token_ignores_an_empty_env_token() {
+        // A shell interpolating a missing secret exports an empty value. That
+        // must fall back to the stored profile instead of authenticating with
+        // an empty token and failing with a distant 401.
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _token = set_env(OsString::from("API_TOKEN"), "");
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: Some("default".to_string()),
+            tokens: [("default".to_string(), "stored_token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(Authentication::read_token().unwrap(), "stored_token");
+    }
+
+    #[test]
+    fn test_read_token_with_empty_env_token_and_no_store_is_not_logged_in() {
+        // The CI case: empty API_TOKEN, nothing stored. Should say "not logged
+        // in" rather than authenticate as the empty token.
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _token = set_env(OsString::from("API_TOKEN"), "");
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        assert!(matches!(
+            Authentication::read_token(),
+            Err(AuthenticationError::NoCredentials)
+        ));
     }
 
     #[test]
