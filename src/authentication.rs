@@ -293,13 +293,26 @@ impl Authentication {
     }
 
     pub fn build_client(&self) -> Result<reqwest::blocking::Client, AuthenticationError> {
-        authenticated_client(&self.token)
+        authenticated_client(&self.token, None)
     }
 }
 
+/// How long a single profile-info request may take. Without a cap, `auth list`
+/// fans out one request per profile and a single black-holed connection hangs
+/// the whole command, so the `(unavailable)` placeholder would never appear for
+/// the failure most likely to produce it.
+const PROFILE_REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Builds a blocking client that sends the auth token and the standard
 /// `screenly-cli {version}` User-Agent on every request.
-fn authenticated_client(token: &str) -> Result<reqwest::blocking::Client, AuthenticationError> {
+///
+/// `timeout` is per-request. It is deliberately `None` for the general-purpose
+/// client, whose requests include asset uploads that can legitimately run far
+/// longer than any timeout worth setting here.
+fn authenticated_client(
+    token: &str,
+    timeout: Option<std::time::Duration>,
+) -> Result<reqwest::blocking::Client, AuthenticationError> {
     let secret = format!("Token {token}");
     let mut default_headers = HeaderMap::new();
     default_headers.insert(header::AUTHORIZATION, secret.parse()?);
@@ -308,10 +321,11 @@ fn authenticated_client(token: &str) -> Result<reqwest::blocking::Client, Authen
         format!("screenly-cli {}", env!("CARGO_PKG_VERSION")).parse()?,
     );
 
-    reqwest::blocking::Client::builder()
-        .default_headers(default_headers)
-        .build()
-        .map_err(AuthenticationError::Request)
+    let mut builder = reqwest::blocking::Client::builder().default_headers(default_headers);
+    if let Some(timeout) = timeout {
+        builder = builder.timeout(timeout);
+    }
+    builder.build().map_err(AuthenticationError::Request)
 }
 
 pub struct ProfileInfo {
@@ -368,7 +382,7 @@ pub fn fetch_profiles_with_info(api_url: &str) -> Result<Vec<ProfileEntry>, Auth
 }
 
 pub fn fetch_profile_info(token: &str, api_url: &str) -> Result<ProfileInfo, AuthenticationError> {
-    let client = authenticated_client(token)?;
+    let client = authenticated_client(token, Some(PROFILE_REQUEST_TIMEOUT))?;
 
     let user_response = client.get(format!("{api_url}/v4.1/users/me")).send()?;
 
