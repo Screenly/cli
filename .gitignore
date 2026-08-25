@@ -13,3 +13,4 @@ result*
 
 # Local MCP Bundle builds (release artifacts)
 *.mcpb
+/mcpb-build/

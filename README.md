@@ -118,7 +118,7 @@ The server communicates over stdio and exposes the full Screenly API as tools.
 | **Playlist Items** | `playlist_item_list`, `playlist_item_create`, `playlist_item_update`, `playlist_item_delete` |
 | **Labels** | `label_list`, `label_create`, `label_update`, `label_delete`, `label_link_screen`, `label_unlink_screen`, `label_link_playlist`, `label_unlink_playlist` |
 | **Shared Playlists** | `shared_playlist_list`, `shared_playlist_create`, `shared_playlist_delete` |
-| **Edge Apps** | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances` |
+| **Edge Apps** | `edge_app_list`, `edge_app_list_settings`, `edge_app_list_instances`, `edge_app_publish_from_html` |
 
 Every tool is annotated with behaviour hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`), so MCP clients can tell read-only tools apart from ones that modify or delete data and prompt for confirmation before destructive actions.
 
