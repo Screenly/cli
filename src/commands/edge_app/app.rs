@@ -210,9 +210,7 @@ impl EdgeAppCommand {
         let manifest_path = transform_edge_app_path_to_manifest(&path)?;
 
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
-        let mut manifest = EdgeAppManifest::new(&manifest_path)?;
-        manifest.assign_setting_display_orders();
-        EdgeAppManifest::save_to_file(&manifest, &manifest_path)?;
+        let manifest = EdgeAppManifest::new(&manifest_path)?;
 
         let actual_app_id = match self.get_app_id(path.clone()) {
             Ok(id) => id,

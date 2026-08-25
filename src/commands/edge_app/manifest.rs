@@ -276,10 +276,6 @@ impl EdgeAppManifest {
         Ok(())
     }
 
-    pub fn assign_setting_display_orders(&mut self) {
-        crate::api::edge_app::setting::assign_setting_display_orders(&mut self.settings);
-    }
-
     pub fn prepare_payload(manifest: &EdgeAppManifest) -> HashMap<&str, serde_json::Value> {
         let entrypoint_uri = match &manifest.entrypoint {
             Some(entrypoint) => entrypoint.uri.clone(),
