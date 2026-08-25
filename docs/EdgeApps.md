@@ -483,7 +483,7 @@ Edge App settings support additional input field types beyond plain text and pas
   - `properties.type`: One of `datetime`, `number`, `select`, `boolean`, `textarea`, `url`.
   - `properties.help_text`: Human-friendly description shown in the UI.
   - `properties.options` (only for `select`): Array of `{ label, value }` options.
-  - `properties.depends_on`: Optional `{ setting, values }` object that makes this field's visibility depend on another setting's current value. The field only renders (and is submitted) while `setting`'s current value is one of `values`, otherwise it's hidden and skipped. A malformed or stale reference (a typo in `setting`, or a setting later renamed or removed) fails open, so the field stays visible rather than disappearing.
+  - `properties.depends_on`: Optional `{ setting, values }` object that makes this field's visibility depend on another setting's current value. The field only renders (and is submitted) while `setting`'s current value is one of `values`, otherwise it's hidden and skipped. A malformed or stale reference (a typo in `setting`, or a setting later renamed or removed) fails open, so the field stays visible rather than disappearing. A field with `depends_on` can still be marked `optional: false`; its required-ness is only enforced while the field is visible, and is skipped along with the rest of validation while it's hidden.
 - **Storage**: Use `type: string` for all non-secret fields; use `type: secret` for password-like fields. The UI will coerce values appropriately (e.g., booleans) but values are stored as strings unless `type: secret`.
 - **Defaults**: Provide `default_value` at the setting level. For booleans, use `'true'` or `'false'` as strings.
 
