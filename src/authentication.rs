@@ -22,6 +22,8 @@ pub enum AuthenticationError {
     WrongCredentials,
     #[error("no credentials error")]
     NoCredentials,
+    #[error("no active profile")]
+    NoActiveProfile,
     #[error("profile not found: {0}")]
     ProfileNotFound(String),
     #[error("request error")]
@@ -183,7 +185,14 @@ impl Authentication {
             return Ok(token);
         }
         let store = read_store()?;
-        let active = store.active.ok_or(AuthenticationError::NoCredentials)?;
+        // Distinguish "nothing stored at all" from "profiles stored but none
+        // selected", which is the state `logout` leaves behind when it removes
+        // the active profile. The two need different advice.
+        let active = store.active.ok_or(if store.tokens.is_empty() {
+            AuthenticationError::NoCredentials
+        } else {
+            AuthenticationError::NoActiveProfile
+        })?;
         store
             .tokens
             .get(&active)
@@ -192,10 +201,13 @@ impl Authentication {
     }
 
     /// Removes a profile. When `name` is `None` the active profile is removed.
-    /// If the removed profile was active, the new active profile is chosen
-    /// deterministically (the alphabetically first remaining profile).
-    /// Returns the name of the profile that is active after removal, if any.
-    pub fn remove_token(name: Option<&str>) -> Result<Option<String>, AuthenticationError> {
+    ///
+    /// Removing the active profile deliberately leaves *no* profile active
+    /// rather than promoting another one. Silently re-pointing the CLI at a
+    /// different account would make the next command talk to a different
+    /// workspace, so the user has to choose the next profile explicitly with
+    /// `auth switch`.
+    pub fn remove_token(name: Option<&str>) -> Result<Removal, AuthenticationError> {
         let mut store = read_store()?;
         let target = match name {
             Some(n) => n.to_string(),
@@ -209,12 +221,16 @@ impl Authentication {
         }
         store.tokens.remove(&target);
         if store.active.as_deref() == Some(&target) {
-            let mut remaining: Vec<&String> = store.tokens.keys().collect();
-            remaining.sort();
-            store.active = remaining.first().map(|n| n.to_string());
+            store.active = None;
         }
         write_store(&store)?;
-        Ok(store.active)
+        let mut remaining: Vec<String> = store.tokens.keys().cloned().collect();
+        remaining.sort();
+        Ok(Removal {
+            removed: target,
+            active: store.active.clone(),
+            remaining,
+        })
     }
 
     /// Returns the stored profiles sorted by name, without their tokens.
@@ -282,6 +298,17 @@ pub struct ProfileInfo {
 pub struct ProfileSummary {
     pub name: String,
     pub is_active: bool,
+}
+
+/// The outcome of removing a profile, so `logout` can say what state the
+/// store is in afterwards.
+pub struct Removal {
+    pub removed: String,
+    /// The profile active after removal. `None` when the removed profile was
+    /// the active one, whether or not other profiles remain.
+    pub active: Option<String>,
+    /// Profiles still stored after the removal, sorted by name.
+    pub remaining: Vec<String>,
 }
 
 pub struct ProfileEntry {
@@ -648,8 +675,10 @@ mod tests {
         )
         .unwrap();
 
-        let new_active = Authentication::remove_token(None).unwrap();
-        assert!(new_active.is_none());
+        let removal = Authentication::remove_token(None).unwrap();
+        assert_eq!(removal.removed, "default");
+        assert!(removal.active.is_none());
+        assert!(removal.remaining.is_empty());
         let store: TokenStore =
             serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
                 .unwrap();
@@ -701,8 +730,8 @@ mod tests {
         .unwrap();
 
         // Removing a non-active profile by name leaves the active one intact.
-        let new_active = Authentication::remove_token(Some("stage")).unwrap();
-        assert_eq!(new_active.as_deref(), Some("prod"));
+        let removal = Authentication::remove_token(Some("stage")).unwrap();
+        assert_eq!(removal.active.as_deref(), Some("prod"));
         let store: TokenStore =
             serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
                 .unwrap();
@@ -711,7 +740,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_active_profile_picks_deterministic_new_active() {
+    fn test_remove_active_profile_leaves_no_profile_active() {
         let tmp_dir = tempdir().unwrap();
         let _lock = lock_test();
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
@@ -731,13 +760,44 @@ mod tests {
         )
         .unwrap();
 
-        // Removing the active profile picks the alphabetically first remaining one.
-        let new_active = Authentication::remove_token(None).unwrap();
-        assert_eq!(new_active.as_deref(), Some("alpha"));
+        // Removing the active profile must not promote another one: the CLI
+        // would silently start talking to a different workspace.
+        let removal = Authentication::remove_token(None).unwrap();
+        assert_eq!(removal.removed, "prod");
+        assert!(removal.active.is_none());
+        assert_eq!(removal.remaining, vec!["alpha", "stage"]);
         let store: TokenStore =
             serde_yaml::from_str(&fs::read_to_string(tmp_dir.path().join(".screenly")).unwrap())
                 .unwrap();
-        assert_eq!(store.active.as_deref(), Some("alpha"));
+        assert!(store.active.is_none());
+        // The other tokens are untouched, just unselected.
+        assert_eq!(store.tokens.len(), 2);
+    }
+
+    #[test]
+    fn test_read_token_reports_no_active_profile_when_profiles_remain() {
+        // The state `logout` leaves behind when it removes the active profile:
+        // tokens are still stored, none is selected. That must not read as
+        // "not logged in", which would tell the user to log in again.
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        let store = TokenStore {
+            active: None,
+            tokens: [("prod".to_string(), "prod_token".to_string())]
+                .into_iter()
+                .collect(),
+        };
+        fs::write(
+            tmp_dir.path().join(".screenly"),
+            serde_yaml::to_string(&store).unwrap(),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            Authentication::read_token(),
+            Err(AuthenticationError::NoActiveProfile)
+        ));
     }
 
     #[test]

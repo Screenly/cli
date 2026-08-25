@@ -36,6 +36,9 @@ fn get_authentication_error_message(e: &AuthenticationError) -> String {
         AuthenticationError::Io(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
             not_logged_in.to_string()
         }
+        AuthenticationError::NoActiveProfile => {
+            "No active profile. Run `screenly auth switch <name>` to choose one, or `screenly auth list` to see what is stored.".to_string()
+        }
         AuthenticationError::ProfileNotFound(name) => {
             format!("Active profile '{name}' not found. Run `screenly auth switch` to pick a valid profile.")
         }
@@ -800,11 +803,17 @@ pub fn handle_cli(cli: &Cli) {
             }
         }
         Commands::Logout { name } => match Authentication::remove_token(name.as_deref()) {
-            Ok(new_active) => {
-                info!("Logout successful.");
-                match new_active {
-                    Some(profile) => info!("Active profile is now '{profile}'."),
-                    None => info!("No profiles remain."),
+            Ok(removal) => {
+                info!("Removed profile '{}'.", removal.removed);
+                match &removal.active {
+                    // A non-active profile was removed, so the CLI still
+                    // authenticates as before.
+                    Some(profile) => info!("Active profile is still '{profile}'."),
+                    None if removal.remaining.is_empty() => info!("No profiles remain."),
+                    None => info!(
+                        "No profile is active now. Run `screenly auth switch <name>` to pick one of: {}.",
+                        removal.remaining.join(", ")
+                    ),
                 }
                 std::process::exit(0);
             }

@@ -93,6 +93,8 @@ $ screenly logout
 $ screenly logout --name work
 ```
 
+Removing the active profile leaves no profile active, even when others are still stored. The CLI will not pick a replacement for you, because doing so would silently point the next command at a different workspace. Run `screenly auth switch <name>` to choose one.
+
 The `API_TOKEN` environment variable overrides the stored profiles when set, so `me` and every other command authenticate with that token regardless of the active profile.
 
 Plain-text `~/.screenly` files from older versions are migrated to the profile format automatically on first write.
