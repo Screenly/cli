@@ -1,0 +1,199 @@
+{
+  "manifest_version": "0.3",
+  "name": "screenly",
+  "display_name": "Screenly",
+  "version": "0.0.0",
+  "description": "Manage your Screenly digital signage network: screens, playlists, assets, labels, and Edge Apps.",
+  "long_description": "Screenly is a digital signage platform for managing screens at scale. This extension exposes your Screenly account to Claude so you can manage your signage network in plain language.\n\nYou can list and inspect screens along with their sync state and hardware details, create assets from web pages, images, or videos, build and schedule playlists, organise content with asset groups and labels, share playlists with other teams, and inspect Edge Apps and their settings.\n\nPlaylists support Screenly's scheduling predicate language, so you can ask for content that only appears during business hours or on weekdays and it will be translated into the correct predicate for you.\n\nThe extension runs the MCP server bundled in the official Screenly CLI, talking directly to the Screenly API over HTTPS using an API token you supply.",
+  "author": {
+    "name": "Screenly, Inc.",
+    "url": "https://www.screenly.io"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Screenly/cli.git"
+  },
+  "homepage": "https://www.screenly.io",
+  "documentation": "https://developer.screenly.io/mcp",
+  "support": "https://github.com/Screenly/cli/issues",
+  "license": "MIT",
+  "icon": "icon.png",
+  "keywords": [
+    "digital-signage",
+    "screenly",
+    "screens",
+    "playlists",
+    "edge-apps"
+  ],
+  "privacy_policies": [
+    "https://www.screenly.io/privacy-policy/"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/screenly",
+    "mcp_config": {
+      "command": "${__dirname}/server/screenly",
+      "args": [
+        "mcp"
+      ],
+      "env": {
+        "API_TOKEN": "${user_config.api_token}"
+      },
+      "platform_overrides": {
+        "win32": {
+          "command": "${__dirname}/server/screenly.exe"
+        }
+      }
+    }
+  },
+  "user_config": {
+    "api_token": {
+      "type": "string",
+      "title": "Screenly API Token",
+      "description": "API token for your Screenly team. Generate one at https://[your-workspace].screenlyapp.com under Settings > Security > API tokens.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "tools_generated": false,
+  "tools": [
+    {
+      "name": "screen_list",
+      "description": "List all screens with their status, hardware info, and sync state."
+    },
+    {
+      "name": "screen_get",
+      "description": "Get a screen by UUID."
+    },
+    {
+      "name": "asset_list",
+      "description": "List all assets with their type, status, and metadata."
+    },
+    {
+      "name": "asset_get",
+      "description": "Get an asset by UUID."
+    },
+    {
+      "name": "asset_create",
+      "description": "Create a new asset from a URL. Supports web pages, images, and videos."
+    },
+    {
+      "name": "asset_update",
+      "description": "Update an asset's properties (title, js_injection, headers)."
+    },
+    {
+      "name": "asset_delete",
+      "description": "Delete an asset by UUID."
+    },
+    {
+      "name": "asset_group_list",
+      "description": "List all asset groups (folders for organizing assets)."
+    },
+    {
+      "name": "asset_group_create",
+      "description": "Create a new asset group."
+    },
+    {
+      "name": "asset_group_update",
+      "description": "Update an asset group."
+    },
+    {
+      "name": "asset_group_delete",
+      "description": "Delete an asset group. WARNING: Also deletes all assets in the group."
+    },
+    {
+      "name": "playlist_list",
+      "description": "List all playlists."
+    },
+    {
+      "name": "playlist_create",
+      "description": "Create a new playlist."
+    },
+    {
+      "name": "playlist_update",
+      "description": "Update a playlist."
+    },
+    {
+      "name": "playlist_delete",
+      "description": "Delete a playlist by UUID."
+    },
+    {
+      "name": "playlist_item_list",
+      "description": "List all items in a playlist."
+    },
+    {
+      "name": "playlist_item_create",
+      "description": "Add an asset to a playlist."
+    },
+    {
+      "name": "playlist_item_update",
+      "description": "Update a playlist item (duration, position)."
+    },
+    {
+      "name": "playlist_item_delete",
+      "description": "Remove an item from a playlist."
+    },
+    {
+      "name": "label_list",
+      "description": "List all labels. Labels group screens and target playlists."
+    },
+    {
+      "name": "label_create",
+      "description": "Create a new label."
+    },
+    {
+      "name": "label_update",
+      "description": "Update a label."
+    },
+    {
+      "name": "label_delete",
+      "description": "Delete a label."
+    },
+    {
+      "name": "label_link_screen",
+      "description": "Attach a label to a screen."
+    },
+    {
+      "name": "label_unlink_screen",
+      "description": "Remove a label from a screen."
+    },
+    {
+      "name": "label_link_playlist",
+      "description": "Attach a label to a playlist."
+    },
+    {
+      "name": "label_unlink_playlist",
+      "description": "Remove a label from a playlist."
+    },
+    {
+      "name": "shared_playlist_list",
+      "description": "List shared playlists."
+    },
+    {
+      "name": "shared_playlist_create",
+      "description": "Share a playlist with another team."
+    },
+    {
+      "name": "shared_playlist_delete",
+      "description": "Unshare a playlist from a team."
+    },
+    {
+      "name": "edge_app_list",
+      "description": "List all Edge Apps."
+    },
+    {
+      "name": "edge_app_list_settings",
+      "description": "List settings for an Edge App."
+    },
+    {
+      "name": "edge_app_list_instances",
+      "description": "List instances of an Edge App."
+    }
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32"
+    ]
+  }
+}
