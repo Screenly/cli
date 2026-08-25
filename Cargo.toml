@@ -56,10 +56,10 @@ warp = "0.3"
 # MCP server dependencies
 rmcp = { version = "1.4", default-features = false, features = ["macros", "server", "schemars", "transport-io"] }
 schemars = "1"
+tempfile = "3.8"
 
 [dev-dependencies]
 envtestkit = "1.1.2"
 httpmock = "0.8"
 swc_common = { version = "18", default-features = false, features = [] }
 swc_ecma_parser = { version = "32", default-features = false, features = ["typescript"] }
-tempfile = "3.8"

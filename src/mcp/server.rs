@@ -184,6 +184,22 @@ pub struct AppUuidParam {
     pub app_uuid: String,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct EdgeAppPublishFromHtmlParam {
+    #[schemars(description = "Name of the Edge App")]
+    pub name: String,
+    #[schemars(
+        description = "Full HTML source of the page or Claude Artifact. Use this when uploading HTML as a Screenly app. Fragments are wrapped into a complete document."
+    )]
+    pub html: String,
+    #[schemars(
+        description = "Existing Edge App UUID. Prefer this when known. If omitted, the tool reuses the app_id saved locally for this exact name from a previous publish on this machine, or creates a new app."
+    )]
+    pub app_id: Option<String>,
+    #[schemars(description = "Optional description stored on the Edge App version")]
+    pub description: Option<String>,
+}
+
 // ============ SERVER STRUCT ============
 
 /// MCP Server for Screenly API
@@ -853,6 +869,43 @@ impl ScreenlyMcpServer {
             Err(e) => json!({"error": e}).to_string(),
         }
     }
+
+    #[tool(
+        description = "Publish HTML as a Screenly app (Edge App). Use when the user says upload this as a Screenly app or Edge App. Wraps the page for unattended digital signage (no mouse/keyboard; auto-rotates tab panels and carousel slides), creates an instance so it appears in Content, and deploys. Remembers app_id/instance_id by name on this machine. Omit app_id to create or to update a remembered name; pass app_id to target a specific app.",
+        annotations(
+            title = "Publish Screenly App from HTML",
+            read_only_hint = false,
+            destructive_hint = true,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
+    async fn edge_app_publish_from_html(
+        &self,
+        Parameters(EdgeAppPublishFromHtmlParam {
+            name,
+            html,
+            app_id,
+            description,
+        }): Parameters<EdgeAppPublishFromHtmlParam>,
+    ) -> String {
+        let auth = Arc::clone(&self.auth);
+        match tokio::task::spawn_blocking(move || {
+            EdgeAppTools::publish_from_html(
+                &auth,
+                &name,
+                &html,
+                app_id.as_deref(),
+                description.as_deref(),
+            )
+        })
+        .await
+        {
+            Ok(Ok(result)) => result,
+            Ok(Err(e)) => json!({"error": e}).to_string(),
+            Err(e) => json!({"error": format!("Publish task failed: {}", e)}).to_string(),
+        }
+    }
 }
 
 // ============ SERVER HANDLER ============
@@ -870,7 +923,15 @@ impl rmcp::ServerHandler for ScreenlyMcpServer {
             Examples: 'TRUE' (always show), '$WEEKDAY IN {1,2,3,4,5}' (weekdays only), \
             '$TIME BETWEEN {32400000, 61200000}' (9AM-5PM), \
             '$TIME >= 32400000 AND $TIME <= 61200000 AND NOT $WEEKDAY IN {0, 6}' (business hours). \
-            Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM.",
+            Time reference: 32400000=9AM, 43200000=12PM, 61200000=5PM, 72000000=8PM.\n\n\
+            SCREENLY APPS FROM HTML: If the user asks to upload HTML or a Claude Artifact as a \
+            Screenly app, app, or Edge App, call edge_app_publish_from_html with the full HTML \
+            source (not asset_create, which needs a public URL). This creates the app, deploys it, \
+            and creates an instance so it appears in Content and can be scheduled on a screen. \
+            The tool saves app_id and instance_id locally by name (~/.screenly.d/mcp-edge-apps.json). \
+            To update later, call again with the same name and revised HTML; pass app_id when known, \
+            otherwise the remembered name is enough. Keep the returned app_id and instance_id in mind \
+            for the rest of the conversation.",
         )
     }
 }
