@@ -6,7 +6,7 @@ use log::debug;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::api::asset::AssetSignature;
-use crate::api::edge_app::setting::{assign_setting_priorities, Setting, SettingType};
+use crate::api::edge_app::setting::{assign_setting_display_orders, Setting, SettingType};
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::ignorer::Ignorer;
@@ -221,7 +221,7 @@ pub fn detect_changed_settings(
         }
     }
 
-    assign_setting_priorities(&mut new_settings);
+    assign_setting_display_orders(&mut new_settings);
 
     let remote_by_name: HashMap<&str, &Setting> = remote_settings
         .iter()
@@ -310,7 +310,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::api::edge_app::setting::{help_text_with_priority, Setting, SettingType};
+    use crate::api::edge_app::setting::{help_text_with_display_order, Setting, SettingType};
     use crate::commands::edge_app::instance_manifest::INSTANCE_MANIFEST_VERSION;
     use crate::commands::edge_app::manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
     use crate::commands::edge_app::manifest_auth::AuthType;
@@ -367,7 +367,7 @@ mod tests {
                 title: Some("display time title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: help_text_with_priority("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
+                help_text: help_text_with_display_order("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
             },
             Setting {
                 name: "google_maps_api_key".to_string(),
@@ -376,7 +376,7 @@ mod tests {
                 title: Some("Google maps title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: help_text_with_priority("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
+                help_text: help_text_with_display_order("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
             },
         ];
 
@@ -402,7 +402,7 @@ mod tests {
                 title: None,
                 optional: true,
                 is_global: false,
-                help_text: help_text_with_priority("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
+                help_text: help_text_with_display_order("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
             },
             Setting {
                 name: "google_maps_api_key".to_string(),
@@ -411,7 +411,7 @@ mod tests {
                 title: Some("Google maps title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: help_text_with_priority("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
+                help_text: help_text_with_display_order("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
             },
         ];
 
@@ -510,7 +510,7 @@ mod tests {
                 title: Some("display time title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: help_text_with_priority("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
+                help_text: help_text_with_display_order("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
             },
             Setting {
                 name: "google_maps_api_key".to_string(),
@@ -519,7 +519,7 @@ mod tests {
                 title: Some("Google maps title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: help_text_with_priority("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
+                help_text: help_text_with_display_order("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
             },
         ];
 

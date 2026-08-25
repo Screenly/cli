@@ -211,7 +211,7 @@ impl EdgeAppCommand {
 
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
         let mut manifest = EdgeAppManifest::new(&manifest_path)?;
-        manifest.assign_setting_priorities();
+        manifest.assign_setting_display_orders();
         EdgeAppManifest::save_to_file(&manifest, &manifest_path)?;
 
         let actual_app_id = match self.get_app_id(path.clone()) {
@@ -1195,7 +1195,7 @@ mod tests {
                         "schema_version": 1,
                         "properties": {
                             "help_text": "help text",
-                            "priority": 0,
+                            "display_order": 0,
                         },
                     },
                 }));
@@ -1231,7 +1231,7 @@ mod tests {
                         "schema_version": 1,
                         "properties": {
                             "help_text": "help text",
-                            "priority": 1,
+                            "display_order": 1,
                         },
                     },
                 }));
