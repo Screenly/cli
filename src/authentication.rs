@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::{env, fs};
 
@@ -55,7 +55,10 @@ pub enum AuthenticationError {
 #[derive(Serialize, Deserialize, Default)]
 struct TokenStore {
     active: Option<String>,
-    tokens: HashMap<String, String>,
+    // A BTreeMap, not a HashMap: it keeps the serialized file in a stable key
+    // order (so rewriting the store doesn't reshuffle it) and it iterates
+    // sorted, which is the order every caller below wants to present.
+    tokens: BTreeMap<String, String>,
 }
 
 pub struct Authentication {
@@ -250,12 +253,10 @@ impl Authentication {
             store.active = None;
         }
         write_store(&store)?;
-        let mut remaining: Vec<String> = store.tokens.keys().cloned().collect();
-        remaining.sort();
         Ok(Removal {
             removed: target,
             active: store.active.clone(),
-            remaining,
+            remaining: store.tokens.keys().cloned().collect(),
         })
     }
 
@@ -264,16 +265,14 @@ impl Authentication {
     /// use `fetch_profiles_with_info` when profile details are needed.
     pub fn list_profiles() -> Result<Vec<ProfileSummary>, AuthenticationError> {
         let store = read_store()?;
-        let mut profiles: Vec<ProfileSummary> = store
+        Ok(store
             .tokens
             .keys()
             .map(|name| ProfileSummary {
                 is_active: store.active.as_deref() == Some(name.as_str()),
                 name: name.clone(),
             })
-            .collect();
-        profiles.sort_by(|a, b| a.name.cmp(&b.name));
-        Ok(profiles)
+            .collect())
     }
 
     pub fn switch_profile(name: &str) -> Result<(), AuthenticationError> {
@@ -352,8 +351,7 @@ pub fn fetch_profiles_with_info(api_url: &str) -> Result<Vec<ProfileEntry>, Auth
     use rayon::prelude::*;
 
     let store = read_store()?;
-    let mut names: Vec<String> = store.tokens.keys().cloned().collect();
-    names.sort();
+    let names: Vec<String> = store.tokens.keys().cloned().collect();
     let entries = names
         .into_par_iter()
         .map(|name| {
