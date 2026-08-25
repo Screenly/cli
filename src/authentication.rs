@@ -141,11 +141,37 @@ fn write_store(store: &TokenStore) -> Result<(), AuthenticationError> {
     // mid-write can't corrupt it. The pid suffix keeps two concurrent writers
     // from sharing (and interleaving into) the same temp file.
     let tmp_path = path.with_extension(format!("tmp.{}", std::process::id()));
-    let mut file = create_private_file(&tmp_path)?;
-    file.write_all(contents.as_bytes())?;
+
+    // The temp file holds every profile's token, so it must not survive a
+    // failed write. Any error below removes it before propagating.
+    let result = write_tmp_and_rename(&tmp_path, &path, contents.as_bytes());
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp_path);
+    }
+    result
+}
+
+fn write_tmp_and_rename(
+    tmp_path: &std::path::Path,
+    path: &std::path::Path,
+    contents: &[u8],
+) -> Result<(), AuthenticationError> {
+    let mut file = create_private_file(tmp_path)?;
+    file.write_all(contents)?;
     file.sync_all()?;
     drop(file);
-    fs::rename(&tmp_path, &path)?;
+    fs::rename(tmp_path, path)?;
+
+    // Renaming is atomic for a concurrent reader, but the directory entry
+    // itself is only durable once the directory is synced. Without this a
+    // crash right after the rename can leave the old file (or neither file)
+    // on disk. Best effort: some platforms refuse to open a directory for
+    // this, and a failure here does not make the store wrong.
+    if let Some(dir) = path.parent() {
+        if let Ok(dir_file) = fs::File::open(dir) {
+            let _ = dir_file.sync_all();
+        }
+    }
     Ok(())
 }
 
@@ -684,6 +710,34 @@ mod tests {
                 .unwrap();
         assert!(store.tokens.is_empty());
         assert!(store.active.is_none());
+    }
+
+    #[test]
+    fn test_write_store_removes_temp_file_when_the_write_fails() {
+        // The temp file holds every token, so a failed write must not leave it
+        // behind. A directory at the target path makes the rename fail after
+        // the temp file has already been created and written.
+        let tmp_dir = tempdir().unwrap();
+        let _lock = lock_test();
+        let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
+        fs::create_dir(tmp_dir.path().join(".screenly")).unwrap();
+
+        let mut store = TokenStore::default();
+        store
+            .tokens
+            .insert("default".to_string(), "token".to_string());
+        assert!(write_store(&store).is_err());
+
+        let leftovers: Vec<_> = fs::read_dir(tmp_dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|name| name.starts_with(".screenly.tmp"))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "temp file with tokens left behind: {leftovers:?}"
+        );
     }
 
     #[test]
