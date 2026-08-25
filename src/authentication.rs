@@ -145,6 +145,14 @@ fn is_legacy_token(contents: &str) -> bool {
     !contents.is_empty() && !contents.contains(':') && !contents.contains('\n')
 }
 
+/// Writes the store, replacing the file atomically.
+///
+/// Not safe against a concurrent writer: two `login` processes racing here both
+/// read the old store and the second rename wins, so one of the two profiles is
+/// lost. The rename keeps any *reader* from seeing a torn file, which is the
+/// case that would corrupt credentials; losing one of two simultaneous logins
+/// needs file locking, which is not worth the portability cost for a CLI a
+/// person drives by hand.
 fn write_store(store: &TokenStore) -> Result<(), AuthenticationError> {
     let path = screenly_path()?;
     let contents = serde_yaml::to_string(store)?;
@@ -190,7 +198,11 @@ fn write_tmp_and_rename(
 
 /// Creates (or truncates) a file that the token store can be written to,
 /// owner-readable only from the moment it exists so the token is never
-/// briefly world-readable. Permissions are a no-op on non-Unix platforms.
+/// briefly world-readable.
+///
+/// On non-Unix platforms there is no equivalent here and the store inherits
+/// whatever the directory's ACLs give it, which now covers every profile's
+/// token rather than one. Documented in the README.
 #[cfg(unix)]
 fn create_private_file(path: &std::path::Path) -> Result<fs::File, AuthenticationError> {
     use std::os::unix::fs::OpenOptionsExt;

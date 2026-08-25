@@ -101,6 +101,8 @@ Plain-text `~/.screenly` files from older versions are migrated to the profile f
 
 If `~/.screenly` becomes malformed (for example from a hand-edit), the CLI reports the problem and leaves the file untouched rather than discarding credentials. Fix the file's YAML, or delete it and run `screenly login` to start fresh.
 
+The file holds every profile's token in plain text. On Linux and macOS it is created with `0600` permissions, so only your user can read it. On Windows it inherits the permissions of your home directory, so treat it the way you would any other credentials file. Avoid running two `login` commands at the same time: the CLI replaces the file atomically, but it does not lock it, so simultaneous writes can drop one of the two profiles.
+
 ## Output Formats
 
 All list and get commands support three output formats via the global `--output` (`-o`) flag:
