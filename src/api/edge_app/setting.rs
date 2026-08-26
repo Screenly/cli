@@ -270,6 +270,13 @@ fn is_structured_help_text(help_text: &str) -> bool {
     serde_json::from_str::<Value>(help_text).is_ok_and(|value| value.is_object())
 }
 
+fn has_malformed_properties(help_text: &str) -> bool {
+    let Ok(Value::Object(object)) = serde_json::from_str::<Value>(help_text) else {
+        return false;
+    };
+    matches!(object.get("properties"), Some(value) if !value.is_object())
+}
+
 pub fn help_text_with_display_order(name: &str, help_text: &str, display_order: usize) -> String {
     if HELP_TEXT_NAME_OVERRIDES.contains(&name) {
         return help_text.to_string();
@@ -309,22 +316,36 @@ pub fn help_text_with_display_order(name: &str, help_text: &str, display_order: 
 
 pub fn assign_setting_display_orders(settings: &mut [Setting]) {
     let mut skipped: Vec<String> = Vec::new();
+    let mut malformed: Vec<String> = Vec::new();
 
     for (display_order, setting) in settings.iter_mut().enumerate() {
         if setting.name.starts_with("screenly_") {
             continue;
         }
 
-        if HELP_TEXT_NAME_OVERRIDES.contains(&setting.name.as_str())
-            || (setting.type_ == SettingType::Secret
-                && !is_structured_help_text(&setting.help_text))
-        {
+        if has_malformed_properties(&setting.help_text) {
+            malformed.push(setting.name.clone());
+            continue;
+        }
+
+        if setting.type_ == SettingType::Secret && !is_structured_help_text(&setting.help_text) {
+            continue;
+        }
+
+        if HELP_TEXT_NAME_OVERRIDES.contains(&setting.name.as_str()) {
             skipped.push(setting.name.clone());
             continue;
         }
 
         setting.help_text =
             help_text_with_display_order(&setting.name, &setting.help_text, display_order);
+    }
+
+    if !malformed.is_empty() {
+        eprintln!(
+            "Warning: the following settings have a malformed help_text schema (\"properties\" is not an object) and will render as a plain field with the raw JSON as their help text: {}.",
+            malformed.join(", ")
+        );
     }
 
     if !skipped.is_empty() {
@@ -714,6 +735,28 @@ mod display_order_tests {
         assert_eq!(settings[1].help_text, "Pick a theme");
         assert_eq!(settings[2].help_text, "Your API key");
         assert_eq!(settings[3].help_text, "The entrypoint.");
+    }
+
+    #[test]
+    fn malformed_properties_are_left_untouched_and_do_not_consume_a_display_order() {
+        let malformed = json!({ "schema_version": 1, "properties": "nope" }).to_string();
+        let mut settings = vec![
+            setting("greeting", SettingType::String, "Say hello"),
+            setting("weird", SettingType::String, &malformed),
+            setting("farewell", SettingType::String, "Say bye"),
+        ];
+
+        assign_setting_display_orders(&mut settings);
+
+        assert_eq!(
+            properties(&settings[0].help_text)["display_order"],
+            json!(0)
+        );
+        assert_eq!(settings[1].help_text, malformed);
+        assert_eq!(
+            properties(&settings[2].help_text)["display_order"],
+            json!(2)
+        );
     }
 
     #[test]
