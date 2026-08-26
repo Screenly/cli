@@ -283,7 +283,8 @@ impl EdgeAppTools {
 
         let revision = command
             .deploy(Some(path), Some(false))
-            .map_err(|e| format!("Failed to deploy Edge App: {}", e))?;
+            .map_err(|e| format!("Failed to deploy Edge App: {}", e))?
+            .revision;
 
         // Create/deploy already happened. Instance + local memory must not hide app_id.
         let mut warnings: Vec<String> = Vec::new();
@@ -331,7 +332,7 @@ struct PublishFromHtmlResponse {
     instance_id: Option<String>,
     instance_created: bool,
     name: String,
-    revision: u32,
+    revision: Option<u32>,
     created: bool,
     resolved_from_memory: bool,
     saved_to_memory: bool,
@@ -924,7 +925,7 @@ mod registry_tests {
             instance_id: None,
             instance_created: false,
             name: "Lobby Board".to_string(),
-            revision: 3,
+            revision: Some(3),
             created: true,
             resolved_from_memory: false,
             saved_to_memory: false,

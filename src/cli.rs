@@ -924,9 +924,15 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputForm
             path,
             delete_missing_settings,
         } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
-            Ok(revision) => {
-                println!("Edge App successfully deployed. Revision: {revision}.");
-            }
+            Ok(outcome) => match outcome.revision {
+                Some(revision) if outcome.created => {
+                    println!("Edge App successfully deployed. Revision: {revision}.");
+                }
+                Some(revision) => {
+                    println!("Settings updated. No new revision needed. Revision: {revision}.");
+                }
+                None => println!("Edge App is already up to date."),
+            },
             Err(e) => {
                 eprintln!("Failed to upload Edge App: {e}.");
                 std::process::exit(1);
