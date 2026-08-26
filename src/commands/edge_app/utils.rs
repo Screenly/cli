@@ -6,7 +6,7 @@ use log::debug;
 use walkdir::{DirEntry, WalkDir};
 
 use crate::api::asset::AssetSignature;
-use crate::api::edge_app::setting::{Setting, SettingType};
+use crate::api::edge_app::setting::{assign_setting_display_orders, Setting, SettingType};
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::ignorer::Ignorer;
@@ -190,11 +190,6 @@ pub fn detect_changed_settings(
     manifest: &EdgeAppManifest,
     remote_settings: &[Setting],
 ) -> Result<SettingChanges, CommandError> {
-    // Remote and local settings MUST be sorted.
-    // This function compares remote and local settings
-    // And returns if there are any new local settings missing from the remote
-    // And changed settings to update
-
     let mut new_settings = manifest.settings.clone();
 
     if let Some(auth) = &manifest.auth {
@@ -226,37 +221,35 @@ pub fn detect_changed_settings(
         }
     }
 
-    new_settings.sort_by_key(|s| s.name.clone());
+    assign_setting_display_orders(&mut new_settings);
+
+    let remote_by_name: HashMap<&str, &Setting> = remote_settings
+        .iter()
+        .map(|setting| (setting.name.as_str(), setting))
+        .collect();
+    let new_names: HashSet<&str> = new_settings.iter().map(|s| s.name.as_str()).collect();
 
     let mut creates = Vec::new();
     let mut updates = Vec::new();
-    let mut deleted: Vec<Setting> = Vec::new();
 
-    let mut remote_iter = remote_settings.iter().peekable();
-    let mut new_iter = new_settings.iter().peekable();
-
-    while let (Some(&remote_setting), Some(&new_setting)) = (remote_iter.peek(), new_iter.peek()) {
-        match remote_setting.name.cmp(&new_setting.name) {
-            std::cmp::Ordering::Equal => {
+    for new_setting in &new_settings {
+        match remote_by_name.get(new_setting.name.as_str()) {
+            Some(&remote_setting) => {
                 if remote_setting != new_setting {
                     updates.push(new_setting.clone());
                 }
-                remote_iter.next();
-                new_iter.next();
             }
-            std::cmp::Ordering::Less => {
-                deleted.push(remote_setting.clone());
-                remote_iter.next();
-            }
-            std::cmp::Ordering::Greater => {
+            None => {
                 creates.push(new_setting.clone());
-                new_iter.next();
             }
         }
     }
 
-    creates.extend(new_iter.cloned());
-    deleted.extend(remote_iter.cloned());
+    let deleted: Vec<Setting> = remote_settings
+        .iter()
+        .filter(|setting| !new_names.contains(setting.name.as_str()))
+        .cloned()
+        .collect();
 
     Ok(SettingChanges {
         creates,
@@ -317,7 +310,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::api::edge_app::setting::{Setting, SettingType};
+    use crate::api::edge_app::setting::{help_text_with_display_order, Setting, SettingType};
     use crate::commands::edge_app::instance_manifest::INSTANCE_MANIFEST_VERSION;
     use crate::commands::edge_app::manifest::{Auth, Entrypoint, EntrypointType, MANIFEST_VERSION};
     use crate::commands::edge_app::manifest_auth::AuthType;
@@ -374,7 +367,7 @@ mod tests {
                 title: Some("display time title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                help_text: help_text_with_display_order("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
             },
             Setting {
                 name: "google_maps_api_key".to_string(),
@@ -383,7 +376,7 @@ mod tests {
                 title: Some("Google maps title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
+                help_text: help_text_with_display_order("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
             },
         ];
 
@@ -394,6 +387,7 @@ mod tests {
         assert!(result.is_ok());
         let changes = result.unwrap();
         assert_eq!(changes.creates.len(), 0);
+        assert_eq!(changes.updates.len(), 0);
     }
 
     #[test]
@@ -408,7 +402,7 @@ mod tests {
                 title: None,
                 optional: true,
                 is_global: false,
-                help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                help_text: help_text_with_display_order("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
             },
             Setting {
                 name: "google_maps_api_key".to_string(),
@@ -417,7 +411,7 @@ mod tests {
                 title: Some("Google maps title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
+                help_text: help_text_with_display_order("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
             },
         ];
 
@@ -516,7 +510,7 @@ mod tests {
                 title: Some("display time title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                help_text: help_text_with_display_order("display_time", "For how long to display the map overlay every time the rover has moved to a new position.", 0),
             },
             Setting {
                 name: "google_maps_api_key".to_string(),
@@ -525,7 +519,7 @@ mod tests {
                 title: Some("Google maps title".to_string()),
                 optional: true,
                 is_global: false,
-                help_text: "Specify a commercial Google Maps API key. Required due to the app's map feature.".to_string(),
+                help_text: help_text_with_display_order("google_maps_api_key", "Specify a commercial Google Maps API key. Required due to the app's map feature.", 1),
             },
         ];
 
