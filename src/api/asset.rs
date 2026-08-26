@@ -12,16 +12,15 @@ pub struct AssetProcessingStatus {
 }
 
 impl Api {
-    /// Staged assets carry no revision until a deploy claims them, and no signature until the
-    /// processor has run.
-    pub fn get_staged_processing_statuses(
+    pub fn get_processing_statuses(
         &self,
-        app_id: &str,
+        asset_ids: &[String],
     ) -> Result<Vec<AssetProcessingStatus>, CommandError> {
         let response = commands::get(
             &self.authentication,
             &format!(
-                "v4/assets?select=status,processing_error,title&app_id=eq.{app_id}&app_revision=is.null&status=neq.finished"
+                "v4/assets?select=status,processing_error,title&id=in.({})&status=neq.finished",
+                asset_ids.join(",")
             ),
         )?;
 

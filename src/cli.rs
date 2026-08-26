@@ -389,7 +389,7 @@ pub enum EdgeAppCommands {
         path: Option<String>,
 
         /// Delete settings that exist on the server but not in the manifest.
-        #[arg(short, long)]
+        #[arg(short, long, num_args = 0..=1, default_missing_value = "true")]
         delete_missing_settings: Option<bool>,
     },
     /// Deletes an Edge App. This cannot be undone.

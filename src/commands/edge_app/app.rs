@@ -181,7 +181,7 @@ impl EdgeAppCommand {
         let manifest = EdgeAppManifest::new(&manifest_path)?;
 
         let actual_app_id = self
-            .get_app_id(path)
+            .get_app_id(path.clone())
             .map_err(|_| CommandError::MissingAppId)?;
 
         let edge_app_dir = manifest_path.parent().ok_or(CommandError::MissingField)?;
@@ -207,6 +207,7 @@ impl EdgeAppCommand {
 
         if !preview.deploy_needed {
             debug!("Nothing to deploy.");
+            self.update_entrypoint_value(path)?;
             return Ok(DeployOutcome {
                 revision: None,
                 created: false,
@@ -219,15 +220,17 @@ impl EdgeAppCommand {
             .iter()
             .map(|file| edge_app_dir.join(file))
             .collect();
-        self.upload_edge_app_assets(&actual_app_id, &files_to_upload)?;
+        let uploaded_asset_ids = self.upload_edge_app_assets(&actual_app_id, &files_to_upload)?;
 
-        self.wait_for_assets_processing(&actual_app_id)?;
+        self.wait_for_assets_processing(&uploaded_asset_ids)?;
 
         let result = self.api.deploy(&actual_app_id, &payload)?;
         debug!(
             "Deployed revision {} (created: {}, published: {}, channel: {})",
             result.revision, result.created, result.published, result.channel
         );
+
+        self.update_entrypoint_value(path)?;
 
         Ok(DeployOutcome {
             revision: Some(result.revision),
@@ -277,17 +280,21 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn wait_for_assets_processing(&self, app_id: &str) -> Result<(), CommandError> {
+    fn wait_for_assets_processing(&self, asset_ids: &[String]) -> Result<(), CommandError> {
         const POLL_INTERVAL_SECONDS: u64 = 2;
         const MAX_WAIT_SECONDS: u64 = 1000;
+
+        if asset_ids.is_empty() {
+            return Ok(());
+        }
 
         let mut progress_bar: Option<ProgressBar> = None;
         let mut assets_to_process: u64 = 0;
         let start_time = Instant::now();
 
         loop {
-            let statuses = self.api.get_staged_processing_statuses(app_id)?;
-            debug!("Staged assets still processing: {statuses:?}");
+            let statuses = self.api.get_processing_statuses(asset_ids)?;
+            debug!("Assets still processing: {statuses:?}");
 
             let failed: Vec<FailedFile> = statuses
                 .iter()
@@ -344,26 +351,33 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    fn upload_edge_app_assets(&self, app_id: &str, paths: &[PathBuf]) -> Result<(), CommandError> {
+    fn upload_edge_app_assets(
+        &self,
+        app_id: &str,
+        paths: &[PathBuf],
+    ) -> Result<Vec<String>, CommandError> {
         if paths.is_empty() {
             debug!("No files to upload");
-            return Ok(());
+            return Ok(Vec::new());
         }
 
         debug!("Uploading Edge App files: {paths:#?}");
-        let pb = ProgressBar::new(paths.len() as u64);
-        pb.set_message("Files uploaded:");
+        let progress_bar = ProgressBar::new(paths.len() as u64);
+        progress_bar.set_message("Files uploaded:");
 
-        paths.par_iter().try_for_each(|path| {
-            let result = self.upload_single_asset(app_id, path);
-            if result.is_ok() {
-                pb.inc(1);
-            }
-            result
-        })
+        paths
+            .par_iter()
+            .map(|path| {
+                let result = self.upload_single_asset(app_id, path);
+                if result.is_ok() {
+                    progress_bar.inc(1);
+                }
+                result
+            })
+            .collect()
     }
 
-    fn upload_single_asset(&self, app_id: &str, path: &Path) -> Result<(), CommandError> {
+    fn upload_single_asset(&self, app_id: &str, path: &Path) -> Result<String, CommandError> {
         let url = format!("{}/v4/assets", &self.api.authentication.config.url);
 
         let mut headers = HeaderMap::new();
@@ -399,7 +413,14 @@ impl EdgeAppCommand {
             return Err(CommandError::WrongResponseStatus(status.as_u16()));
         }
 
-        Ok(())
+        let created: serde_json::Value = serde_json::from_str(&response.text()?)?;
+        created
+            .get(0)
+            .unwrap_or(&created)
+            .get("id")
+            .and_then(|id| id.as_str())
+            .map(str::to_owned)
+            .ok_or(CommandError::MissingField)
     }
 
     pub fn get_installation_id(&self, path: Option<String>) -> Result<String, CommandError> {
@@ -434,6 +455,7 @@ mod tests {
     };
 
     const APP_ID: &str = "01H2QZ6Z8WXWNDC0KQ198XCZEW";
+    const ASSET_ID: &str = "01J0YQ9F0000000000000ASSET";
     const INDEX_HTML_SIGNATURE: &str = "0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000";
 
     fn deploy_test_settings() -> Vec<Setting> {
@@ -471,6 +493,28 @@ mod tests {
         write!(file, "test").unwrap();
 
         EdgeAppManifest::new(manifest_path.as_path()).unwrap()
+    }
+
+    fn missing_index_preview() -> serde_json::Value {
+        json!({
+            "deploy_needed": true,
+            "outstanding": {"missing": ["index.html"], "pending": [], "failed": []},
+            "diff": {
+                "settings": {"create": [], "update": [], "delete": []},
+                "revision": {"update": []},
+                "files": {"create": ["index.html"], "update": [], "delete": []}
+            }
+        })
+    }
+
+    fn upload_mock(mock_server: &httpmock::MockServer) -> httpmock::Mock<'_> {
+        mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4/assets")
+                .body_includes("name=\"app_id\"")
+                .body_includes(APP_ID);
+            then.status(201).json_body(json!([{"id": ASSET_ID}]));
+        })
     }
 
     fn no_outstanding_preview() -> serde_json::Value {
@@ -819,14 +863,13 @@ mod tests {
                 .body_includes("name=\"app_id\"")
                 .body_includes(APP_ID)
                 .body_includes("test");
-            then.status(201).body("");
+            then.status(201).json_body(json!([{"id": ASSET_ID}]));
         });
 
-        let staged_status_mock = mock_server.mock(|when, then| {
+        let processing_status_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/assets")
-                .query_param("app_id", format!("eq.{APP_ID}"))
-                .query_param("app_revision", "is.null");
+                .query_param("id", format!("in.({ASSET_ID})"));
             then.status(200).json_body(json!([]));
         });
 
@@ -853,7 +896,7 @@ mod tests {
         );
 
         preview_mock.assert();
-        staged_status_mock.assert();
+        processing_status_mock.assert();
         upload_assets_mock.assert();
         deploy_mock.assert();
 
@@ -874,13 +917,6 @@ mod tests {
             then.status(200).json_body(no_outstanding_preview());
         });
 
-        let staged_status_mock = mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v4/assets")
-                .query_param("app_revision", "is.null");
-            then.status(200).json_body(json!([]));
-        });
-
         let deploy_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path(format!("/v3/edge-apps/{APP_ID}/deploy"));
@@ -892,7 +928,6 @@ mod tests {
         let result = command.deploy(Some(temp_dir.path().to_str().unwrap().to_string()), None);
 
         preview_mock.assert();
-        staged_status_mock.assert();
         deploy_mock.assert();
 
         assert_eq!(
@@ -911,13 +946,15 @@ mod tests {
         let preview_mock = mock_server.mock(|when, then| {
             when.method(POST)
                 .path(format!("/v3/edge-apps/{APP_ID}/deploy/preview"));
-            then.status(200).json_body(no_outstanding_preview());
+            then.status(200).json_body(missing_index_preview());
         });
 
-        let staged_status_mock = mock_server.mock(|when, then| {
+        let upload_assets_mock = upload_mock(&mock_server);
+
+        let processing_status_mock = mock_server.mock(|when, then| {
             when.method(GET)
                 .path("/v4/assets")
-                .query_param("app_revision", "is.null");
+                .query_param("id", format!("in.({ASSET_ID})"));
             then.status(200).json_body(json!([{
                 "status": "error",
                 "processing_error": "File type not supported.",
@@ -937,7 +974,8 @@ mod tests {
         );
 
         preview_mock.assert();
-        staged_status_mock.assert();
+        upload_assets_mock.assert();
+        processing_status_mock.assert();
         deploy_mock.assert_calls(0);
 
         assert_eq!(
@@ -1082,6 +1120,95 @@ mod tests {
             result.unwrap_err().to_string(),
             "App id is required in manifest."
         );
+    }
+
+    #[test]
+    fn test_deploy_when_local_entrypoint_uri_set_and_no_new_revision_needed_should_update_setting()
+    {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        let mut manifest = create_edge_app_manifest_for_test(vec![]);
+        manifest.user_version = None;
+        manifest.author = None;
+        manifest.entrypoint = Some(Entrypoint {
+            entrypoint_type: EntrypointType::RemoteLocal,
+            uri: None,
+        });
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+
+        let mut instance_manifest = create_instance_manifest_for_test();
+        instance_manifest.entrypoint_uri = Some("https://local-entrypoint.com".to_string());
+        InstanceManifest::save_to_file(
+            &instance_manifest,
+            temp_dir.path().join("instance.yml").as_path(),
+        )
+        .unwrap();
+
+        let preview_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path(format!("/v3/edge-apps/{APP_ID}/deploy/preview"));
+            then.status(200).json_body(json!({
+                "deploy_needed": false,
+                "outstanding": {"missing": [], "pending": [], "failed": []},
+                "diff": {
+                    "settings": {"create": [], "update": [], "delete": []},
+                    "revision": {"update": []},
+                    "files": {"create": [], "update": [], "delete": []}
+                }
+            }));
+        });
+
+        let setting_is_global_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .query_param("select", "is_global")
+                .query_param("name", "eq.screenly_entrypoint");
+            then.status(200).json_body(json!([{"is_global": false}]));
+        });
+
+        let setting_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/settings")
+                .query_param("select", "name,type,edge_app_setting_values(value)")
+                .query_param("name", "eq.screenly_entrypoint");
+            then.status(200).json_body(json!([{
+                "name": "screenly_entrypoint",
+                "type": "string",
+                "edge_app_setting_values": [],
+            }]));
+        });
+
+        let setting_value_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4.1/edge-apps/settings/values")
+                .json_body(json!({
+                    "value": "https://local-entrypoint.com",
+                    "name": "screenly_entrypoint",
+                    "installation_id": "01H2QZ6Z8WXWNDC0KQ198XCZEB",
+                }));
+            then.status(200).json_body(json!({}));
+        });
+
+        let deploy_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path(format!("/v3/edge-apps/{APP_ID}/deploy"));
+            then.status(200)
+                .json_body(json!({"revision": 8, "created": true}));
+        });
+
+        let result = command.deploy(Some(temp_dir.path().to_str().unwrap().to_string()), None);
+
+        preview_mock.assert();
+        setting_is_global_mock.assert();
+        setting_mock.assert();
+        setting_value_mock.assert();
+        deploy_mock.assert_calls(0);
+
+        let outcome = result.unwrap();
+        assert_eq!(outcome.revision, None);
+        assert!(!outcome.created);
     }
 
     #[test]

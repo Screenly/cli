@@ -77,7 +77,6 @@ pub struct DeployDiff {
 
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct DeployPreview {
-    #[serde(default)]
     pub deploy_needed: bool,
     #[serde(default)]
     pub outstanding: OutstandingFiles,
@@ -88,7 +87,6 @@ pub struct DeployPreview {
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct DeployResult {
     pub revision: u32,
-    #[serde(default)]
     pub created: bool,
     #[serde(default)]
     pub published: bool,
