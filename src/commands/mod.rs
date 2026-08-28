@@ -118,8 +118,10 @@ pub enum CommandError {
     Parse(#[from] serde_json::Error),
     #[error("parse error: {0}")]
     YamlParse(#[from] serde_yaml::Error),
-    #[error("unknown error: {0}")]
+    #[error("unexpected response status: {0}")]
     WrongResponseStatus(u16),
+    #[error("{0}")]
+    ApiError(String),
     #[error("Required field is missing in the response")]
     MissingField,
     #[error("Required file is missing in the edge app directory: {0}")]
@@ -170,6 +172,17 @@ pub enum CommandError {
     AppNotFound(String),
 }
 
+fn api_error_from_body(body: &str, status: StatusCode) -> CommandError {
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(body) {
+        for key in &["error", "message", "detail"] {
+            if let Some(msg) = json.get(key).and_then(|v| v.as_str()) {
+                return CommandError::ApiError(msg.to_string());
+            }
+        }
+    }
+    CommandError::WrongResponseStatus(status.as_u16())
+}
+
 pub fn get(
     authentication: &Authentication,
     endpoint: &str,
@@ -189,8 +202,9 @@ pub fn get(
     debug!("GET {url} -> {status}");
 
     if status != StatusCode::OK {
-        println!("Response: {:?}", &response.text());
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        return Err(api_error_from_body(&body, status));
     }
     Ok(serde_json::from_str(&response.text()?)?)
 }
@@ -216,14 +230,22 @@ pub fn post<T: Serialize + ?Sized>(
 
     // Ok, No_Content are acceptable because some of our RPC code returns that.
     if ![StatusCode::CREATED, StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
-        debug!("Response: {:?}", &response.text()?);
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        return Err(api_error_from_body(&body, status));
     }
     if status == StatusCode::NO_CONTENT {
         return Ok(serde_json::Value::Null);
     }
 
-    Ok(serde_json::from_str(&response.text()?)?)
+    // A 201/200 with an empty body (e.g. if the server ever stops honoring
+    // `Prefer: return=representation`) must not fail the call after the
+    // resource has already been created.
+    let body = response.text()?;
+    if body.trim().is_empty() {
+        return Ok(serde_json::Value::Null);
+    }
+    Ok(serde_json::from_str(&body)?)
 }
 
 pub fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
@@ -233,8 +255,9 @@ pub fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result
     let status = response.status();
 
     if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
-        debug!("Response: {:?}", &response.text()?);
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        return Err(api_error_from_body(&body, status));
     }
     Ok(())
 }
@@ -257,8 +280,9 @@ pub fn patch<T: Serialize + ?Sized>(
 
     let status = response.status();
     if status != StatusCode::OK {
-        debug!("Response: {:?}", &response.text()?);
-        return Err(CommandError::WrongResponseStatus(status.as_u16()));
+        let body = response.text().unwrap_or_default();
+        debug!("Response: {:?}", &body);
+        return Err(api_error_from_body(&body, status));
     }
 
     if status == StatusCode::NO_CONTENT {
@@ -659,7 +683,39 @@ impl Formatter for PlaylistItems {
 
 #[cfg(test)]
 mod tests {
+    use reqwest::StatusCode;
+
     use super::*;
+
+    #[test]
+    fn test_api_error_from_body_uses_error_key() {
+        let err = api_error_from_body(r#"{"error": "Invalid pin"}"#, StatusCode::BAD_REQUEST);
+        assert_eq!(err.to_string(), "Invalid pin");
+    }
+
+    #[test]
+    fn test_api_error_from_body_uses_message_key() {
+        let err = api_error_from_body(r#"{"message": "Not found"}"#, StatusCode::NOT_FOUND);
+        assert_eq!(err.to_string(), "Not found");
+    }
+
+    #[test]
+    fn test_api_error_from_body_uses_detail_key() {
+        let err = api_error_from_body(r#"{"detail": "Permission denied"}"#, StatusCode::FORBIDDEN);
+        assert_eq!(err.to_string(), "Permission denied");
+    }
+
+    #[test]
+    fn test_api_error_from_body_falls_back_to_status_on_unknown_key() {
+        let err = api_error_from_body(r#"{"code": "ERR123"}"#, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.to_string(), "unexpected response status: 500");
+    }
+
+    #[test]
+    fn test_api_error_from_body_falls_back_to_status_on_non_json() {
+        let err = api_error_from_body("not json", StatusCode::BAD_GATEWAY);
+        assert_eq!(err.to_string(), "unexpected response status: 502");
+    }
 
     #[test]
     fn test_assets_csv_round_trip() {

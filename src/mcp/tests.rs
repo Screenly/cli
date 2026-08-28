@@ -26,7 +26,11 @@ fn test_screen_list() {
     let mock_server = MockServer::start();
     mock_server.mock(|when, then| {
         when.method(GET)
-            .path("/v4/screens")
+            .path("/v4.1/screens")
+            .query_param(
+                "select",
+                "*,screen_configs(*),screen_pings(*),screen_reports(*),screen_statuses(*)",
+            )
             .header("Authorization", "Token test_token");
         then.status(200)
             .json_body(json!([{"id": "screen-1", "name": "Test Screen"}]));
@@ -45,8 +49,12 @@ fn test_screen_get() {
     let mock_server = MockServer::start();
     mock_server.mock(|when, then| {
         when.method(GET)
-            .path("/v4/screens")
+            .path("/v4.1/screens")
             .query_param("id", "eq.screen-uuid")
+            .query_param(
+                "select",
+                "*,screen_configs(*),screen_pings(*),screen_reports(*),screen_statuses(*)",
+            )
             .header("Authorization", "Token test_token");
         then.status(200)
             .json_body(json!([{"id": "screen-uuid", "name": "My Screen"}]));
