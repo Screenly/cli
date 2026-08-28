@@ -19,7 +19,7 @@ inputs:
     required: false
   cli_version:
     description: "Screenly CLI version."
-    default: "v1.2.2"
+    default: "v2026.8.1"
 
 outputs:
   cli_commands_response:

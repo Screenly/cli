@@ -202,10 +202,13 @@ $ mv signature.rs src/pb_signature.rs
 
 ## Release Process
 
-This project follows [Semantic Versioning](https://semver.org/) (M.m.p = Major.minor.patch).
+This project follows [Calendar Versioning](https://calver.org/) (`YYYY.M.MICRO` = year, month, and a micro number that starts at `1` for the first release in a given month and increments for any additional release in that same month).
+
+`Cargo.toml`'s `version` field is parsed by Cargo as strict [SemVer](https://semver.org/), which forbids a leading zero in any numeric component. This means the month is **not** zero-padded: August is `8`, not `08` (e.g. `2026.8.1`, not `2026.08.1`).
 
 1. **Prepare the release:**
-  - Create a release branch (e.g., `release-M.m.p`, like `release-1.0.6`).
+  - Figure out the version: use the current year and month, and check existing tags/branches for that year and month (`git tag -l "v$(date +%Y).$(date +%-m).*"`) to pick the next `MICRO` — `1` if none exist yet for this month, otherwise the highest existing `MICRO` plus one.
+  - Create a release branch (e.g., `release-YYYY.M.MICRO`, like `release-2026.8.1`).
   - Update the version in `Cargo.toml`, `action.yml`, and `Dockerfile`
   - Run `cargo build` to update `Cargo.lock` with the new version
 
@@ -215,10 +218,10 @@ This project follows [Semantic Versioning](https://semver.org/) (M.m.p = Major.m
 
 3. **Create the GitHub release:**
   - Make sure that you're on the `master` branch and have pulled the latest changes
-  - Create a version tag (e.g., `vM.m.p`, like `v1.0.6`) and push it to GitHub by running:
+  - Create a version tag (e.g., `vYYYY.M.MICRO`, like `v2026.8.1`) and push it to GitHub by running:
     ```bash
-    git tag vM.m.p
-    git push origin vM.m.p
+    git tag vYYYY.M.MICRO
+    git push origin vYYYY.M.MICRO
     ```
   - The release workflow will detect the version tag and create the release automatically
   - Add the release notes to the GitHub release description
