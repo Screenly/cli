@@ -1,6 +1,6 @@
 [package]
 name = "screenly"
-version = "2026.8.1"
+version = "26.8.0"
 edition = "2021"
 
 [[bin]]
