@@ -1,15 +1,20 @@
-use std::io::{Read, Write};
+use std::io::{BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::{env, fs, io};
 
 use clap::{Parser, Subcommand};
 use http_auth_basic::Credentials;
 use log::{error, info};
+use prettytable::{Cell, Row};
 use reqwest::StatusCode;
 use rpassword::read_password;
+use serde_json::json;
 use thiserror::Error;
 
-use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
+use crate::authentication::{
+    active_profile_name, api_token_from_env, fetch_profile_info, fetch_profiles_with_info,
+    verify_and_store_token, Authentication, AuthenticationError, Config, ProfileEntry,
+};
 use crate::commands;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
@@ -24,24 +29,201 @@ const DEFAULT_ASSET_DURATION: u32 = 15;
 
 /// Returns a user-friendly error message for authentication errors.
 fn get_authentication_error_message(e: &AuthenticationError) -> String {
+    let not_logged_in = "Not logged in. Please run `screenly login` first to authenticate.";
     match e {
+        // The logged-out state now leaves an empty store behind rather than
+        // deleting the file, so it surfaces as NoCredentials, not Io(NotFound).
+        AuthenticationError::NoCredentials => not_logged_in.to_string(),
         AuthenticationError::Io(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => {
-            "Not logged in. Please run `screenly login` first to authenticate.".to_string()
+            not_logged_in.to_string()
         }
+        AuthenticationError::NoActiveProfile => {
+            "No active profile. Run `screenly auth switch <name>` to choose one, or `screenly auth list` to see what is stored.".to_string()
+        }
+        AuthenticationError::ProfileNotFound(name) => {
+            format!("Active profile '{name}' not found. Run `screenly auth switch` to pick a valid profile.")
+        }
+        // Already actionable and names the file; pass it through verbatim.
+        AuthenticationError::CorruptStore { .. } => e.to_string(),
         _ => {
             format!("Authentication error: {e}. Please run `screenly login` to authenticate.")
         }
     }
 }
 
+/// Resolves the profile name a `login` should store under.
+///
+/// An explicit `--name` is always honored. With no name given, `login`
+/// updates the currently active profile (the common re-login-after-rotation
+/// flow), falling back to `"default"` on a fresh install with no active
+/// profile.
+fn resolve_login_name(name: Option<&str>, active: Option<&str>) -> String {
+    match name {
+        Some(n) => n.to_string(),
+        None => active.unwrap_or("default").to_string(),
+    }
+}
+
+/// Reads the API token for `login`.
+///
+/// With stdin on a terminal, prompts and reads without echoing. With stdin
+/// redirected, reads it as a plain line: there is no terminal to disable echo
+/// on, and `read_password` fails outright rather than degrading, which used to
+/// panic. `--token-stdin` forces the non-interactive path even on a terminal,
+/// for scripts that want no prompt at all.
+fn read_login_token(force_stdin: bool) -> io::Result<String> {
+    if force_stdin || !io::stdin().is_terminal() {
+        return read_token_line(&mut io::stdin().lock());
+    }
+    print!("Enter your API Token: ");
+    io::stdout().flush()?;
+    Ok(read_password()?.trim().to_string())
+}
+
+/// Reads one line as a token.
+///
+/// Trimmed because a token never contains surrounding whitespace, and the
+/// trailing newline from `echo` or a here-doc would otherwise be stored as part
+/// of it and sent in the Authorization header.
+fn read_token_line(reader: &mut impl BufRead) -> io::Result<String> {
+    let mut line = String::new();
+    reader.read_line(&mut line)?;
+    Ok(line.trim().to_string())
+}
+
+/// Shown for a profile whose token could not be resolved against the API. The
+/// profile is stored, it just can't be described right now.
+const PROFILE_INFO_UNAVAILABLE: &str = "(unavailable)";
+
+/// Renders the stored profiles as a table, marking the active profile with `*`.
+///
+/// Uses `prettytable` like every other list command, so `auth list` looks like
+/// `screen list` and column widths (including non-ASCII names) are the table's
+/// problem rather than this function's.
+fn format_profiles_table(entries: &[ProfileEntry]) -> String {
+    let mut table = prettytable::Table::new();
+    table.add_row(Row::from(vec!["Active", "Profile", "Email", "Workspace"]));
+    for entry in entries {
+        let (email, workspace) = match &entry.info {
+            Some(info) => (info.email.as_str(), info.workspace.as_str()),
+            None => (PROFILE_INFO_UNAVAILABLE, PROFILE_INFO_UNAVAILABLE),
+        };
+        table.add_row(Row::new(vec![
+            Cell::new(if entry.is_active { "*" } else { "" }),
+            Cell::new(&entry.name),
+            Cell::new(email),
+            Cell::new(workspace),
+        ]));
+    }
+    table.to_string()
+}
+
+/// The current profile's details, rendered for the `me` command.
+struct ProfileDetails {
+    profile: String,
+    email: String,
+    workspace: String,
+}
+
+impl Formatter for ProfileDetails {
+    fn supports_csv() -> bool {
+        true
+    }
+
+    fn format(&self, output_type: OutputType) -> String {
+        match output_type {
+            OutputType::Json => serde_json::to_string_pretty(&json!({
+                "profile": self.profile,
+                "email": self.email,
+                "workspace": self.workspace,
+            }))
+            .unwrap(),
+            OutputType::Csv => {
+                let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+                wtr.write_record(["Profile", "Email", "Workspace"]).unwrap();
+                wtr.write_record([
+                    self.profile.as_str(),
+                    self.email.as_str(),
+                    self.workspace.as_str(),
+                ])
+                .unwrap();
+                String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+            }
+            OutputType::HumanReadable => format!(
+                "Profile:   {}\nEmail:     {}\nWorkspace: {}",
+                self.profile, self.email, self.workspace
+            ),
+        }
+    }
+}
+
+/// The stored profiles, rendered for the `auth list` command.
+struct ProfilesTable(Vec<ProfileEntry>);
+
+impl Formatter for ProfilesTable {
+    fn supports_csv() -> bool {
+        true
+    }
+
+    fn format(&self, output_type: OutputType) -> String {
+        match output_type {
+            // The "no profiles" hint is only useful to a human. The machine
+            // formats render an empty array / a bare header instead, so a
+            // consumer piping `--output json` always gets parseable output.
+            OutputType::HumanReadable if self.0.is_empty() => {
+                "No profiles stored. Run `screenly login` to add one.".to_string()
+            }
+            OutputType::HumanReadable => format_profiles_table(&self.0),
+            OutputType::Json => {
+                let arr: Vec<serde_json::Value> = self
+                    .0
+                    .iter()
+                    .map(|e| {
+                        json!({
+                            "profile": e.name,
+                            "active": e.is_active,
+                            "email": e.info.as_ref().map(|i| i.email.clone()),
+                            "workspace": e.info.as_ref().map(|i| i.workspace.clone()),
+                        })
+                    })
+                    .collect();
+                serde_json::to_string_pretty(&serde_json::Value::Array(arr)).unwrap()
+            }
+            OutputType::Csv => {
+                let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+                wtr.write_record(["Profile", "Active", "Email", "Workspace"])
+                    .unwrap();
+                for e in &self.0 {
+                    let active = e.is_active.to_string();
+                    let (email, workspace) = match &e.info {
+                        Some(i) => (i.email.as_str(), i.workspace.as_str()),
+                        None => ("", ""),
+                    };
+                    wtr.write_record([e.name.as_str(), active.as_str(), email, workspace])
+                        .unwrap();
+                }
+                String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+            }
+        }
+    }
+}
+
+/// Reports an authentication error and exits.
+///
+/// Every command that touches the credential store funnels its unhandled
+/// authentication errors through here, so a corrupt store or a missing profile
+/// reads the same whichever command hit it, and never surfaces as a `Debug`
+/// dump.
+fn exit_with_authentication_error(e: &AuthenticationError) -> ! {
+    error!("{}", get_authentication_error_message(e));
+    std::process::exit(1);
+}
+
 /// Creates an Authentication instance or exits with a user-friendly error message.
 fn get_authentication() -> Authentication {
     match Authentication::new() {
         Ok(auth) => auth,
-        Err(e) => {
-            error!("{}", get_authentication_error_message(&e));
-            std::process::exit(1);
-        }
+        Err(e) => exit_with_authentication_error(&e),
     }
 }
 
@@ -90,9 +272,26 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token.
-    Login {},
-    /// Logs out and removes the stored token.
-    Logout {},
+    Login {
+        /// Profile name to store the token under. Defaults to the active
+        /// profile, or "default" on a fresh install.
+        #[arg(long)]
+        name: Option<String>,
+        /// Read the token from stdin instead of prompting, for scripts: `echo "$TOKEN" | screenly login --token-stdin`. Implied when stdin is not a terminal.
+        #[arg(long)]
+        token_stdin: bool,
+    },
+    /// Removes a stored authentication profile. Removing the active profile leaves no profile active; other profiles are kept.
+    Logout {
+        /// Profile name to remove. Removes the active profile if not specified.
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Show information about the currently authenticated profile.
+    Me {},
+    /// Manage stored authentication profiles.
+    #[command(subcommand)]
+    Auth(AuthCommands),
     /// Screen related commands.
     #[command(subcommand)]
     Screen(ScreenCommands),
@@ -110,6 +309,18 @@ pub enum Commands {
     /// For generating `docs/CommandLineHelp.md`.
     #[clap(hide = true)]
     PrintHelpMarkdown {},
+}
+
+#[derive(Subcommand)]
+pub enum AuthCommands {
+    /// List stored authentication profiles.
+    List {},
+    /// Switch the active authentication profile.
+    Switch {
+        /// Profile name to activate. If omitted, the available profiles are
+        /// listed and the command exits with an error.
+        name: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -549,13 +760,23 @@ pub fn handle_cli(cli: &Cli) {
     };
 
     match &cli.command {
-        Commands::Login {} => {
-            print!("Enter your API Token: ");
-            std::io::stdout().flush().unwrap();
-            let token = read_password().unwrap();
-            match verify_and_store_token(&token, &Config::default().url) {
+        Commands::Login { name, token_stdin } => {
+            let active = active_profile_name();
+            let resolved_name = resolve_login_name(name.as_deref(), active.as_deref());
+            let token = match read_login_token(*token_stdin) {
+                Ok(token) => token,
+                Err(e) => {
+                    error!("Could not read the API token: {e}");
+                    std::process::exit(1);
+                }
+            };
+            if token.is_empty() {
+                error!("No API token provided. Pipe one in (`echo \"$TOKEN\" | screenly login --token-stdin`) or run `screenly login` on a terminal to be prompted.");
+                std::process::exit(1);
+            }
+            match verify_and_store_token(&token, &resolved_name, &Config::default().url) {
                 Ok(()) => {
-                    info!("Login credentials have been saved.");
+                    info!("Login credentials have been saved under profile '{resolved_name}'.");
                     std::process::exit(0);
                 }
 
@@ -564,10 +785,7 @@ pub fn handle_cli(cli: &Cli) {
                         error!("Token verification failed.");
                         std::process::exit(1);
                     }
-                    _ => {
-                        error!("Error occurred: {e:?}");
-                        std::process::exit(1);
-                    }
+                    _ => exit_with_authentication_error(&e),
                 },
             }
         }
@@ -575,11 +793,105 @@ pub fn handle_cli(cli: &Cli) {
         Commands::Asset(command) => handle_cli_asset_command(command, output),
         Commands::EdgeApp(command) => handle_cli_edge_app_command(command, output),
         Commands::Playlist(command) => handle_cli_playlist_command(command, output),
-        Commands::Logout {} => {
-            Authentication::remove_token().expect("Failed to remove token.");
-            info!("Logout successful.");
-            std::process::exit(0);
+        Commands::Me {} => {
+            let auth = get_authentication();
+            match fetch_profile_info(&auth.token, &auth.config.url) {
+                Ok(info) => {
+                    // read_token() prefers API_TOKEN over the stored profile,
+                    // so the label must follow the same precedence, otherwise
+                    // it names the wrong profile when both are present.
+                    let profile = if api_token_from_env().is_some() {
+                        "(from API_TOKEN env)".to_string()
+                    } else {
+                        active_profile_name().unwrap_or_else(|| "unknown".to_string())
+                    };
+                    let details = ProfileDetails {
+                        profile,
+                        email: info.email,
+                        workspace: info.workspace,
+                    };
+                    handle_command_execution_result(Ok::<_, CommandError>(details), output);
+                }
+                Err(AuthenticationError::WrongCredentials) => {
+                    error!("Token is invalid. Run `screenly login` to update your credentials.");
+                    std::process::exit(1);
+                }
+                Err(e) => {
+                    error!("Failed to fetch profile info: {e}");
+                    std::process::exit(1);
+                }
+            }
         }
+        Commands::Logout { name } => match Authentication::remove_token(name.as_deref()) {
+            Ok(removal) => {
+                info!("Removed profile '{}'.", removal.removed);
+                match &removal.active {
+                    // A non-active profile was removed, so the CLI still
+                    // authenticates as before.
+                    Some(profile) => info!("Active profile is still '{profile}'."),
+                    None if removal.remaining.is_empty() => info!("No profiles remain."),
+                    None => info!(
+                        "No profile is active now. Run `screenly auth switch <name>` to pick one of: {}.",
+                        removal.remaining.join(", ")
+                    ),
+                }
+                std::process::exit(0);
+            }
+            Err(AuthenticationError::NoCredentials) => {
+                error!("Not logged in.");
+                std::process::exit(1);
+            }
+            Err(AuthenticationError::ProfileNotFound(profile)) => {
+                error!("Profile '{profile}' not found.");
+                std::process::exit(1);
+            }
+            Err(e) => exit_with_authentication_error(&e),
+        },
+        Commands::Auth(auth_command) => match auth_command {
+            AuthCommands::List {} => match fetch_profiles_with_info(&Config::default().url) {
+                Ok(entries) => {
+                    handle_command_execution_result(
+                        Ok::<_, CommandError>(ProfilesTable(entries)),
+                        output,
+                    );
+                }
+                Err(e) => exit_with_authentication_error(&e),
+            },
+            AuthCommands::Switch { name } => match name {
+                None => {
+                    // A missing argument is a usage error, so exit non-zero
+                    // (scripts can detect it) but still print the available
+                    // profile names as a hint. Names come from the local store,
+                    // so this needs no network round-trips. Read them before
+                    // reporting the usage error: if the store itself is
+                    // unreadable, that is the only message worth printing.
+                    let profiles = match Authentication::list_profiles() {
+                        Ok(profiles) => profiles,
+                        Err(e) => exit_with_authentication_error(&e),
+                    };
+                    if profiles.is_empty() {
+                        error!("No profiles stored. Run `screenly login` to add one.");
+                        std::process::exit(1);
+                    }
+                    error!("No profile name given. Specify one of the profiles below:");
+                    for profile in profiles {
+                        let marker = if profile.is_active { "*" } else { " " };
+                        println!("{marker} {}", profile.name);
+                    }
+                    std::process::exit(1);
+                }
+                Some(name) => match Authentication::switch_profile(name) {
+                    Ok(()) => {
+                        info!("Switched to profile '{name}'.");
+                    }
+                    Err(AuthenticationError::ProfileNotFound(_)) => {
+                        error!("Profile '{name}' not found.");
+                        std::process::exit(1);
+                    }
+                    Err(e) => exit_with_authentication_error(&e),
+                },
+            },
+        },
         Commands::Mcp {} => {
             handle_cli_mcp_command();
         }
@@ -1239,6 +1551,124 @@ mod tests {
 
     use super::*;
     use crate::authentication::Config;
+
+    #[test]
+    fn test_read_token_line_trims_the_trailing_newline() {
+        // `echo "$TOKEN" |` appends a newline. Storing it would send it in the
+        // Authorization header.
+        let mut input = "tok_abc123\n".as_bytes();
+        assert_eq!(read_token_line(&mut input).unwrap(), "tok_abc123");
+
+        // A here-doc or a Windows-authored file can add a CR too.
+        let mut crlf = "tok_abc123\r\n".as_bytes();
+        assert_eq!(read_token_line(&mut crlf).unwrap(), "tok_abc123");
+
+        // Surrounding whitespace is not part of a token either.
+        let mut padded = "  tok_abc123  \n".as_bytes();
+        assert_eq!(read_token_line(&mut padded).unwrap(), "tok_abc123");
+    }
+
+    #[test]
+    fn test_read_token_line_takes_only_the_first_line() {
+        // Extra lines on stdin must not end up in the token.
+        let mut input = "tok_abc123\nnot_the_token\n".as_bytes();
+        assert_eq!(read_token_line(&mut input).unwrap(), "tok_abc123");
+    }
+
+    #[test]
+    fn test_read_token_line_on_empty_input_is_empty_not_an_error() {
+        // Closed/empty stdin reads as empty, which the caller reports as
+        // "no token provided" rather than failing obscurely.
+        let mut input = "".as_bytes();
+        assert_eq!(read_token_line(&mut input).unwrap(), "");
+    }
+
+    #[test]
+    fn test_resolve_login_name_defaults_to_default_on_fresh_install() {
+        assert_eq!(resolve_login_name(None, None), "default");
+    }
+
+    #[test]
+    fn test_resolve_login_name_honors_explicit_name() {
+        assert_eq!(resolve_login_name(Some("stage"), Some("prod")), "stage");
+    }
+
+    #[test]
+    fn test_resolve_login_name_defaults_to_active_profile() {
+        // Plain `login` with a profile already active updates that profile
+        // rather than failing (the re-login-after-rotation flow).
+        assert_eq!(resolve_login_name(None, Some("prod")), "prod");
+    }
+
+    #[test]
+    fn test_empty_profiles_table_still_renders_machine_formats() {
+        // With no profiles stored, `--output json` must stay parseable and
+        // `--output csv` must keep its header. Only the human-readable form
+        // switches to a hint.
+        let table = ProfilesTable(vec![]);
+
+        assert_eq!(table.format(OutputType::Json), "[]");
+        assert_eq!(
+            table.format(OutputType::Csv),
+            "Profile,Active,Email,Workspace\n"
+        );
+        assert!(table
+            .format(OutputType::HumanReadable)
+            .contains("No profiles stored"));
+    }
+
+    #[test]
+    fn test_format_profiles_table_marks_active_and_shows_placeholders() {
+        use crate::authentication::{ProfileEntry, ProfileInfo};
+
+        // A short name, a non-ASCII name (byte length != display width), and a
+        // profile whose info could not be fetched.
+        let entries = vec![
+            ProfileEntry {
+                name: "a".to_string(),
+                is_active: true,
+                info: Some(ProfileInfo {
+                    email: "x@y.z".to_string(),
+                    workspace: "Team".to_string(),
+                }),
+            },
+            ProfileEntry {
+                name: "staging".to_string(),
+                is_active: false,
+                info: None,
+            },
+            ProfileEntry {
+                name: "работа".to_string(),
+                is_active: false,
+                info: Some(ProfileInfo {
+                    email: "ru@y.z".to_string(),
+                    workspace: "Команда".to_string(),
+                }),
+            },
+        ];
+
+        let table = format_profiles_table(&entries);
+        let lines: Vec<&str> = table.lines().collect();
+
+        // prettytable draws the borders, so every line is the same display
+        // width regardless of how many bytes a name takes.
+        let widths: Vec<usize> = lines.iter().map(|l| l.chars().count()).collect();
+        assert!(
+            widths.windows(2).all(|w| w[0] == w[1]),
+            "ragged table: {widths:?}\n{table}"
+        );
+
+        assert!(table.contains("Active"));
+        assert!(table.contains("Workspace"));
+        // The active profile is marked, the others are not.
+        let row_a = lines.iter().find(|l| l.contains(" a ")).unwrap();
+        assert!(row_a.contains("*"));
+        let row_staging = lines.iter().find(|l| l.contains("staging")).unwrap();
+        assert!(!row_staging.contains("*"));
+        // A profile with no info keeps its row and both columns.
+        assert_eq!(row_staging.matches("(unavailable)").count(), 2);
+        assert!(table.contains("работа"));
+    }
 
     #[test]
     fn test_get_screen_name_should_return_correct_screen_name() {
