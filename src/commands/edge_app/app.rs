@@ -252,7 +252,7 @@ impl EdgeAppCommand {
             .api
             .get_version_asset_signatures(&actual_app_id, revision)?;
         let changed_files = detect_changed_files(&local_files, &remote_files)?;
-        debug!("Changed files: {:?}", &changed_files);
+        debug!("Changed files: {:?}", changed_files);
 
         let remote_settings = self.api.get_settings(&actual_app_id)?;
 
@@ -421,7 +421,7 @@ impl EdgeAppCommand {
             }
             debug!(
                 "ensure_assets_processing_finished: {:?}",
-                &asset_processing_statuses
+                asset_processing_statuses
             );
 
             for asset_processing_status in &asset_processing_statuses {
@@ -554,7 +554,7 @@ impl EdgeAppCommand {
         setting: &Setting,
         prompt_user: bool,
     ) -> Result<(), CommandError> {
-        debug!("Deleting setting: {:?}", &setting.name);
+        debug!("Deleting setting: {:?}", setting.name);
 
         let mut input_name = String::new();
 
@@ -627,7 +627,7 @@ impl EdgeAppCommand {
         path: &Path,
         _pb: &Arc<Mutex<ProgressBar>>,
     ) -> Result<(), CommandError> {
-        let url = format!("{}/v4/assets", &self.api.authentication.config.url);
+        let url = format!("{}/v4/assets", self.api.authentication.config.url);
 
         let mut headers = HeaderMap::new();
         headers.insert("Prefer", "return=representation".parse()?);
@@ -659,7 +659,7 @@ impl EdgeAppCommand {
 
         let status = response.status();
         if status != StatusCode::CREATED {
-            debug!("Response: {:?}", &response.text());
+            debug!("Response: {:?}", response.text());
             return Err(CommandError::WrongResponseStatus(status.as_u16()));
         }
 

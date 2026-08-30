@@ -459,7 +459,7 @@ impl Api {
         payload.insert("app_id".to_owned(), json!(app_id));
         payload.insert("name".to_owned(), json!(setting.name));
 
-        debug!("Creating setting: {:?}", &payload);
+        debug!("Creating setting: {:?}", payload);
         commands::post(&self.authentication, "v4.1/edge-apps/settings", &payload)
     }
 
@@ -468,7 +468,7 @@ impl Api {
         let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
         payload.insert("name".to_owned(), json!(setting.name));
 
-        debug!("Updating setting: {:?}", &payload);
+        debug!("Updating setting: {:?}", payload);
 
         commands::patch(
             &self.authentication,

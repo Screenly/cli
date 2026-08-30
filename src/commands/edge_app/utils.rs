@@ -266,7 +266,7 @@ pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<St
         tree.insert(relative_path.to_owned(), file.signature.clone());
     }
 
-    debug!("File tree: {:?}", &tree);
+    debug!("File tree: {:?}", tree);
 
     tree
 }

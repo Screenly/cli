@@ -20,8 +20,8 @@ jobs:
       docs_command_line_help: ${{ steps.filter.outputs.docs_command_line_help }}
       docs_edge_apps: ${{ steps.filter.outputs.docs_edge_apps }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         id: filter
         with:
           list-files: shell
@@ -40,13 +40,13 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-gnu
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add x86_64-unknown-linux-gnu
 
       - name: Generate documentation
         run: cargo run -- print-help-markdown > /tmp/CommandLineHelp.md

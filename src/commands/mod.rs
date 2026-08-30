@@ -174,7 +174,7 @@ pub fn get(
     authentication: &Authentication,
     endpoint: &str,
 ) -> Result<serde_json::Value, CommandError> {
-    let url = format!("{}/{}", &authentication.config.url, endpoint);
+    let url = format!("{}/{}", authentication.config.url, endpoint);
     debug!("GET {url}");
     let mut headers = HeaderMap::new();
     headers.insert("Prefer", "return=representation".parse()?);
@@ -189,7 +189,7 @@ pub fn get(
     debug!("GET {url} -> {status}");
 
     if status != StatusCode::OK {
-        println!("Response: {:?}", &response.text());
+        println!("Response: {:?}", response.text());
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
     Ok(serde_json::from_str(&response.text()?)?)
@@ -200,7 +200,7 @@ pub fn post<T: Serialize + ?Sized>(
     endpoint: &str,
     payload: &T,
 ) -> Result<serde_json::Value, CommandError> {
-    let url = format!("{}/{}", &authentication.config.url, endpoint);
+    let url = format!("{}/{}", authentication.config.url, endpoint);
     let mut headers = HeaderMap::new();
     headers.insert("Prefer", "return=representation".parse()?);
 
@@ -216,7 +216,7 @@ pub fn post<T: Serialize + ?Sized>(
 
     // Ok, No_Content are acceptable because some of our RPC code returns that.
     if ![StatusCode::CREATED, StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
-        debug!("Response: {:?}", &response.text()?);
+        debug!("Response: {:?}", response.text()?);
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
     if status == StatusCode::NO_CONTENT {
@@ -227,13 +227,13 @@ pub fn post<T: Serialize + ?Sized>(
 }
 
 pub fn delete(authentication: &Authentication, endpoint: &str) -> anyhow::Result<(), CommandError> {
-    let url = format!("{}/{}", &authentication.config.url, endpoint);
+    let url = format!("{}/{}", authentication.config.url, endpoint);
     let response = authentication.build_client()?.delete(url).send()?;
 
     let status = response.status();
 
     if ![StatusCode::OK, StatusCode::NO_CONTENT].contains(&status) {
-        debug!("Response: {:?}", &response.text()?);
+        debug!("Response: {:?}", response.text()?);
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
     Ok(())
@@ -244,7 +244,7 @@ pub fn patch<T: Serialize + ?Sized>(
     endpoint: &str,
     payload: &T,
 ) -> anyhow::Result<serde_json::Value, CommandError> {
-    let url = format!("{}/{}", &authentication.config.url, endpoint);
+    let url = format!("{}/{}", authentication.config.url, endpoint);
     let mut headers = HeaderMap::new();
     headers.insert("Prefer", "return=representation".parse()?);
 
@@ -257,7 +257,7 @@ pub fn patch<T: Serialize + ?Sized>(
 
     let status = response.status();
     if status != StatusCode::OK {
-        debug!("Response: {:?}", &response.text()?);
+        debug!("Response: {:?}", response.text()?);
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
 
