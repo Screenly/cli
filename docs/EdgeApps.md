@@ -826,7 +826,7 @@ This metadata includes:
 
 ## Edge App emulator
 
-After creating your Edge App, you can use the Edge App emulator to test it in your web browser.
+After creating your Edge App, you can use the Edge App emulator to test it in your web browser. Use the emulator (or a Screenly Player) when the app has moving or frequently updating content. Screenly Anywhere serves a screenshot, so those apps will not run live there.
 
 * To do this, open your terminal and navigate to the Edge App directory.
 * Run this command:
