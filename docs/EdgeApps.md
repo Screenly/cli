@@ -214,6 +214,8 @@ $ screenly edge-app instance delete
 
 After creating an instance, navigate to your Screenly web console. You should see the new instance of your Edge App listed in the content section, where you can schedule it as you would with a regular asset.
 
+Dynamic Edge Apps with moving or frequently updating content (animations, clocks, live data, video) will not work properly on Screenly Anywhere. Anywhere uses a screenshot service to display apps and web content, so the screen shows a still image rather than a live, running app. For testing, schedule the instance on a Screenly Player, or run the [Edge App emulator](#edge-app-emulator) locally with `screenly edge-app run`.
+
 ---
 
 #### Instance Manifest
