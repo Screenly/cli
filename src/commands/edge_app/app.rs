@@ -1735,6 +1735,7 @@ mod tests {
             prepare_edge_apps_test(true, false);
 
         let _lock = lock_test();
+        let _env = set_env(OsString::from(EDGE_APP_ID_ENV), "");
         let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
 
         assert_eq!(app_id.unwrap(), manifest.unwrap().id.unwrap());
