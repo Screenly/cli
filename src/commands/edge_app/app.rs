@@ -59,7 +59,7 @@ impl EdgeAppCommand {
 
         if let Some(id) = edge_app_id_from_env() {
             return Err(CommandError::InitializationError(format!(
-                "An Edge App id is already configured via the {EDGE_APP_ID_ENV} environment variable ({id}). 'edge-app create' always creates a new Edge App; unset {EDGE_APP_ID_ENV} first if you want to create a new one, or use 'edge-app deploy' if you meant to deploy to the existing app."
+                "An Edge App id is already configured via the {EDGE_APP_ID_ENV} environment variable ({id}). 'screenly edge-app create' always creates a new Edge App; unset {EDGE_APP_ID_ENV} first if you want to create a new one, or use 'screenly edge-app deploy' if you meant to deploy to the existing app"
             )));
         }
 
@@ -203,7 +203,7 @@ impl EdgeAppCommand {
 
         if let Some(id) = edge_app_id_from_env() {
             return Err(CommandError::InitializationError(format!(
-                "An Edge App id is already configured via the {EDGE_APP_ID_ENV} environment variable ({id}). The operation can only proceed when no Edge App id is already configured; unset {EDGE_APP_ID_ENV} first if you want to create a new Edge App, or use 'edge-app deploy' if you meant to deploy to the existing app."
+                "An Edge App id is already configured via the {EDGE_APP_ID_ENV} environment variable ({id}). The operation can only proceed when no Edge App id is already configured; unset {EDGE_APP_ID_ENV} first if you want to create a new Edge App, or use 'screenly edge-app deploy' if you meant to deploy to the existing app"
             )));
         }
 
