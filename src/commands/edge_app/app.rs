@@ -29,6 +29,8 @@ use crate::commands::edge_app::utils::{
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
 
+const EDGE_APP_ID_ENV: &str = "EDGE_APP_ID";
+
 pub const INJECT_JS_FILE_NAME: &str = "screenly_inject.js";
 
 // Edge apps commands
@@ -699,9 +701,21 @@ impl EdgeAppCommand {
     }
 
     pub fn get_app_id(&self, path: Option<String>) -> Result<String, CommandError> {
+        if let Ok(id) = std::env::var(EDGE_APP_ID_ENV) {
+            let id = id.trim();
+            if !id.is_empty() {
+                return Ok(id.to_string());
+            }
+        }
+
         let edge_app_manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
         match edge_app_manifest.id {
-            Some(id) if !id.is_empty() => Ok(id),
+            Some(id) if !id.is_empty() => {
+                eprintln!(
+                    "Warning: reading the Edge App id from the manifest file is deprecated, set the {EDGE_APP_ID_ENV} environment variable instead."
+                );
+                Ok(id)
+            }
             _ => Err(CommandError::MissingAppId),
         }
     }
@@ -1676,6 +1690,53 @@ mod tests {
         });
 
         assert!(command.delete_app("test-id").is_ok());
+    }
+
+    #[test]
+    fn test_get_app_id_should_prefer_env_var_over_manifest() {
+        let (_temp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
+
+        env::set_var(EDGE_APP_ID_ENV, "01ENVOVERRIDEXXXXXXXXXXXXX");
+        let app_id = command.get_app_id(Some(_temp_dir.path().to_str().unwrap().to_string()));
+        env::remove_var(EDGE_APP_ID_ENV);
+
+        assert_eq!(app_id.unwrap(), "01ENVOVERRIDEXXXXXXXXXXXXX");
+    }
+
+    #[test]
+    fn test_get_app_id_should_fall_back_to_manifest_when_env_var_is_not_set() {
+        let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
+
+        env::remove_var(EDGE_APP_ID_ENV);
+        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
+
+        assert_eq!(app_id.unwrap(), manifest.unwrap().id.unwrap());
+    }
+
+    #[test]
+    fn test_get_app_id_should_trim_whitespace_from_env_var() {
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
+
+        env::set_var(EDGE_APP_ID_ENV, "  01ENVOVERRIDEXXXXXXXXXXXXX  \n");
+        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
+        env::remove_var(EDGE_APP_ID_ENV);
+
+        assert_eq!(app_id.unwrap(), "01ENVOVERRIDEXXXXXXXXXXXXX");
+    }
+
+    #[test]
+    fn test_get_app_id_should_fall_back_to_manifest_when_env_var_is_whitespace_only() {
+        let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
+            prepare_edge_apps_test(true, false);
+
+        env::set_var(EDGE_APP_ID_ENV, "   ");
+        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
+        env::remove_var(EDGE_APP_ID_ENV);
+
+        assert_eq!(app_id.unwrap(), manifest.unwrap().id.unwrap());
     }
 
     #[test]
