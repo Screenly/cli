@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
 use crate::commands;
+use crate::commands::edge_app::app::{edge_app_id_from_env, EDGE_APP_ID_ENV};
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::server::MOCK_DATA_FILENAME;
@@ -996,6 +997,11 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputForm
                             std::process::exit(1);
                         }
                     }
+
+                    if let Some(id) = edge_app_id_from_env() {
+                        eprintln!("Warning: the {EDGE_APP_ID_ENV} environment variable is still set to \"{id}\". Commands will keep using that id until you unset or update it.");
+                    }
+
                     std::process::exit(0);
                 }
                 Err(e) => {
