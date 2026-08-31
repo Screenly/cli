@@ -29,11 +29,11 @@ use crate::commands::edge_app::utils::{
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
 
-pub const EDGE_APP_ID_ENV: &str = "EDGE_APP_ID";
+pub(crate) const EDGE_APP_ID_ENV: &str = "EDGE_APP_ID";
 
 pub const INJECT_JS_FILE_NAME: &str = "screenly_inject.js";
 
-pub fn edge_app_id_from_env() -> Option<String> {
+pub(crate) fn edge_app_id_from_env() -> Option<String> {
     std::env::var(EDGE_APP_ID_ENV).ok().and_then(|id| {
         let trimmed = id.trim();
         if trimmed.is_empty() {
@@ -201,14 +201,14 @@ impl EdgeAppCommand {
             )));
         }
 
-        let data = fs::read_to_string(path)?;
-        let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
-
         if let Some(id) = edge_app_id_from_env() {
             return Err(CommandError::InitializationError(format!(
                 "An Edge App id is already configured via the {EDGE_APP_ID_ENV} environment variable ({id}). The operation can only proceed when no Edge App id is already configured; unset {EDGE_APP_ID_ENV} first if you want to create a new Edge App, or use 'edge-app deploy' if you meant to deploy to the existing app."
             )));
         }
+
+        let data = fs::read_to_string(path)?;
+        let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
         if manifest.id.is_some() {
             return Err(CommandError::InitializationError("The operation can only proceed when 'id' is not set in the 'screenly.yml' configuration file".to_string()));
@@ -1806,6 +1806,36 @@ mod tests {
 
         EdgeAppManifest::save_to_file(&manifest, tmp_dir.path().join("screenly.yml").as_path())
             .unwrap();
+
+        let _lock = lock_test();
+        let _env = set_env(
+            OsString::from(EDGE_APP_ID_ENV),
+            "01ENVOVERRIDEXXXXXXXXXXXXX",
+        );
+        let result = command.create_in_place(
+            "Best app ever",
+            tmp_dir.path().join("screenly.yml").as_path(),
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("EDGE_APP_ID environment variable (01ENVOVERRIDEXXXXXXXXXXXXX)"));
+    }
+
+    #[test]
+    fn test_create_in_place_edge_app_when_env_var_is_set_and_manifest_is_malformed_should_still_return_env_var_error(
+    ) {
+        let (tmp_dir, command, _mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        File::create(tmp_dir.path().join("index.html")).unwrap();
+        fs::write(
+            tmp_dir.path().join("screenly.yml"),
+            "not: [valid, yaml: manifest",
+        )
+        .unwrap();
 
         let _lock = lock_test();
         let _env = set_env(
