@@ -723,8 +723,10 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
+    use std::ffi::OsString;
 
+    use envtestkit::lock::lock_test;
+    use envtestkit::set_env;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use tempfile::tempdir;
 
@@ -1694,12 +1696,15 @@ mod tests {
 
     #[test]
     fn test_get_app_id_should_prefer_env_var_over_manifest() {
-        let (_temp_dir, command, _mock_server, _manifest, _instance_manifest) =
+        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(true, false);
 
-        env::set_var(EDGE_APP_ID_ENV, "01ENVOVERRIDEXXXXXXXXXXXXX");
-        let app_id = command.get_app_id(Some(_temp_dir.path().to_str().unwrap().to_string()));
-        env::remove_var(EDGE_APP_ID_ENV);
+        let _lock = lock_test();
+        let _env = set_env(
+            OsString::from(EDGE_APP_ID_ENV),
+            "01ENVOVERRIDEXXXXXXXXXXXXX",
+        );
+        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
 
         assert_eq!(app_id.unwrap(), "01ENVOVERRIDEXXXXXXXXXXXXX");
     }
@@ -1709,7 +1714,7 @@ mod tests {
         let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
             prepare_edge_apps_test(true, false);
 
-        env::remove_var(EDGE_APP_ID_ENV);
+        let _lock = lock_test();
         let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
 
         assert_eq!(app_id.unwrap(), manifest.unwrap().id.unwrap());
@@ -1720,9 +1725,12 @@ mod tests {
         let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(true, false);
 
-        env::set_var(EDGE_APP_ID_ENV, "  01ENVOVERRIDEXXXXXXXXXXXXX  \n");
+        let _lock = lock_test();
+        let _env = set_env(
+            OsString::from(EDGE_APP_ID_ENV),
+            "  01ENVOVERRIDEXXXXXXXXXXXXX  \n",
+        );
         let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
-        env::remove_var(EDGE_APP_ID_ENV);
 
         assert_eq!(app_id.unwrap(), "01ENVOVERRIDEXXXXXXXXXXXXX");
     }
@@ -1732,9 +1740,9 @@ mod tests {
         let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
             prepare_edge_apps_test(true, false);
 
-        env::set_var(EDGE_APP_ID_ENV, "   ");
+        let _lock = lock_test();
+        let _env = set_env(OsString::from(EDGE_APP_ID_ENV), "   ");
         let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
-        env::remove_var(EDGE_APP_ID_ENV);
 
         assert_eq!(app_id.unwrap(), manifest.unwrap().id.unwrap());
     }
