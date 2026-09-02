@@ -1,8 +1,5 @@
 use std::str;
 
-use log::debug;
-
-use crate::api::edge_app::setting::Setting;
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeAppSettings};
 
@@ -108,39 +105,6 @@ impl EdgeAppCommand {
 
         Ok(())
     }
-
-    pub fn create_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
-        let response = self.api.create_setting(&app_id, setting);
-        if response.is_err() {
-            let c = self.api.get_settings(&app_id)?;
-            debug!("Existing settings: {c:?}");
-            return Err(CommandError::NoChangesToUpload("".to_owned()));
-        }
-
-        Ok(())
-    }
-
-    pub fn update_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
-        let response = self.api.update_setting(&app_id, setting);
-
-        if let Err(error) = response {
-            debug!("Failed to update setting: {}", setting.name);
-            return Err(error);
-        }
-
-        Ok(())
-    }
-
-    pub fn delete_setting(&self, app_id: String, setting: &Setting) -> Result<(), CommandError> {
-        let response = self.api.delete_setting(&app_id, setting);
-
-        if let Err(error) = response {
-            debug!("Failed to delete setting: {}", setting.name);
-            return Err(error);
-        }
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -148,10 +112,9 @@ mod tests {
     use std::env;
 
     use httpmock::Method::{GET, PATCH, POST};
+    use log::debug;
     use serde_json::{json, Value};
 
-    use super::*;
-    use crate::api::edge_app::setting::SettingType;
     use crate::commands::edge_app::test_utils::tests::prepare_edge_apps_test;
 
     #[test]
@@ -861,58 +824,5 @@ mod tests {
         setting_get_is_global_mock.assert();
         setting_mock_get.assert();
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_create_is_global_setting_should_pass_is_global_property() {
-        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, false);
-
-        //  v4/edge-apps/settings?app_id=eq.{}
-        let settings_mock_create = mock_server.mock(|when, then| {
-            when.method(POST)
-                .path("/v4.1/edge-apps/settings")
-                .header("Authorization", "Token token")
-                .header(
-                    "user-agent",
-                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
-                )
-                .json_body(json!({
-                    "name": "ssetting",
-                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                    "type": "secret",
-                    "default_value": "",
-                    "title": "stitle",
-                    "optional": false,
-                    "help_text": "help text",
-                    "is_global": true
-                }));
-            then.status(201).json_body(json!(
-            [{
-                "name": "ssetting",
-                "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
-                "type": "secret",
-                "default_value": "",
-                "title": "stitle",
-                "optional": false,
-                "help_text": "help text",
-                "is_global": true,
-            }]));
-        });
-
-        let setting = Setting {
-            name: "ssetting".to_string(),
-            type_: SettingType::Secret,
-            title: Some("stitle".to_string()),
-            optional: false,
-            default_value: Some("".to_string()),
-            is_global: true,
-            help_text: "help text".to_string(),
-        };
-        command
-            .create_setting("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string(), &setting)
-            .unwrap();
-
-        settings_mock_create.assert();
     }
 }

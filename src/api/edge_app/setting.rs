@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Not;
 use std::str::FromStr;
 
-use log::debug;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use strum::IntoEnumIterator;
@@ -122,53 +121,6 @@ where
         }
     }
 
-    Ok(settings)
-}
-
-pub fn deserialize_settings_from_array<'de, D>(deserializer: D) -> Result<Vec<Setting>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let map: Vec<HashMap<String, Value>> = serde::Deserialize::deserialize(deserializer)?;
-    let mut settings: Vec<Setting> = map
-        .into_iter()
-        .map(|setting_data| {
-            let mut setting = Setting::default();
-            for (key, value) in setting_data {
-                match key.as_str() {
-                    "type" => {
-                        setting.type_ =
-                            deserialize_setting_type(value).expect("Failed to parse setting type.");
-                    }
-                    "default_value" => {
-                        setting.default_value = value.as_str().map(|s| s.to_string());
-                    }
-                    "title" => {
-                        setting.title = value.as_str().map(|s| s.to_string());
-                    }
-                    "optional" => {
-                        setting.optional = value.as_bool().expect("Failed to parse optional.")
-                    }
-                    "help_text" => {
-                        setting.help_text = match value {
-                            Value::String(help_text) => help_text,
-                            other => other.to_string(),
-                        };
-                    }
-                    "is_global" => {
-                        setting.is_global = value.as_bool().expect("Failed to parse is_global.");
-                    }
-                    "name" => {
-                        setting.name = value.as_str().expect("Failed to parse name.").to_string();
-                    }
-                    _ => {}
-                }
-            }
-            setting
-        })
-        .collect();
-
-    settings.sort_by_key(|s| s.name.clone());
     Ok(settings)
 }
 
@@ -356,30 +308,7 @@ pub fn assign_setting_display_orders(settings: &mut [Setting]) {
     }
 }
 
-impl Setting {
-    pub fn new(type_: SettingType, title: &str, name: &str, help_text: &str, global: bool) -> Self {
-        Setting {
-            type_,
-            default_value: None,
-            title: Some(title.to_string()),
-            name: name.to_string(),
-            optional: false,
-            help_text: help_text.to_string(),
-            is_global: global,
-        }
-    }
-}
-
 impl Api {
-    pub fn get_settings(&self, app_id: &str) -> Result<Vec<Setting>, CommandError> {
-        Ok(deserialize_settings_from_array(commands::get(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/settings?select=name,type,default_value,optional,title,help_text&app_id=eq.{app_id}&order=name.asc",
-            ),
-        )?)?)
-    }
-
     pub fn is_setting_global(&self, app_id: &str, setting_key: &str) -> Result<bool, CommandError> {
         let response = commands::get(
             &self.authentication,
@@ -451,46 +380,6 @@ impl Api {
             return Ok(None);
         }
         Ok(Some(settings[0].clone()))
-    }
-
-    pub fn create_setting(&self, app_id: &str, setting: &Setting) -> Result<Value, CommandError> {
-        let value = serde_json::to_value(setting)?;
-        let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
-        payload.insert("app_id".to_owned(), json!(app_id));
-        payload.insert("name".to_owned(), json!(setting.name));
-
-        debug!("Creating setting: {:?}", &payload);
-        commands::post(&self.authentication, "v4.1/edge-apps/settings", &payload)
-    }
-
-    pub fn update_setting(&self, app_id: &str, setting: &Setting) -> Result<Value, CommandError> {
-        let value = serde_json::to_value(setting)?;
-        let mut payload = serde_json::from_value::<HashMap<String, serde_json::Value>>(value)?;
-        payload.insert("name".to_owned(), json!(setting.name));
-
-        debug!("Updating setting: {:?}", &payload);
-
-        commands::patch(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/settings?app_id=eq.{id}&name=eq.{name}",
-                id = app_id,
-                name = setting.name
-            ),
-            &payload,
-        )
-    }
-
-    pub fn delete_setting(&self, app_id: &str, setting: &Setting) -> Result<(), CommandError> {
-        commands::delete(
-            &self.authentication,
-            &format!(
-                "v4.1/edge-apps/settings?app_id=eq.{id}&name=eq.{name}",
-                id = app_id,
-                name = setting.name
-            ),
-        )?;
-        Ok(())
     }
 
     pub fn create_global_setting_value(

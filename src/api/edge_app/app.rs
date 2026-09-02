@@ -1,6 +1,5 @@
-use log::debug;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 
 use crate::api::Api;
 use crate::commands;
@@ -80,13 +79,5 @@ impl Api {
         } else {
             Ok(apps[0].clone())
         }
-    }
-
-    pub fn copy_assets(&self, payload: Value) -> Result<Vec<String>, CommandError> {
-        let response = commands::post(&self.authentication, "v4/edge-apps/copy-assets", &payload)?;
-        let copied_assets = serde_json::from_value::<Vec<String>>(response)?;
-
-        debug!("Copied assets: {copied_assets:?}");
-        Ok(copied_assets)
     }
 }

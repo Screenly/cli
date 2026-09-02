@@ -122,14 +122,10 @@ pub enum CommandError {
     WrongResponseStatus(u16),
     #[error("Required field is missing in the response")]
     MissingField,
-    #[error("Required file is missing in the edge app directory: {0}")]
-    MissingRequiredFile(String),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
     #[error("Invalid header value: {0}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
-    #[error("Cannot upload a new version: {0}")]
-    NoChangesToUpload(String),
     #[error("Strip prefix error: {0}")]
     StripPrefixError(#[from] std::path::StripPrefixError),
     #[error("Filesystem error: {0}")]
@@ -142,18 +138,16 @@ pub enum CommandError {
     InitializationError(String),
     #[error("Asset processing error: {0}")]
     AssetProcessingError(String),
+    #[error("Deploy rejected: {0}")]
+    DeployRejected(String),
     #[error("App id is required in manifest.")]
     MissingAppId,
-    #[error("Edge App Revision {0} not found")]
-    RevisionNotFound(String),
     #[error("Manifest file validation failed with error: {0}")]
     InvalidManifest(String),
     #[error("Edge App Manifest (screenly.yml) doesn't exist under provided path: {0}. Enter a valid command line --path parameter or invoke command in a directory containing Edge App Manifest")]
     MisingManifest(String),
     #[error("Setting does not exist: {0}.")]
     SettingDoesNotExist(String),
-    #[error("Wrong setting name: {0}.")]
-    WrongSettingName(String),
     #[error("Failed to open browser")]
     OpenBrowserError(String),
     #[error("Instance already exists")]
