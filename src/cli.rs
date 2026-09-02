@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::authentication::{verify_and_store_token, Authentication, AuthenticationError, Config};
 use crate::commands;
+use crate::commands::edge_app::app::app_id_override;
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::EdgeAppManifest;
 use crate::commands::edge_app::server::MOCK_DATA_FILENAME;
@@ -923,7 +924,7 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputForm
         EdgeAppCommands::Deploy {
             path,
             delete_missing_settings,
-        } => match edge_app_command.deploy(path.clone(), *delete_missing_settings) {
+        } => match edge_app_command.deploy(None, path.clone(), *delete_missing_settings) {
             Ok(revision) => {
                 println!("Edge App successfully deployed. Revision: {revision}.");
             }
@@ -986,15 +987,18 @@ pub fn handle_cli_edge_app_command(command: &EdgeAppCommands, output: OutputForm
                         }
                     };
 
-                    // If the user didn't specify an app id, we need to clear it from the manifest
-                    match edge_app_command.clear_app_id(manifest_path.as_path()) {
-                        Ok(()) => {
-                            println!("App id cleared from manifest.");
+                    if app_id_override().is_none() {
+                        match edge_app_command.clear_app_id(manifest_path.as_path()) {
+                            Ok(()) => {
+                                println!("App id cleared from manifest.");
+                            }
+                            Err(e) => {
+                                error!("Error occurred while clearing manifest: {e}");
+                                std::process::exit(1);
+                            }
                         }
-                        Err(e) => {
-                            error!("Error occurred while clearing manifest: {e}");
-                            std::process::exit(1);
-                        }
+                    } else {
+                        println!("Skipping manifest cleanup: the deleted app's id came from the EDGE_APP_ID environment variable, not the manifest.");
                     }
                     std::process::exit(0);
                 }

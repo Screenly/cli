@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 
 use crate::authentication::Authentication;
 use crate::commands;
+use crate::commands::edge_app::app::app_id_override;
 use crate::commands::edge_app::manifest::{
     EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
 };
@@ -279,10 +280,11 @@ impl EdgeAppTools {
         let app_id = EdgeAppManifest::new(&manifest_path)
             .map_err(|e| format!("Failed to read Edge App id: {}", e))?
             .id
+            .or_else(app_id_override)
             .ok_or_else(|| "Edge App id missing after create".to_string())?;
 
         let revision = command
-            .deploy(Some(path), Some(false))
+            .deploy(Some(app_id.clone()), Some(path), Some(false))
             .map_err(|e| format!("Failed to deploy Edge App: {}", e))?;
 
         // Create/deploy already happened. Instance + local memory must not hide app_id.

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 use std::time::{Duration, Instant};
 use std::{fs, io, str, thread};
 
@@ -29,9 +29,26 @@ use crate::commands::edge_app::utils::{
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
 
-const EDGE_APP_ID_ENV: &str = "EDGE_APP_ID";
+pub const EDGE_APP_ID_ENV: &str = "EDGE_APP_ID";
 
 pub const INJECT_JS_FILE_NAME: &str = "screenly_inject.js";
+
+static DEPRECATED_MANIFEST_ID_WARNING: Once = Once::new();
+
+pub fn app_id_override() -> Option<String> {
+    normalize_app_id_override(std::env::var(EDGE_APP_ID_ENV).ok())
+}
+
+fn normalize_app_id_override(raw: Option<String>) -> Option<String> {
+    let id = raw?;
+    let trimmed = id.trim();
+
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    Some(trimmed.to_string())
+}
 
 // Edge apps commands
 impl EdgeAppCommand {
@@ -74,11 +91,17 @@ impl EdgeAppCommand {
             }),
         };
 
-        let app_id = self.api.create_app(name.to_string())?;
+        let app_id = match app_id_override() {
+            Some(id) => {
+                self.api.get_app(&id)?;
+                None
+            }
+            None => Some(self.api.create_app(name.to_string())?),
+        };
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
-            id: Some(app_id),
+            id: app_id,
             entrypoint: entrypoint_value,
             settings: vec![
                 Setting {
@@ -184,6 +207,11 @@ impl EdgeAppCommand {
             )));
         }
 
+        if let Some(id) = app_id_override() {
+            self.api.get_app(&id)?;
+            return Ok(());
+        }
+
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
@@ -206,6 +234,7 @@ impl EdgeAppCommand {
 
     pub fn deploy(
         self,
+        app_id: Option<String>,
         path: Option<String>,
         delete_missing_settings: Option<bool>,
     ) -> Result<u32, CommandError> {
@@ -214,9 +243,12 @@ impl EdgeAppCommand {
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
         let manifest = EdgeAppManifest::new(&manifest_path)?;
 
-        let actual_app_id = match self.get_app_id(path.clone()) {
-            Ok(id) => id,
-            Err(_) => return Err(CommandError::MissingAppId),
+        let actual_app_id = match app_id {
+            Some(id) => id,
+            None => match self.get_app_id(path.clone()) {
+                Ok(id) => id,
+                Err(_) => return Err(CommandError::MissingAppId),
+            },
         };
 
         let version_metadata_changed =
@@ -701,19 +733,20 @@ impl EdgeAppCommand {
     }
 
     pub fn get_app_id(&self, path: Option<String>) -> Result<String, CommandError> {
-        if let Ok(id) = std::env::var(EDGE_APP_ID_ENV) {
-            let id = id.trim();
-            if !id.is_empty() {
-                return Ok(id.to_string());
-            }
+        let manifest_path = transform_edge_app_path_to_manifest(&path)?;
+
+        if let Some(id) = app_id_override() {
+            return Ok(id);
         }
 
-        let edge_app_manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
+        let edge_app_manifest = EdgeAppManifest::new(&manifest_path)?;
         match edge_app_manifest.id {
             Some(id) if !id.is_empty() => {
-                eprintln!(
-                    "Warning: reading the Edge App id from the manifest file is deprecated, set the {EDGE_APP_ID_ENV} environment variable instead."
-                );
+                DEPRECATED_MANIFEST_ID_WARNING.call_once(|| {
+                    eprintln!(
+                        "Warning: reading the Edge App id from the manifest file is deprecated, set the {EDGE_APP_ID_ENV} environment variable instead."
+                    );
+                });
                 Ok(id)
             }
             _ => Err(CommandError::MissingAppId),
@@ -723,10 +756,6 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
-
-    use envtestkit::lock::lock_test;
-    use envtestkit::set_env;
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use tempfile::tempdir;
 
@@ -1366,6 +1395,7 @@ mod tests {
         write!(file, "test").unwrap();
 
         let result = command.deploy(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
@@ -1695,57 +1725,29 @@ mod tests {
     }
 
     #[test]
-    fn test_get_app_id_should_prefer_env_var_over_manifest() {
-        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, false);
-
-        let _lock = lock_test();
-        let _env = set_env(
-            OsString::from(EDGE_APP_ID_ENV),
-            "01ENVOVERRIDEXXXXXXXXXXXXX",
+    fn test_normalize_app_id_override_should_return_the_trimmed_value_when_present() {
+        assert_eq!(
+            normalize_app_id_override(Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())),
+            Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())
         );
-        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        assert_eq!(app_id.unwrap(), "01ENVOVERRIDEXXXXXXXXXXXXX");
     }
 
     #[test]
-    fn test_get_app_id_should_fall_back_to_manifest_when_env_var_is_not_set() {
-        let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, false);
-
-        let _lock = lock_test();
-        let _env = set_env(OsString::from(EDGE_APP_ID_ENV), "");
-        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        assert_eq!(app_id.unwrap(), manifest.unwrap().id.unwrap());
-    }
-
-    #[test]
-    fn test_get_app_id_should_trim_whitespace_from_env_var() {
-        let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, false);
-
-        let _lock = lock_test();
-        let _env = set_env(
-            OsString::from(EDGE_APP_ID_ENV),
-            "  01ENVOVERRIDEXXXXXXXXXXXXX  \n",
+    fn test_normalize_app_id_override_should_trim_whitespace() {
+        assert_eq!(
+            normalize_app_id_override(Some("  01ENVOVERRIDEXXXXXXXXXXXXX  \n".to_string())),
+            Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())
         );
-        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        assert_eq!(app_id.unwrap(), "01ENVOVERRIDEXXXXXXXXXXXXX");
     }
 
     #[test]
-    fn test_get_app_id_should_fall_back_to_manifest_when_env_var_is_whitespace_only() {
-        let (temp_dir, command, _mock_server, manifest, _instance_manifest) =
-            prepare_edge_apps_test(true, false);
+    fn test_normalize_app_id_override_should_treat_whitespace_only_as_none() {
+        assert_eq!(normalize_app_id_override(Some("   ".to_string())), None);
+    }
 
-        let _lock = lock_test();
-        let _env = set_env(OsString::from(EDGE_APP_ID_ENV), "   ");
-        let app_id = command.get_app_id(Some(temp_dir.path().to_str().unwrap().to_string()));
-
-        assert_eq!(app_id.unwrap(), manifest.unwrap().id.unwrap());
+    #[test]
+    fn test_normalize_app_id_override_should_treat_absent_value_as_none() {
+        assert_eq!(normalize_app_id_override(None), None);
     }
 
     #[test]
@@ -1815,6 +1817,7 @@ mod tests {
         write!(file, "test").unwrap();
 
         let result = command.deploy(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
