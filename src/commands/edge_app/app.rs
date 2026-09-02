@@ -12,7 +12,7 @@ use reqwest::StatusCode;
 use serde_yaml;
 
 use crate::api::edge_app::deploy::{describe_failed_files, DeployPayload, FailedFile};
-use crate::api::edge_app::setting::{Setting, SettingType};
+use crate::api::edge_app::setting::{assign_setting_display_orders, Setting, SettingType};
 use crate::commands::edge_app::instance_manifest::InstanceManifest;
 use crate::commands::edge_app::manifest::{
     EdgeAppManifest, Entrypoint, EntrypointType, MANIFEST_VERSION,
@@ -178,7 +178,8 @@ impl EdgeAppCommand {
         let manifest_path = transform_edge_app_path_to_manifest(&path)?;
 
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
-        let manifest = EdgeAppManifest::new(&manifest_path)?;
+        let mut manifest = EdgeAppManifest::new(&manifest_path)?;
+        assign_setting_display_orders(&mut manifest.settings);
 
         let actual_app_id = self
             .get_app_id(path.clone())
@@ -564,16 +565,6 @@ mod tests {
             manifest.settings,
             vec![
                 Setting {
-                    name: "greeting".to_string(),
-                    title: Some("greeting title".to_string()),
-                    type_: SettingType::String,
-                    default_value: Some("Unknown".to_string()),
-                    optional: true,
-                    is_global: false,
-                    help_text: "An example of a string setting that is used in index.html"
-                        .to_string(),
-                },
-                Setting {
                     name: "secret_word".to_string(),
                     title: Some("secret title".to_string()),
                     type_: SettingType::Secret,
@@ -581,6 +572,16 @@ mod tests {
                     optional: true,
                     is_global: false,
                     help_text: "An example of a secret setting that is used in index.html"
+                        .to_string(),
+                },
+                Setting {
+                    name: "greeting".to_string(),
+                    title: Some("greeting title".to_string()),
+                    type_: SettingType::String,
+                    default_value: Some("Unknown".to_string()),
+                    optional: true,
+                    is_global: false,
+                    help_text: "An example of a string setting that is used in index.html"
                         .to_string(),
                 }
             ]
@@ -829,7 +830,8 @@ mod tests {
         let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(false, false);
 
-        let manifest = write_deployable_edge_app(temp_dir.path());
+        let mut manifest = write_deployable_edge_app(temp_dir.path());
+        assign_setting_display_orders(&mut manifest.settings);
         let expected_payload = json!({
             "manifest": serde_json::to_value(&manifest).unwrap(),
             "file_tree": { "index.html": INDEX_HTML_SIGNATURE },
