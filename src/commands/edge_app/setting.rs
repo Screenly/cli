@@ -14,6 +14,7 @@ impl EdgeAppCommand {
 
     pub fn set_setting(
         &self,
+        app_id: Option<String>,
         path: Option<String>,
         setting_key: &str,
         setting_value: &str,
@@ -23,9 +24,12 @@ impl EdgeAppCommand {
             Some(id) => id.clone(),
             None => "".to_string(),
         };
-        let app_id: String = match self.get_app_id(path.clone()) {
-            Ok(id) => id,
-            Err(_) => return Err(CommandError::MissingAppId),
+        let app_id: String = match app_id {
+            Some(id) => id,
+            None => match self.get_app_id(path.clone()) {
+                Ok(id) => id,
+                Err(_) => return Err(CommandError::MissingAppId),
+            },
         };
 
         let _is_setting_global = self.api.is_setting_global(&app_id, setting_key)?;
@@ -345,6 +349,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(tmp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value",
@@ -429,6 +434,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(tmp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value1",
@@ -513,6 +519,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value1",
@@ -591,6 +598,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value1",
@@ -623,6 +631,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value1",
@@ -705,6 +714,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_secret_setting",
             "best_secret_value",
@@ -786,6 +796,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_secret_setting",
             "best_secret_value",
@@ -853,6 +864,7 @@ mod tests {
         });
 
         let result = command.set_setting(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             "best_setting",
             "best_value",
