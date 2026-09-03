@@ -70,7 +70,7 @@ impl EdgeAppCommand {
                 .update_installation_name(&installation_id, &instance_manifest.name)?;
         }
 
-        self.update_entrypoint_value(path)?;
+        self.update_entrypoint_value(None, path)?;
 
         Ok(())
     }

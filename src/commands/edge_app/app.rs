@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Once};
 use std::time::{Duration, Instant};
 use std::{fs, io, str, thread};
 
@@ -29,7 +29,26 @@ use crate::commands::edge_app::utils::{
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
 
+pub const EDGE_APP_ID_ENV: &str = "EDGE_APP_ID";
+
 pub const INJECT_JS_FILE_NAME: &str = "screenly_inject.js";
+
+static DEPRECATED_MANIFEST_ID_WARNING: Once = Once::new();
+
+pub fn app_id_override() -> Option<String> {
+    normalize_app_id_override(std::env::var(EDGE_APP_ID_ENV).ok())
+}
+
+fn normalize_app_id_override(raw: Option<String>) -> Option<String> {
+    let id = raw?;
+    let trimmed = id.trim();
+
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    Some(trimmed.to_string())
+}
 
 // Edge apps commands
 impl EdgeAppCommand {
@@ -72,11 +91,17 @@ impl EdgeAppCommand {
             }),
         };
 
-        let app_id = self.api.create_app(name.to_string())?;
+        let app_id = match app_id_override() {
+            Some(id) => {
+                self.api.get_app(&id)?;
+                None
+            }
+            None => Some(self.api.create_app(name.to_string())?),
+        };
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
-            id: Some(app_id),
+            id: app_id,
             entrypoint: entrypoint_value,
             settings: vec![
                 Setting {
@@ -182,6 +207,11 @@ impl EdgeAppCommand {
             )));
         }
 
+        if let Some(id) = app_id_override() {
+            self.api.get_app(&id)?;
+            return Ok(());
+        }
+
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
@@ -204,6 +234,7 @@ impl EdgeAppCommand {
 
     pub fn deploy(
         self,
+        app_id: Option<String>,
         path: Option<String>,
         delete_missing_settings: Option<bool>,
     ) -> Result<u32, CommandError> {
@@ -212,9 +243,12 @@ impl EdgeAppCommand {
         EdgeAppManifest::ensure_manifest_is_valid(&manifest_path)?;
         let manifest = EdgeAppManifest::new(&manifest_path)?;
 
-        let actual_app_id = match self.get_app_id(path.clone()) {
-            Ok(id) => id,
-            Err(_) => return Err(CommandError::MissingAppId),
+        let actual_app_id = match app_id {
+            Some(id) => id,
+            None => match self.get_app_id(path.clone()) {
+                Ok(id) => id,
+                Err(_) => return Err(CommandError::MissingAppId),
+            },
         };
 
         let version_metadata_changed =
@@ -265,7 +299,7 @@ impl EdgeAppCommand {
             changed_settings,
         )?;
 
-        self.update_entrypoint_value(path.clone())?;
+        self.update_entrypoint_value(Some(actual_app_id.clone()), path.clone())?;
 
         let file_tree = generate_file_tree(&local_files, edge_app_dir);
 
@@ -283,8 +317,11 @@ impl EdgeAppCommand {
             || version_metadata_changed;
 
         let final_revision = if needs_new_version {
-            let revision =
-                self.create_version(&manifest, generate_file_tree(&local_files, edge_app_dir))?;
+            let revision = self.create_version(
+                &actual_app_id,
+                &manifest,
+                generate_file_tree(&local_files, edge_app_dir),
+            )?;
 
             self.upload_changed_files(edge_app_dir, &actual_app_id, revision, &changed_files)?;
             debug!("Files uploaded");
@@ -363,7 +400,11 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn update_entrypoint_value(&self, path: Option<String>) -> Result<(), CommandError> {
+    pub fn update_entrypoint_value(
+        &self,
+        app_id: Option<String>,
+        path: Option<String>,
+    ) -> Result<(), CommandError> {
         let manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
         let setting_key = "screenly_entrypoint";
 
@@ -374,7 +415,7 @@ impl EdgeAppCommand {
                         Some(ref uri) => uri.clone(),
                         None => "".to_owned(),
                     };
-                    self.set_setting(path, setting_key, &setting_value)?;
+                    self.set_setting(app_id.clone(), path, setting_key, &setting_value)?;
                 }
                 EntrypointType::RemoteLocal => {
                     let instance_manifest = InstanceManifest::new(
@@ -384,7 +425,7 @@ impl EdgeAppCommand {
                         Some(ref uri) => uri.clone(),
                         None => "".to_owned(),
                     };
-                    self.set_setting(path, setting_key, &setting_value)?;
+                    self.set_setting(app_id.clone(), path, setting_key, &setting_value)?;
                 }
                 _ => {}
             }
@@ -476,10 +517,12 @@ impl EdgeAppCommand {
 
     fn create_version(
         &self,
+        app_id: &str,
         manifest: &EdgeAppManifest,
         file_tree: HashMap<String, String>,
     ) -> Result<u32, CommandError> {
         let mut json = EdgeAppManifest::prepare_payload(manifest);
+        json.insert("app_id", json!(app_id));
         json.insert("file_tree", json!(file_tree));
 
         self.api.create_version(json)
@@ -699,9 +742,22 @@ impl EdgeAppCommand {
     }
 
     pub fn get_app_id(&self, path: Option<String>) -> Result<String, CommandError> {
-        let edge_app_manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
+        let manifest_path = transform_edge_app_path_to_manifest(&path)?;
+
+        if let Some(id) = app_id_override() {
+            return Ok(id);
+        }
+
+        let edge_app_manifest = EdgeAppManifest::new(&manifest_path)?;
         match edge_app_manifest.id {
-            Some(id) if !id.is_empty() => Ok(id),
+            Some(id) if !id.is_empty() => {
+                DEPRECATED_MANIFEST_ID_WARNING.call_once(|| {
+                    eprintln!(
+                        "Warning: reading the Edge App id from the manifest file is deprecated, set the {EDGE_APP_ID_ENV} environment variable instead."
+                    );
+                });
+                Ok(id)
+            }
             _ => Err(CommandError::MissingAppId),
         }
     }
@@ -709,8 +765,6 @@ impl EdgeAppCommand {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-
     use httpmock::Method::{DELETE, GET, PATCH, POST};
     use tempfile::tempdir;
 
@@ -1350,11 +1404,350 @@ mod tests {
         write!(file, "test").unwrap();
 
         let result = command.deploy(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
 
         // get_entrypoint_mock.assert();
+        last_versions_mock.assert_calls(2);
+        assets_mock.assert();
+        file_tree_from_version_mock.assert();
+        settings_mock.assert();
+        create_version_mock.assert();
+        settings_mock_create.assert();
+        settings_mock_patch.assert();
+        settings_mock_delete.assert();
+        upload_assets_mock.assert();
+        finished_processing_mock.assert();
+        publish_mock.assert();
+        copy_assets_mock.assert();
+        get_version_mock.assert();
+        promote_mock.assert();
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_deploy_with_explicit_app_id_and_no_manifest_id_should_send_correct_requests() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        let mut manifest = create_edge_app_manifest_for_test(vec![
+            Setting {
+                name: "asetting".to_string(),
+                type_: SettingType::String,
+                title: Some("atitle".to_string()),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+            Setting {
+                name: "nsetting".to_string(),
+                type_: SettingType::String,
+                title: Some("ntitle".to_string()),
+                optional: false,
+                default_value: Some("".to_string()),
+                is_global: false,
+                help_text: "help text".to_string(),
+            },
+        ]);
+
+        manifest.id = None;
+        manifest.user_version = None;
+        manifest.author = None;
+        manifest.entrypoint = None;
+
+        let last_versions_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4.1/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param(
+                    "select",
+                    "user_version,description,icon,author,homepage_url,categories,revision,ready_signal",
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("order", "revision.desc")
+                .query_param("limit", "1");
+            then.status(200).json_body(json!([
+                {
+                    "user_version": "1",
+                    "description": "desc",
+                    "icon": "icon",
+                    "author": "author",
+                    "homepage_url": "homepage_url",
+                    "categories": [],
+                    "ready_signal": false,
+                    "revision": 7,
+                }
+            ]));
+        });
+
+        let assets_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "signature")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_revision", "eq.7")
+                .query_param("type", "eq.edge-app-file");
+            then.status(200).json_body(json!([{"signature": "sig"}]));
+        });
+
+        let file_tree_from_version_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.7")
+                .query_param("select", "file_tree");
+            then.status(200).json_body(json!([{"index.html": "sig"}]));
+        });
+
+        let settings_mock = mock_server.mock(|when, then| {
+                when.method(GET)
+                    .path("/v4.1/edge-apps/settings")
+                    .header("Authorization", "Token token")
+                    .header(
+                        "user-agent",
+                        format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                    )
+                    .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                    .query_param("select", "name,type,default_value,optional,title,help_text")
+                    .query_param("order", "name.asc");
+                then.status(200).json_body(json!([{
+                    "name": "nsetting".to_string(),
+                    "type": SettingType::String,
+                    "default_value": "5".to_string(),
+                    "title": "ntitle".to_string(),
+                    "optional": true,
+                    "help_text": "For how long to display the map overlay every time the rover has moved to a new position.".to_string(),
+                    "is_global": false,
+                }, {
+                    "name": "isetting".to_string(),
+                    "type": SettingType::String,
+                    "default_value": "5".to_string(),
+                    "title": null,
+                    "optional": true,
+                    "help_text": "Some text".to_string(),
+                    "is_global": false,
+                }]));
+            });
+
+        let create_version_mock = mock_server.mock(|when, then| {
+                when.method(POST)
+                    .path("/v4/edge-apps/versions")
+                    .header("Authorization", "Token token")
+                    .header(
+                        "user-agent",
+                        format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                    )
+                    .json_body(json!({
+                        "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                        "description": "asdf",
+                        "icon": "asdf",
+                        "homepage_url": "asdfasdf",
+                        "categories": ["Utilities", "Dashboards"],
+                        "file_tree": {
+                            "index.html": "0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"
+                        },
+                        "ready_signal": false,
+                    }));
+                then.status(201).json_body(json!([{"revision": 8}]));
+            });
+
+        let settings_mock_create = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .json_body(json!({
+                    "name": "asetting",
+                    "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                    "type": "string",
+                    "default_value": "",
+                    "title": "atitle",
+                    "optional": false,
+                    "help_text": {
+                        "schema_version": 1,
+                        "properties": {
+                            "help_text": "help text",
+                            "display_order": 0,
+                        },
+                    },
+                }));
+            then.status(201).json_body(json!(
+            [{
+                "name": "asetting",
+                "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                "type": "string",
+                "default_value": "",
+                "title": "atitle",
+                "optional": false,
+                "help_text": "help text",
+            }]));
+        });
+
+        let settings_mock_patch = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.nsetting")
+                .json_body(json!({
+                    "name": "nsetting",
+                    "type": "string",
+                    "default_value": "",
+                    "title": "ntitle",
+                    "optional": false,
+                    "help_text": {
+                        "schema_version": 1,
+                        "properties": {
+                            "help_text": "help text",
+                            "display_order": 1,
+                        },
+                    },
+                }));
+            then.status(200).json_body(json!(
+            [{
+                "name": "nsetting",
+                "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                "type": "string",
+                "default_value": "",
+                "title": "ntitle",
+                "optional": false,
+                "help_text": "help text",
+            }]));
+        });
+
+        let settings_mock_delete = mock_server.mock(|when, then| {
+            when.method(DELETE)
+                .path("/v4.1/edge-apps/settings")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("name", "eq.isetting");
+            then.status(204).json_body(json!({}));
+        });
+
+        let copy_assets_mock = mock_server.mock(|when, then| {
+                when.method(POST)
+                    .path("/v4/edge-apps/copy-assets")
+                    .header("Authorization", "Token token")
+                    .header(
+                        "user-agent",
+                        format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                    ).json_body(json!({
+                        "app_id": "01H2QZ6Z8WXWNDC0KQ198XCZEW",
+                        "revision": 8,
+                        "signatures": ["0a209f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08122086cebd0c365d241e32d5b0972c07aae3a8d6499c2a9471aa85943a35577200021a180a14a94a8fe5ccb19ba61c4c0873d391e987982fbbd31000"]
+                    }));
+                then.status(201).json_body(json!([]));
+            });
+
+        let upload_assets_mock = mock_server.mock(|when, then| {
+            when.method(POST).path("/v4/assets");
+            then.status(201).body("");
+        });
+        let finished_processing_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/assets")
+                .query_param("select", "status,processing_error,title")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("app_revision", "eq.8")
+                .query_param("status", "neq.finished");
+            then.status(200).json_body(json!([]));
+        });
+
+        let publish_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.8")
+                .json_body(json!({"published": true }));
+            then.status(200);
+        });
+
+        let get_version_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/edge-apps/versions")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("select", "revision")
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("revision", "eq.8");
+
+            then.status(200).json_body(json!([
+                {
+                    "revision": 8,
+                }
+            ]));
+        });
+
+        let promote_mock = mock_server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v4/edge-apps/channels")
+                .header("Authorization", "Token token")
+                .header(
+                    "user-agent",
+                    format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
+                )
+                .query_param("app_id", "eq.01H2QZ6Z8WXWNDC0KQ198XCZEW")
+                .query_param("channel", "eq.stable")
+                .query_param("select", "channel,app_revision")
+                .json_body(json!({
+                    "app_revision": 8,
+                }));
+            then.status(200).json_body(json!([
+                {
+                    "channel": "stable",
+                    "app_revision": 8
+                }
+            ]));
+        });
+
+        EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+            .unwrap();
+        let mut file = File::create(temp_dir.path().join("index.html")).unwrap();
+        write!(file, "test").unwrap();
+
+        let result = command.deploy(
+            Some("01H2QZ6Z8WXWNDC0KQ198XCZEW".to_string()),
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            Some(true),
+        );
+
         last_versions_mock.assert_calls(2);
         assets_mock.assert();
         file_tree_from_version_mock.assert();
@@ -1679,6 +2072,32 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_app_id_override_should_return_the_trimmed_value_when_present() {
+        assert_eq!(
+            normalize_app_id_override(Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())),
+            Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_app_id_override_should_trim_whitespace() {
+        assert_eq!(
+            normalize_app_id_override(Some("  01ENVOVERRIDEXXXXXXXXXXXXX  \n".to_string())),
+            Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_app_id_override_should_treat_whitespace_only_as_none() {
+        assert_eq!(normalize_app_id_override(Some("   ".to_string())), None);
+    }
+
+    #[test]
+    fn test_normalize_app_id_override_should_treat_absent_value_as_none() {
+        assert_eq!(normalize_app_id_override(None), None);
+    }
+
+    #[test]
     fn test_clear_app_id_should_remove_app_id_from_manifest() {
         let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(true, false);
@@ -1745,6 +2164,7 @@ mod tests {
         write!(file, "test").unwrap();
 
         let result = command.deploy(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
@@ -2101,8 +2521,8 @@ mod tests {
         )
         .unwrap();
 
-        let result =
-            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+        let result = command
+            .update_entrypoint_value(None, Some(temp_dir.path().to_str().unwrap().to_string()));
 
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
@@ -2192,8 +2612,8 @@ mod tests {
         )
         .unwrap();
 
-        let result =
-            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+        let result = command
+            .update_entrypoint_value(None, Some(temp_dir.path().to_str().unwrap().to_string()));
 
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
@@ -2288,8 +2708,8 @@ mod tests {
         )
         .unwrap();
 
-        let result =
-            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+        let result = command
+            .update_entrypoint_value(None, Some(temp_dir.path().to_str().unwrap().to_string()));
 
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
