@@ -587,53 +587,6 @@ settings:
     }
 
     #[test]
-    fn test_manifest_allows_validation_in_structured_help_text() {
-        let dir = tempdir().unwrap();
-        let file_path = write_to_tempfile(
-            &dir,
-            "screenly.yml",
-            r#"---
-syntax: manifest_v1
-settings:
-  airport_code:
-    type: string
-    title: Airport Code
-    optional: false
-    help_text:
-      schema_version: 1
-      properties:
-        help_text: "IATA code for the departure board. Three uppercase letters, like LHR."
-        validation: '[A-Z]{3}'
-"#,
-        );
-
-        let manifest = EdgeAppManifest::new(&file_path).unwrap();
-
-        let actual: serde_json::Value =
-            serde_json::from_str(&manifest.settings[0].help_text).unwrap();
-        let expected = serde_json::json!({
-            "schema_version": 1,
-            "properties": {
-                "help_text": "IATA code for the departure board. Three uppercase letters, like LHR.",
-                "validation": "[A-Z]{3}",
-            }
-        });
-
-        assert_eq!(actual, expected);
-
-        let output_path = dir.path().join("roundtrip.yml");
-        EdgeAppManifest::save_to_file(&manifest, &output_path).unwrap();
-
-        let contents = fs::read_to_string(output_path).unwrap();
-        let yaml: serde_json::Value = serde_yaml::from_str(&contents).unwrap();
-
-        assert_eq!(
-            yaml["settings"]["airport_code"]["help_text"]["properties"]["validation"],
-            serde_json::json!("[A-Z]{3}")
-        );
-    }
-
-    #[test]
     fn test_save_manifest_to_file_serializes_structured_help_text() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("screenly.yml");

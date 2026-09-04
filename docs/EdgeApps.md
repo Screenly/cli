@@ -491,7 +491,7 @@ Edge App settings support additional input field types beyond plain text and pas
   - `properties.options` (only for `select`): Array of `{ label, value }` options.
   - `properties.display_order`: Optional integer controlling the order settings render in the install/edit UI (ascending). If omitted, `screenly edge-app deploy` auto-assigns one from the setting's position in the manifest's `settings:` mapping, so settings render in declaration order by default. Set an explicit value only to override that default. An explicitly authored `display_order` is never overwritten by the automatic assignment. Note that `deploy` only sends the computed order to the backend; it never rewrites your manifest file.
   - `properties.depends_on`: Optional `{ setting, values }` object that makes this field's visibility depend on another setting's current value. The field only renders (and is submitted) while `setting`'s current value is one of `values`, otherwise it's hidden and skipped. A malformed or stale reference (a typo in `setting`, or a setting later renamed or removed) fails open, so the field stays visible rather than disappearing. A field with `depends_on` can still be marked `optional: false`; its required-ness is only enforced while the field is visible, and is skipped along with the rest of validation while it's hidden.
-  - `properties.validation`: Optional regular expression the value must match. The pattern is implicitly anchored to a full match (`[A-Z]{3}` means the whole value is three uppercase letters, not that it contains them somewhere). An empty value on an optional field skips this check; on a required field the required check takes precedence. This is enforced by the dashboard only, on blur and on save; it is not enforced by the CLI or the API, so an Edge App must still treat setting values as untrusted input.
+  - `properties.validation`: Optional regular expression the value must match. The pattern is implicitly anchored to a full match (`[A-Z]{3}` means the whole value is three uppercase letters, not that it contains them somewhere); write it explicitly anchored (`^[A-Z]{3}$`) anyway, since that's correct regardless of how the anchoring is implemented. An empty value on an optional field skips this check; on a required field the required check takes precedence. Not supported on `select` or `boolean` fields, since the widget itself already constrains the value; there's no deploy-time check, so `validation` on those types is silently ignored rather than rejected. This is enforced by the dashboard only, on blur and on save; it is not enforced by the CLI or the API, so an Edge App must still treat setting values as untrusted input.
 - **Storage**: Use `type: string` for all non-secret fields; use `type: secret` for password-like fields. The UI will coerce values appropriately (e.g., booleans) but values are stored as strings unless `type: secret`.
 - **Defaults**: Provide `default_value` at the setting level. For booleans, use `'true'` or `'false'` as strings.
 
@@ -609,10 +609,8 @@ settings:
       schema_version: 1
       properties:
         help_text: "IATA code for the departure board. Three uppercase letters, like LHR."
-        validation: '[A-Z]{3}'
+        validation: '^[A-Z]{3}$'
 ```
-
-`validation` is not supported on `select` or `boolean` fields, since the widget itself already constrains the value.
 
 **Explicit display order override**
 
