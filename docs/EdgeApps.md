@@ -486,7 +486,7 @@ Edge App settings support additional input field types beyond plain text and pas
 
 - **Schema**: The JSON must include `schema_version` and a `properties` object.
 - **Common keys**:
-  - `properties.type`: One of `datetime`, `number`, `select`, `boolean`, `textarea`, `url`.
+  - `properties.type`: One of `string`, `datetime`, `number`, `select`, `boolean`, `textarea`, `url`. `string` is the default plain text input and can be omitted.
   - `properties.help_text`: Human-friendly description shown in the UI.
   - `properties.options` (only for `select`): Array of `{ label, value }` options.
   - `properties.display_order`: Optional integer controlling the order settings render in the install/edit UI (ascending). If omitted, `screenly edge-app deploy` auto-assigns one from the setting's position in the manifest's `settings:` mapping, so settings render in declaration order by default. Set an explicit value only to override that default. An explicitly authored `display_order` is never overwritten by the automatic assignment. Note that `deploy` only sends the computed order to the backend; it never rewrites your manifest file.
