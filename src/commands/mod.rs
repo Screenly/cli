@@ -429,6 +429,12 @@ impl Formatter for EdgeAppSettings {
                         }
                         return Cell::new("");
                     }
+                    if field_name.eq("help_text") {
+                        let help_text = field_value.as_str().unwrap_or_default();
+                        return Cell::new(
+                            &crate::api::edge_app::setting::extract_display_help_text(help_text),
+                        );
+                    }
                     debug!("field_name: {field_name}, field_value: {field_value:?}");
                     Cell::new(field_value.as_str().unwrap_or_default())
                 },

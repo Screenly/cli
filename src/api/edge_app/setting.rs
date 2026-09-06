@@ -270,6 +270,18 @@ fn is_structured_help_text(help_text: &str) -> bool {
     serde_json::from_str::<Value>(help_text).is_ok_and(|value| value.is_object())
 }
 
+pub fn extract_display_help_text(help_text: &str) -> String {
+    match serde_json::from_str::<Value>(help_text) {
+        Ok(Value::Object(object)) => object
+            .get("properties")
+            .and_then(|properties| properties.get("help_text"))
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| help_text.to_string()),
+        _ => help_text.to_string(),
+    }
+}
+
 fn has_malformed_properties(help_text: &str) -> bool {
     let Ok(Value::Object(object)) = serde_json::from_str::<Value>(help_text) else {
         return false;
