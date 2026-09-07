@@ -1058,7 +1058,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deploy_when_server_requests_a_file_outside_the_app_should_return_error() {
+    fn test_deploy_when_server_requests_file_outside_app_should_return_error() {
         let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(false, false);
 
@@ -1098,7 +1098,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deploy_when_server_requests_an_ignored_file_should_return_error() {
+    fn test_deploy_when_server_requests_ignored_file_should_return_error() {
         let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(false, false);
 
