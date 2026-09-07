@@ -235,7 +235,7 @@ impl EdgeAppCommand {
 
         let settings_to_delete = &preview.diff.settings.delete;
         if !delete_missing_settings && !settings_to_delete.is_empty() {
-            println!(
+            eprintln!(
                 "Settings not in manifest: {}. Re-run with --delete-missing-settings to remove.",
                 settings_to_delete.join(", ")
             );
@@ -894,8 +894,11 @@ mod tests {
         let mut manifest = write_deployable_edge_app(temp_dir.path());
         if !id_in_manifest {
             manifest.id = None;
-            EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
-                .unwrap();
+            EdgeAppManifest::save_to_file(
+                &manifest,
+                temp_dir.path().join("screenly.yml").as_path(),
+            )
+            .unwrap();
         }
         assign_setting_display_orders(&mut manifest.settings);
         let expected_payload = json!({
@@ -996,7 +999,11 @@ mod tests {
             }));
         });
 
-        let result = command.deploy(None, Some(temp_dir.path().to_str().unwrap().to_string()), None);
+        let result = command.deploy(
+            None,
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            None,
+        );
 
         preview_mock.assert();
         deploy_mock.assert();
@@ -1005,6 +1012,36 @@ mod tests {
             result.unwrap_err().to_string(),
             "Deploy rejected: not uploaded: logo.png; still processing: app.js"
         );
+    }
+
+    #[test]
+    fn test_wait_for_assets_processing_should_split_ids_across_requests() {
+        let (_temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        let asset_ids: Vec<String> = (0..150)
+            .map(|i| format!("01H2QZ6Z8WXWNDC0KQ198XC{i:03}"))
+            .collect();
+
+        let chunk_mocks: Vec<httpmock::Mock<'_>> = asset_ids
+            .chunks(100)
+            .map(|chunk| {
+                let expected_ids = format!("in.({})", chunk.join(","));
+                mock_server.mock(|when, then| {
+                    when.method(GET)
+                        .path("/v4/assets")
+                        .query_param("id", expected_ids);
+                    then.status(200).json_body(json!([]));
+                })
+            })
+            .collect();
+
+        assert!(command.wait_for_assets_processing(&asset_ids).is_ok());
+
+        assert_eq!(chunk_mocks.len(), 2);
+        for mock in &chunk_mocks {
+            mock.assert();
+        }
     }
 
     #[test]
@@ -1298,7 +1335,11 @@ mod tests {
                 .json_body(json!({"revision": 8, "created": true}));
         });
 
-        let result = command.deploy(None, Some(temp_dir.path().to_str().unwrap().to_string()), None);
+        let result = command.deploy(
+            None,
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            None,
+        );
 
         preview_mock.assert();
         setting_is_global_mock.assert();
