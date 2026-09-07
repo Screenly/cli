@@ -225,9 +225,11 @@ fn is_structured_help_text(help_text: &str) -> bool {
 pub(crate) fn extract_display_help_text(help_text: &Value) -> String {
     let object = match help_text {
         Value::Object(_) => Some(help_text.clone()),
-        Value::String(raw) => serde_json::from_str::<Value>(raw)
-            .ok()
-            .filter(|value| value.is_object()),
+        Value::String(raw) if raw.trim_start().starts_with('{') => {
+            serde_json::from_str::<Value>(raw)
+                .ok()
+                .filter(|value| value.is_object())
+        }
         _ => None,
     };
 
