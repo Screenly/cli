@@ -4,10 +4,9 @@ use crate::api::Api;
 use crate::commands;
 use crate::commands::CommandError;
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct AssetSignature {
-    pub(crate) signature: String,
-}
+/// Keeps the `id=in.(...)` query string clear of the 8 KB request-line limit servers impose.
+const MAX_ASSET_IDS_PER_STATUS_REQUEST: usize = 100;
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct AssetProcessingStatus {
     pub(crate) status: String,
@@ -16,33 +15,26 @@ pub struct AssetProcessingStatus {
 }
 
 impl Api {
-    pub fn get_version_asset_signatures(
-        &self,
-        app_id: &str,
-        revision: u32,
-    ) -> Result<Vec<AssetSignature>, CommandError> {
-        Ok(serde_json::from_value(commands::get(
-            &self.authentication,
-            &format!(
-                "v4/assets?select=signature&app_id=eq.{app_id}&app_revision=eq.{revision}&type=eq.edge-app-file"
-            ),
-        )?)?)
-    }
-
     pub fn get_processing_statuses(
         &self,
-        app_id: &str,
-        revision: u32,
+        asset_ids: &[String],
     ) -> Result<Vec<AssetProcessingStatus>, CommandError> {
-        let response = commands::get(
-            &self.authentication,
-            &format!(
-                "v4/assets?select=status,processing_error,title&app_id=eq.{app_id}&app_revision=eq.{revision}&status=neq.finished"
-            ),
-        )?;
+        let mut statuses = Vec::new();
 
-        Ok(serde_json::from_value::<Vec<AssetProcessingStatus>>(
-            response,
-        )?)
+        for chunk in asset_ids.chunks(MAX_ASSET_IDS_PER_STATUS_REQUEST) {
+            let response = commands::get(
+                &self.authentication,
+                &format!(
+                    "v4/assets?select=status,processing_error,title&id=in.({})&status=neq.finished",
+                    chunk.join(",")
+                ),
+            )?;
+
+            statuses.extend(serde_json::from_value::<Vec<AssetProcessingStatus>>(
+                response,
+            )?);
+        }
+
+        Ok(statuses)
     }
 }
