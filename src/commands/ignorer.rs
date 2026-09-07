@@ -82,7 +82,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ignore_when_file_has_a_blank_line_should_not_ignore_the_root() {
+    fn test_ignore_when_file_has_blank_line_should_not_ignore_root() {
         let dir = tempdir().unwrap();
 
         File::create(dir.path().join(".ignore"))
