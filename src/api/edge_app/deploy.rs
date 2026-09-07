@@ -55,6 +55,10 @@ impl fmt::Display for OutstandingFiles {
         if !self.failed.is_empty() {
             parts.push(format!("failed: {}", describe_failed_files(&self.failed)));
         }
+        if parts.is_empty() {
+            return write!(f, "the server reported no details");
+        }
+
         write!(f, "{}", parts.join("; "))
     }
 }
@@ -168,5 +172,35 @@ impl Api {
                 Err(CommandError::WrongResponseStatus(status.as_u16()))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OutstandingFiles;
+
+    #[test]
+    fn test_outstanding_files_when_empty_should_still_describe_itself() {
+        assert_eq!(
+            OutstandingFiles::default().to_string(),
+            "the server reported no details"
+        );
+    }
+
+    #[test]
+    fn test_outstanding_files_should_list_every_non_empty_group() {
+        let outstanding = OutstandingFiles {
+            missing: vec!["index.html".to_string()],
+            pending: vec!["logo.png".to_string()],
+            failed: vec![super::FailedFile {
+                path: "clip.mp4".to_string(),
+                error: "unsupported".to_string(),
+            }],
+        };
+
+        assert_eq!(
+            outstanding.to_string(),
+            "not uploaded: index.html; still processing: logo.png; failed: clip.mp4: unsupported"
+        );
     }
 }
