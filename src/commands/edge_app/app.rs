@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Once;
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
@@ -24,7 +25,26 @@ use crate::commands::edge_app::utils::{
 use crate::commands::edge_app::EdgeAppCommand;
 use crate::commands::{CommandError, EdgeApps};
 
+pub const EDGE_APP_ID_ENV: &str = "EDGE_APP_ID";
+
 pub const INJECT_JS_FILE_NAME: &str = "screenly_inject.js";
+
+static DEPRECATED_MANIFEST_ID_WARNING: Once = Once::new();
+
+pub fn app_id_override() -> Option<String> {
+    normalize_app_id_override(std::env::var(EDGE_APP_ID_ENV).ok())
+}
+
+fn normalize_app_id_override(raw: Option<String>) -> Option<String> {
+    let id = raw?;
+    let trimmed = id.trim();
+
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    Some(trimmed.to_string())
+}
 
 #[derive(Debug)]
 pub struct DeployOutcome {
@@ -73,11 +93,17 @@ impl EdgeAppCommand {
             }),
         };
 
-        let app_id = self.api.create_app(name.to_string())?;
+        let app_id = match app_id_override() {
+            Some(id) => {
+                self.api.get_app(&id)?;
+                None
+            }
+            None => Some(self.api.create_app(name.to_string())?),
+        };
 
         let manifest = EdgeAppManifest {
             syntax: MANIFEST_VERSION.to_owned(),
-            id: Some(app_id),
+            id: app_id,
             entrypoint: entrypoint_value,
             settings: vec![
                 Setting {
@@ -150,6 +176,11 @@ impl EdgeAppCommand {
             )));
         }
 
+        if let Some(id) = app_id_override() {
+            self.api.get_app(&id)?;
+            return Ok(());
+        }
+
         let data = fs::read_to_string(path)?;
         let mut manifest: EdgeAppManifest = serde_yaml::from_str(&data)?;
 
@@ -172,6 +203,7 @@ impl EdgeAppCommand {
 
     pub fn deploy(
         self,
+        app_id: Option<String>,
         path: Option<String>,
         delete_missing_settings: Option<bool>,
     ) -> Result<DeployOutcome, CommandError> {
@@ -181,9 +213,12 @@ impl EdgeAppCommand {
         let mut manifest = EdgeAppManifest::new(&manifest_path)?;
         assign_setting_display_orders(&mut manifest.settings);
 
-        let actual_app_id = self
-            .get_app_id(path.clone())
-            .map_err(|_| CommandError::MissingAppId)?;
+        let actual_app_id = match app_id {
+            Some(id) => id,
+            None => self
+                .get_app_id(path.clone())
+                .map_err(|_| CommandError::MissingAppId)?,
+        };
 
         let edge_app_dir = manifest_path.parent().ok_or(CommandError::MissingField)?;
         let local_files = collect_paths_for_upload(edge_app_dir)?;
@@ -208,7 +243,7 @@ impl EdgeAppCommand {
 
         if !preview.deploy_needed {
             debug!("Nothing to deploy.");
-            self.update_entrypoint_value(path)?;
+            self.update_entrypoint_value(Some(actual_app_id), path)?;
             return Ok(DeployOutcome {
                 revision: None,
                 created: false,
@@ -231,7 +266,7 @@ impl EdgeAppCommand {
             result.revision, result.created, result.published, result.channel
         );
 
-        self.update_entrypoint_value(path)?;
+        self.update_entrypoint_value(Some(actual_app_id), path)?;
 
         Ok(DeployOutcome {
             revision: Some(result.revision),
@@ -251,7 +286,11 @@ impl EdgeAppCommand {
         Ok(())
     }
 
-    pub fn update_entrypoint_value(&self, path: Option<String>) -> Result<(), CommandError> {
+    pub fn update_entrypoint_value(
+        &self,
+        app_id: Option<String>,
+        path: Option<String>,
+    ) -> Result<(), CommandError> {
         let manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
         let setting_key = "screenly_entrypoint";
 
@@ -262,7 +301,7 @@ impl EdgeAppCommand {
                         Some(ref uri) => uri.clone(),
                         None => "".to_owned(),
                     };
-                    self.set_setting(path, setting_key, &setting_value)?;
+                    self.set_setting(app_id.clone(), path, setting_key, &setting_value)?;
                 }
                 EntrypointType::RemoteLocal => {
                     let instance_manifest = InstanceManifest::new(
@@ -272,7 +311,7 @@ impl EdgeAppCommand {
                         Some(ref uri) => uri.clone(),
                         None => "".to_owned(),
                     };
-                    self.set_setting(path, setting_key, &setting_value)?;
+                    self.set_setting(app_id.clone(), path, setting_key, &setting_value)?;
                 }
                 _ => {}
             }
@@ -434,9 +473,22 @@ impl EdgeAppCommand {
     }
 
     pub fn get_app_id(&self, path: Option<String>) -> Result<String, CommandError> {
-        let edge_app_manifest = EdgeAppManifest::new(&transform_edge_app_path_to_manifest(&path)?)?;
+        let manifest_path = transform_edge_app_path_to_manifest(&path)?;
+
+        if let Some(id) = app_id_override() {
+            return Ok(id);
+        }
+
+        let edge_app_manifest = EdgeAppManifest::new(&manifest_path)?;
         match edge_app_manifest.id {
-            Some(id) if !id.is_empty() => Ok(id),
+            Some(id) if !id.is_empty() => {
+                DEPRECATED_MANIFEST_ID_WARNING.call_once(|| {
+                    eprintln!(
+                        "Warning: reading the Edge App id from the manifest file is deprecated, set the {EDGE_APP_ID_ENV} environment variable instead."
+                    );
+                });
+                Ok(id)
+            }
             _ => Err(CommandError::MissingAppId),
         }
     }
@@ -827,10 +879,24 @@ mod tests {
 
     #[test]
     fn test_deploy_should_send_correct_requests() {
+        run_deploy_should_send_correct_requests_test(true);
+    }
+
+    #[test]
+    fn test_deploy_with_explicit_app_id_and_no_manifest_id_should_send_correct_requests() {
+        run_deploy_should_send_correct_requests_test(false);
+    }
+
+    fn run_deploy_should_send_correct_requests_test(id_in_manifest: bool) {
         let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(false, false);
 
         let mut manifest = write_deployable_edge_app(temp_dir.path());
+        if !id_in_manifest {
+            manifest.id = None;
+            EdgeAppManifest::save_to_file(&manifest, temp_dir.path().join("screenly.yml").as_path())
+                .unwrap();
+        }
         assign_setting_display_orders(&mut manifest.settings);
         let expected_payload = json!({
             "manifest": serde_json::to_value(&manifest).unwrap(),
@@ -892,7 +958,10 @@ mod tests {
             }));
         });
 
+        let app_id = (!id_in_manifest).then(|| APP_ID.to_string());
+
         let result = command.deploy(
+            app_id,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
@@ -927,7 +996,7 @@ mod tests {
             }));
         });
 
-        let result = command.deploy(Some(temp_dir.path().to_str().unwrap().to_string()), None);
+        let result = command.deploy(None, Some(temp_dir.path().to_str().unwrap().to_string()), None);
 
         preview_mock.assert();
         deploy_mock.assert();
@@ -971,6 +1040,7 @@ mod tests {
         });
 
         let result = command.deploy(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
@@ -1001,6 +1071,7 @@ mod tests {
         });
 
         let result = command.deploy(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
@@ -1066,6 +1137,32 @@ mod tests {
     }
 
     #[test]
+    fn test_normalize_app_id_override_should_return_the_trimmed_value_when_present() {
+        assert_eq!(
+            normalize_app_id_override(Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())),
+            Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_app_id_override_should_trim_whitespace() {
+        assert_eq!(
+            normalize_app_id_override(Some("  01ENVOVERRIDEXXXXXXXXXXXXX  \n".to_string())),
+            Some("01ENVOVERRIDEXXXXXXXXXXXXX".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_app_id_override_should_treat_whitespace_only_as_none() {
+        assert_eq!(normalize_app_id_override(Some("   ".to_string())), None);
+    }
+
+    #[test]
+    fn test_normalize_app_id_override_should_treat_absent_value_as_none() {
+        assert_eq!(normalize_app_id_override(None), None);
+    }
+
+    #[test]
     fn test_clear_app_id_should_remove_app_id_from_manifest() {
         let (temp_dir, command, _mock_server, _manifest, _instance_manifest) =
             prepare_edge_apps_test(true, false);
@@ -1113,6 +1210,7 @@ mod tests {
         write!(file, "test").unwrap();
 
         let result = command.deploy(
+            None,
             Some(temp_dir.path().to_str().unwrap().to_string()),
             Some(true),
         );
@@ -1200,7 +1298,7 @@ mod tests {
                 .json_body(json!({"revision": 8, "created": true}));
         });
 
-        let result = command.deploy(Some(temp_dir.path().to_str().unwrap().to_string()), None);
+        let result = command.deploy(None, Some(temp_dir.path().to_str().unwrap().to_string()), None);
 
         preview_mock.assert();
         setting_is_global_mock.assert();
@@ -1305,8 +1403,8 @@ mod tests {
         )
         .unwrap();
 
-        let result =
-            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+        let result = command
+            .update_entrypoint_value(None, Some(temp_dir.path().to_str().unwrap().to_string()));
 
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
@@ -1396,8 +1494,8 @@ mod tests {
         )
         .unwrap();
 
-        let result =
-            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+        let result = command
+            .update_entrypoint_value(None, Some(temp_dir.path().to_str().unwrap().to_string()));
 
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
@@ -1492,8 +1590,8 @@ mod tests {
         )
         .unwrap();
 
-        let result =
-            command.update_entrypoint_value(Some(temp_dir.path().to_str().unwrap().to_string()));
+        let result = command
+            .update_entrypoint_value(None, Some(temp_dir.path().to_str().unwrap().to_string()));
 
         setting_is_global_get_mock.assert();
         setting_mock_get.assert();
