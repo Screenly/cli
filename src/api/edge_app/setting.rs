@@ -222,25 +222,31 @@ fn is_structured_help_text(help_text: &str) -> bool {
     serde_json::from_str::<Value>(help_text).is_ok_and(|value| value.is_object())
 }
 
-pub(crate) fn extract_display_help_text(help_text: &Value) -> String {
-    let object = match help_text {
-        Value::Object(_) => Some(help_text.clone()),
-        Value::String(raw) if raw.trim_start().starts_with('{') => {
-            serde_json::from_str::<Value>(raw)
-                .ok()
-                .filter(|value| value.is_object())
-        }
-        _ => None,
-    };
+fn properties_are_malformed(object: &serde_json::Map<String, Value>) -> bool {
+    matches!(object.get("properties"), Some(value) if !value.is_object())
+}
 
-    match object {
-        Some(object) => object
+pub(crate) fn extract_display_help_text(help_text: &Value) -> String {
+    match help_text {
+        Value::Object(object) if !properties_are_malformed(object) => object
             .get("properties")
             .and_then(|properties| properties.get("help_text"))
             .and_then(|value| value.as_str())
             .unwrap_or_default()
             .to_string(),
-        None => help_text.as_str().unwrap_or_default().to_string(),
+        Value::String(raw) if raw.trim_start().starts_with('{') => {
+            match serde_json::from_str::<Value>(raw) {
+                Ok(Value::Object(object)) if !properties_are_malformed(&object) => object
+                    .get("properties")
+                    .and_then(|properties| properties.get("help_text"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                _ => raw.clone(),
+            }
+        }
+        Value::String(raw) => raw.clone(),
+        _ => String::new(),
     }
 }
 
@@ -248,7 +254,7 @@ fn has_malformed_properties(help_text: &str) -> bool {
     let Ok(Value::Object(object)) = serde_json::from_str::<Value>(help_text) else {
         return false;
     };
-    matches!(object.get("properties"), Some(value) if !value.is_object())
+    properties_are_malformed(&object)
 }
 
 pub fn help_text_with_display_order(name: &str, help_text: &str, display_order: usize) -> String {
@@ -636,6 +642,13 @@ mod display_order_tests {
         .to_string();
 
         assert_eq!(extract_display_help_text(&json!(structured)), "");
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_raw_json_for_malformed_properties() {
+        let malformed = json!({ "schema_version": 1, "properties": "nope" }).to_string();
+
+        assert_eq!(extract_display_help_text(&json!(malformed)), malformed);
     }
 
     #[test]
