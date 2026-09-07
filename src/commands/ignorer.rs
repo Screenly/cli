@@ -19,6 +19,9 @@ impl Ignorer {
 
             for line in content.lines() {
                 let pattern = line.trim();
+                if pattern.is_empty() {
+                    continue;
+                }
                 if pattern.ends_with('/') {
                     patterns.push(format!("^{}.*$", regex::escape(pattern)));
                 } else if pattern.contains('*') {
@@ -76,6 +79,21 @@ mod tests {
 
         assert!(ignorer.is_ignored(Path::new("file_to_ignore.txt")));
         assert!(!ignorer.is_ignored(Path::new("other_file.txt")));
+    }
+
+    #[test]
+    fn test_ignore_when_file_has_a_blank_line_should_not_ignore_the_root() {
+        let dir = tempdir().unwrap();
+
+        File::create(dir.path().join(".ignore"))
+            .unwrap()
+            .write_all(b"node_modules/\n\n")
+            .unwrap();
+
+        let ignorer = Ignorer::new(dir.path()).unwrap();
+
+        assert!(!ignorer.is_ignored(dir.path()));
+        assert!(ignorer.is_ignored(&dir.path().join("node_modules/react")));
     }
 
     #[test]
