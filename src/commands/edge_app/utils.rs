@@ -114,13 +114,11 @@ pub fn collect_paths_for_upload(path: &Path) -> Result<Vec<EdgeAppFile>, Command
     Ok(files)
 }
 
-pub fn generate_file_tree(files: &[EdgeAppFile], root_path: &Path) -> HashMap<String, String> {
-    let mut tree = HashMap::new();
-    let prefix = root_path.as_os_str().to_string_lossy().to_string();
-    for file in files {
-        let relative_path = file.path.strip_prefix(&prefix).unwrap_or(&file.path);
-        tree.insert(relative_path.to_owned(), file.signature.clone());
-    }
+pub fn generate_file_tree(files: &[EdgeAppFile]) -> HashMap<String, String> {
+    let tree: HashMap<String, String> = files
+        .iter()
+        .map(|file| (file.path.clone(), file.signature.clone()))
+        .collect();
 
     debug!("File tree: {:?}", &tree);
 

@@ -140,6 +140,8 @@ pub enum CommandError {
     AssetProcessingError(String),
     #[error("Deploy rejected: {0}")]
     DeployRejected(String),
+    #[error("Server asked to upload {0:?}, which is not part of this Edge App.")]
+    UnexpectedFileRequested(String),
     #[error("App id is required in manifest.")]
     MissingAppId,
     #[error("Manifest file validation failed with error: {0}")]

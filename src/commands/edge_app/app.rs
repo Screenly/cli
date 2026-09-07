@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -226,7 +227,7 @@ impl EdgeAppCommand {
         let delete_missing_settings = delete_missing_settings == Some(true);
         let payload = DeployPayload {
             manifest: serde_json::to_value(&manifest)?,
-            file_tree: generate_file_tree(&local_files, edge_app_dir),
+            file_tree: generate_file_tree(&local_files),
             delete_missing_settings,
         };
 
@@ -250,12 +251,23 @@ impl EdgeAppCommand {
             });
         }
 
-        let files_to_upload: Vec<PathBuf> = preview
+        let uploadable: HashMap<String, &str> = payload
+            .file_tree
+            .keys()
+            .map(|path| (path.replace('\\', "/"), path.as_str()))
+            .collect();
+
+        let files_to_upload = preview
             .outstanding
             .missing
             .iter()
-            .map(|file| edge_app_dir.join(file))
-            .collect();
+            .map(|requested| {
+                uploadable
+                    .get(&requested.replace('\\', "/"))
+                    .map(|path| edge_app_dir.join(path))
+                    .ok_or_else(|| CommandError::UnexpectedFileRequested(requested.clone()))
+            })
+            .collect::<Result<Vec<PathBuf>, CommandError>>()?;
         let uploaded_asset_ids = self.upload_edge_app_assets(&actual_app_id, &files_to_upload)?;
 
         self.wait_for_assets_processing(&uploaded_asset_ids)?;
@@ -1043,6 +1055,84 @@ mod tests {
         for mock in &chunk_mocks {
             mock.assert();
         }
+    }
+
+    #[test]
+    fn test_deploy_when_server_requests_a_file_outside_the_app_should_return_error() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        write_deployable_edge_app(temp_dir.path());
+
+        let preview_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path(format!("/v3/edge-apps/{APP_ID}/deploy/preview"));
+            then.status(200).json_body(json!({
+                "deploy_needed": true,
+                "outstanding": {
+                    "missing": ["../../.ssh/id_rsa"], "pending": [], "failed": []
+                },
+                "diff": {
+                    "settings": {"create": [], "update": [], "delete": []},
+                    "revision": {"update": []},
+                    "files": {"create": [], "update": [], "delete": []}
+                }
+            }));
+        });
+
+        let upload_assets_mock = upload_mock(&mock_server);
+
+        let result = command.deploy(
+            None,
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            Some(true),
+        );
+
+        preview_mock.assert();
+        upload_assets_mock.assert_calls(0);
+
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Server asked to upload \"../../.ssh/id_rsa\", which is not part of this Edge App."
+        );
+    }
+
+    #[test]
+    fn test_deploy_when_server_requests_an_ignored_file_should_return_error() {
+        let (temp_dir, command, mock_server, _manifest, _instance_manifest) =
+            prepare_edge_apps_test(false, false);
+
+        write_deployable_edge_app(temp_dir.path());
+
+        let preview_mock = mock_server.mock(|when, then| {
+            when.method(POST)
+                .path(format!("/v3/edge-apps/{APP_ID}/deploy/preview"));
+            then.status(200).json_body(json!({
+                "deploy_needed": true,
+                "outstanding": {"missing": ["instance.yml"], "pending": [], "failed": []},
+                "diff": {
+                    "settings": {"create": [], "update": [], "delete": []},
+                    "revision": {"update": []},
+                    "files": {"create": [], "update": [], "delete": []}
+                }
+            }));
+        });
+
+        let upload_assets_mock = upload_mock(&mock_server);
+
+        let result = command.deploy(
+            None,
+            Some(temp_dir.path().to_str().unwrap().to_string()),
+            Some(true),
+        );
+
+        preview_mock.assert();
+        upload_assets_mock.assert_calls(0);
+
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Server asked to upload \"instance.yml\", which is not part of this Edge App."
+        );
     }
 
     #[test]
