@@ -270,7 +270,7 @@ fn is_structured_help_text(help_text: &str) -> bool {
     serde_json::from_str::<Value>(help_text).is_ok_and(|value| value.is_object())
 }
 
-pub fn extract_display_help_text(help_text: &str) -> String {
+pub(crate) fn extract_display_help_text(help_text: &str) -> String {
     match serde_json::from_str::<Value>(help_text) {
         Ok(Value::Object(object)) => object
             .get("properties")

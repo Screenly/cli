@@ -698,6 +698,44 @@ mod tests {
     }
 
     #[test]
+    fn test_edge_app_settings_formatter_extracts_structured_help_text() {
+        let data = r#"[
+            {
+                "name": "enable_analytics",
+                "title": "Enable Analytics",
+                "edge_app_setting_values": [],
+                "default_value": "true",
+                "optional": true,
+                "type": "string",
+                "help_text": "{\"properties\":{\"display_order\":0,\"help_text\":\"Enable or disable Sentry and Google Analytics integrations.\"},\"schema_version\":1}"
+            },
+            {
+                "name": "override_locale",
+                "title": "Override Locale",
+                "edge_app_setting_values": [],
+                "default_value": "en",
+                "optional": true,
+                "type": "string",
+                "help_text": "Override the default locale with a supported language code."
+            }
+        ]"#;
+        let settings = EdgeAppSettings::new(serde_json::from_str(data).unwrap());
+
+        let output = settings.format(OutputType::HumanReadable);
+        assert_eq!(
+            output,
+            r#"+------------------+------------------+-------+---------------+----------+--------+-------------------------------------------------------------+
+| Name             | Title            | Value | Default value | Optional | Type   | Help text                                                   |
++------------------+------------------+-------+---------------+----------+--------+-------------------------------------------------------------+
+| enable_analytics | Enable Analytics |       | true          | Yes      | string | Enable or disable Sentry and Google Analytics integrations. |
++------------------+------------------+-------+---------------+----------+--------+-------------------------------------------------------------+
+| override_locale  | Override Locale  |       | en            | Yes      | string | Override the default locale with a supported language code. |
++------------------+------------------+-------+---------------+----------+--------+-------------------------------------------------------------+
+"#
+        );
+    }
+
+    #[test]
     fn test_edge_app_instance_formatter_format_output_properly() {
         let data = r#"[{
             "id": "01J1SNE1GMGG8R0ZXZ183ZGN6T",
