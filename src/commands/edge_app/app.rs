@@ -449,7 +449,8 @@ impl EdgeAppCommand {
 
         let status = response.status();
         if status != StatusCode::CREATED {
-            debug!("Response: {:?}", &response.text());
+            let body = response.text().unwrap_or_default();
+            debug!("Response: {body}");
             return Err(CommandError::WrongResponseStatus(status.as_u16()));
         }
 
