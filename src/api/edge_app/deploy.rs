@@ -163,7 +163,8 @@ impl Api {
                 "Edge App with ID '{app_id}' not found."
             ))),
             _ => {
-                debug!("Response: {:?}", &response.text()?);
+                let body = response.text().unwrap_or_default();
+                debug!("Response: {body}");
                 Err(CommandError::WrongResponseStatus(status.as_u16()))
             }
         }
