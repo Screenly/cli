@@ -222,15 +222,23 @@ fn is_structured_help_text(help_text: &str) -> bool {
     serde_json::from_str::<Value>(help_text).is_ok_and(|value| value.is_object())
 }
 
-pub(crate) fn extract_display_help_text(help_text: &str) -> String {
-    match serde_json::from_str::<Value>(help_text) {
-        Ok(Value::Object(object)) => object
+pub(crate) fn extract_display_help_text(help_text: &Value) -> String {
+    let object = match help_text {
+        Value::Object(_) => Some(help_text.clone()),
+        Value::String(raw) => serde_json::from_str::<Value>(raw)
+            .ok()
+            .filter(|value| value.is_object()),
+        _ => None,
+    };
+
+    match object {
+        Some(object) => object
             .get("properties")
             .and_then(|properties| properties.get("help_text"))
             .and_then(|value| value.as_str())
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| help_text.to_string()),
-        _ => help_text.to_string(),
+            .unwrap_or_default()
+            .to_string(),
+        None => help_text.as_str().unwrap_or_default().to_string(),
     }
 }
 
@@ -604,6 +612,43 @@ mod display_order_tests {
 
         assert_eq!(value["depends_on"], json!("other"));
         assert_eq!(value["properties"]["display_order"], json!(1));
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_the_nested_help_text() {
+        let structured = json!({
+            "schema_version": 1,
+            "properties": { "help_text": "Say hello", "display_order": 0 }
+        })
+        .to_string();
+
+        assert_eq!(extract_display_help_text(&json!(structured)), "Say hello");
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_empty_when_properties_help_text_is_missing() {
+        let structured = json!({
+            "schema_version": 1,
+            "properties": { "type": "number", "display_order": 0 }
+        })
+        .to_string();
+
+        assert_eq!(extract_display_help_text(&json!(structured)), "");
+    }
+
+    #[test]
+    fn extract_display_help_text_accepts_a_nested_object_value() {
+        let structured = json!({
+            "schema_version": 1,
+            "properties": { "help_text": "Say hello", "display_order": 0 }
+        });
+
+        assert_eq!(extract_display_help_text(&structured), "Say hello");
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_plain_string_verbatim() {
+        assert_eq!(extract_display_help_text(&json!("Say hello")), "Say hello");
     }
 
     #[test]
