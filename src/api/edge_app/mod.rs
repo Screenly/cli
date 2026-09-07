@@ -1,5 +1,4 @@
 pub mod app;
-pub mod channel;
+pub mod deploy;
 pub mod installation;
 pub mod setting;
-pub mod version;
