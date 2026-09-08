@@ -222,11 +222,39 @@ fn is_structured_help_text(help_text: &str) -> bool {
     serde_json::from_str::<Value>(help_text).is_ok_and(|value| value.is_object())
 }
 
+fn properties_are_malformed(object: &serde_json::Map<String, Value>) -> bool {
+    matches!(object.get("properties"), Some(value) if !value.is_object())
+}
+
+pub(crate) fn extract_display_help_text(help_text: &Value) -> String {
+    match help_text {
+        Value::Object(object) if !properties_are_malformed(object) => object
+            .get("properties")
+            .and_then(|properties| properties.get("help_text"))
+            .and_then(|value| value.as_str())
+            .unwrap_or_default()
+            .to_string(),
+        Value::String(raw) if raw.trim_start().starts_with('{') => {
+            match serde_json::from_str::<Value>(raw) {
+                Ok(Value::Object(object)) if !properties_are_malformed(&object) => object
+                    .get("properties")
+                    .and_then(|properties| properties.get("help_text"))
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                _ => raw.clone(),
+            }
+        }
+        Value::String(raw) => raw.clone(),
+        _ => String::new(),
+    }
+}
+
 fn has_malformed_properties(help_text: &str) -> bool {
     let Ok(Value::Object(object)) = serde_json::from_str::<Value>(help_text) else {
         return false;
     };
-    matches!(object.get("properties"), Some(value) if !value.is_object())
+    properties_are_malformed(&object)
 }
 
 pub fn help_text_with_display_order(name: &str, help_text: &str, display_order: usize) -> String {
@@ -592,6 +620,50 @@ mod display_order_tests {
 
         assert_eq!(value["depends_on"], json!("other"));
         assert_eq!(value["properties"]["display_order"], json!(1));
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_the_nested_help_text() {
+        let structured = json!({
+            "schema_version": 1,
+            "properties": { "help_text": "Say hello", "display_order": 0 }
+        })
+        .to_string();
+
+        assert_eq!(extract_display_help_text(&json!(structured)), "Say hello");
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_empty_when_properties_help_text_is_missing() {
+        let structured = json!({
+            "schema_version": 1,
+            "properties": { "type": "number", "display_order": 0 }
+        })
+        .to_string();
+
+        assert_eq!(extract_display_help_text(&json!(structured)), "");
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_raw_json_for_malformed_properties() {
+        let malformed = json!({ "schema_version": 1, "properties": "nope" }).to_string();
+
+        assert_eq!(extract_display_help_text(&json!(malformed)), malformed);
+    }
+
+    #[test]
+    fn extract_display_help_text_accepts_a_nested_object_value() {
+        let structured = json!({
+            "schema_version": 1,
+            "properties": { "help_text": "Say hello", "display_order": 0 }
+        });
+
+        assert_eq!(extract_display_help_text(&structured), "Say hello");
+    }
+
+    #[test]
+    fn extract_display_help_text_returns_plain_string_verbatim() {
+        assert_eq!(extract_display_help_text(&json!("Say hello")), "Say hello");
     }
 
     #[test]
