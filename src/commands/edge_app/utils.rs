@@ -21,6 +21,10 @@ pub struct EdgeAppFile {
 }
 
 fn is_included(entry: &DirEntry, ignore: &Ignorer) -> bool {
+    if entry.depth() == 0 {
+        return true;
+    }
+
     let exclusion_list = ["screenly.js", "screenly.yml", ".ignore", "instance.yml"];
     if exclusion_list.contains(&entry.file_name().to_str().unwrap_or_default()) {
         return false;
@@ -182,7 +186,7 @@ mod tests {
             .unwrap();
         File::create(dir_path.join(".ignore"))
             .unwrap()
-            .write_all(b"file2.txt")
+            .write_all(b"file2.txt\n\n")
             .unwrap();
         File::create(dir_path.join("instance.yml"))
             .unwrap()
