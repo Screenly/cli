@@ -7,6 +7,10 @@ This document contains the help content for the `screenly` command-line program.
 * [`screenly`↴](#screenly)
 * [`screenly login`↴](#screenly-login)
 * [`screenly logout`↴](#screenly-logout)
+* [`screenly me`↴](#screenly-me)
+* [`screenly auth`↴](#screenly-auth)
+* [`screenly auth list`↴](#screenly-auth-list)
+* [`screenly auth switch`↴](#screenly-auth-switch)
 * [`screenly screen`↴](#screenly-screen)
 * [`screenly screen list`↴](#screenly-screen-list)
 * [`screenly screen get`↴](#screenly-screen-get)
@@ -57,7 +61,9 @@ Command line interface is intended for quick interaction with Screenly through t
 ###### **Subcommands:**
 
 * `login` — Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
-* `logout` — Logs out and removes the stored token
+* `logout` — Removes a stored authentication profile. Removing the active profile leaves no profile active; other profiles are kept
+* `me` — Show information about the currently authenticated profile
+* `auth` — Manage stored authentication profiles
 * `screen` — Screen related commands
 * `asset` — Asset related commands
 * `playlist` — Playlist related commands
@@ -85,15 +91,65 @@ Command line interface is intended for quick interaction with Screenly through t
 
 Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
 
-**Usage:** `screenly login`
+**Usage:** `screenly login [OPTIONS]`
+
+###### **Options:**
+
+* `--name <NAME>` — Profile name to store the token under. Defaults to the active profile, or "default" on a fresh install
+* `--token-stdin` — Read the token from stdin instead of prompting, for scripts: `echo "$TOKEN" | screenly login --token-stdin`. Implied when stdin is not a terminal
 
 
 
 ## `screenly logout`
 
-Logs out and removes the stored token
+Removes a stored authentication profile. Removing the active profile leaves no profile active; other profiles are kept
 
-**Usage:** `screenly logout`
+**Usage:** `screenly logout [OPTIONS]`
+
+###### **Options:**
+
+* `--name <NAME>` — Profile name to remove. Removes the active profile if not specified
+
+
+
+## `screenly me`
+
+Show information about the currently authenticated profile
+
+**Usage:** `screenly me`
+
+
+
+## `screenly auth`
+
+Manage stored authentication profiles
+
+**Usage:** `screenly auth <COMMAND>`
+
+###### **Subcommands:**
+
+* `list` — List stored authentication profiles
+* `switch` — Switch the active authentication profile
+
+
+
+## `screenly auth list`
+
+List stored authentication profiles
+
+**Usage:** `screenly auth list`
+
+
+
+## `screenly auth switch`
+
+Switch the active authentication profile
+
+**Usage:** `screenly auth switch [NAME]`
+
+###### **Arguments:**
+
+* `<NAME>` — Profile name to activate. If omitted, the available profiles are listed and the command exits with an error
 
 
 
