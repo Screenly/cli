@@ -226,5 +226,19 @@ This project follows [Calendar Versioning](https://calver.org/) (`YY.M.MICRO` = 
   - The release workflow will detect the version tag and create the release automatically
   - Add the release notes to the GitHub release description
 
-4. **Update Homebrew:**
-   - Update the [Homebrew repo](https://github.com/Screenly/homebrew-screenly-cli) with the latest version
+4. **Update Homebrew (required — the release is not done without it):**
+   - The tap lives in a separate repo, [Screenly/homebrew-screenly-cli](https://github.com/Screenly/homebrew-screenly-cli),
+     and nothing automated updates it. Until it is bumped, `brew install screenly-cli`
+     keeps serving the previous version and nothing fails loudly.
+   - Open a PR there that moves **both** fields in `Formula/screenly-cli.rb` to the new
+     tag — `tag: "vYY.M.MICRO"` and `version "vYY.M.MICRO"`. The `url` pins a git tag
+     rather than a release tarball, so there is no `sha256` to recompute.
+   - Verify the two agree when you are done:
+     ```bash
+     gh release view --repo Screenly/cli --json tagName -q .tagName
+     gh api repos/Screenly/homebrew-screenly-cli/contents/Formula/screenly-cli.rb \
+       --jq .content | base64 -d | grep 'tag:'
+     ```
+
+The full runbook — including which files carry a `v` prefix and which must not be
+touched — is kept as an agent skill in [`.claude/skills/cut-release/SKILL.md`](.claude/skills/cut-release/SKILL.md).
