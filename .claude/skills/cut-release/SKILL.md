@@ -87,22 +87,29 @@ Confirm the drift, then close it:
 gh release view --repo Screenly/cli --json tagName -q .tagName
 ```
 
-In the tap repo, `Formula/screenly-cli.rb` needs **both** fields moved to the new
-tag:
+In the tap repo, `Formula/screenly-cli.rb` needs exactly **one** line changed —
+the tag:
 
 ```ruby
   url "https://github.com/Screenly/cli.git",
       tag: "v26.9.0"
-  version "v26.9.0"
 ```
 
-The `version` field keeps the `v` prefix here — that is the established
-convention in this formula's history; leave it alone rather than "fixing" it in a
-release PR.
+There is deliberately **no `version` field**. Homebrew derives the version from
+the tag and strips the leading `v`, so `tag: "v26.9.0"` yields version `26.9.0`
+by itself. Keeping it derived means it cannot drift out of step with the tag.
+
+Do **not** add a `version "v26.9.0"` line back. Homebrew tokenises a leading `v`
+as a StringToken, which sorts below any NumericToken — so a `v`-prefixed version
+compares as *older* than every bare one, and `brew audit` rejects it outright
+([`FormulaAudit/Version`](https://github.com/Homebrew/brew/blob/master/Library/Homebrew/rubocops/version.rb)).
+That ordering also makes the switch one-way: going back to a `v` prefix would
+read as a downgrade and would not upgrade users.
 
 Because `url` points at the git repo and pins a **tag** (not a release tarball),
-there is no `sha256` to recompute. Open it as a PR on a `release-YY.M.MICRO`
-branch, same as upstream.
+there is no `sha256` to recompute. (Homebrew also wants a `revision:` alongside a
+git `tag:` — but that cop is scoped to `homebrew-core` and does not apply to our
+tap.) Open it as a PR on a `release-YY.M.MICRO` branch, same as upstream.
 
 Verify the tag is actually pushed before bumping the formula, or `brew install`
 will fail to fetch it:
@@ -129,9 +136,28 @@ gh api repos/Screenly/homebrew-screenly-cli/contents/Formula/screenly-cli.rb \
 
 ## Other distribution channels
 
-These do **not** need a manual step, but know where they come from:
+- **Docker Hub** (`screenly/cli`) — pushed by the release workflow as
+  `screenly/cli:<tag>` and `:latest`. The image tag keeps the `v` (it is
+  `$GITHUB_REF_NAME`). No manual step.
+- **`.mcpb` bundles** — built and attached by the release workflow. No manual step.
+- **`flake.nix` in this repo** — reads `version` straight out of `Cargo.toml` via
+  `builtins.fromTOML`, so it follows step 1 automatically and can never drift.
+  Do **not** add a version to it.
+- **nixpkgs** (`nix-shell -p screenly-cli`) — a *different* package from our flake,
+  living in `pkgs/by-name/sc/screenly-cli/package.nix` in `NixOS/nixpkgs`. It
+  normally updates itself via `passthru.updateScript = nix-update-script {}`, which
+  files r-ryantm PRs titled `screenly-cli: X -> Y`. **This is worth spot-checking at
+  release time** — the bot has gone quiet before and left nixpkgs several releases
+  behind:
 
-- **Docker Hub** (`screenly/cli`) — pushed by the release workflow.
-- **Nix** (`nix-shell -p screenly-cli`) — packaged in nixpkgs upstream, updated by
-  nixpkgs maintainers, not by us.
-- **`.mcpb` bundles** — built and attached by the release workflow.
+  ```bash
+  gh api repos/NixOS/nixpkgs/contents/pkgs/by-name/sc/screenly-cli/package.nix \
+    --jq .content | base64 -d | grep '^  version'
+  gh api "search/issues?q=repo:NixOS/nixpkgs+screenly-cli+in:title+type:pr" \
+    --jq '.items[] | "\(.number) [\(.state)] \(.title)"' | head -5
+  ```
+
+  We do not own that repo, so closing a gap there means opening a PR against
+  nixpkgs (bump `version`, refresh `hash` and `cargoHash`). Note it stores the
+  version **bare** and builds the tag as `tag = "v${finalAttrs.version}"` — same
+  convention as the Homebrew formula.

@@ -230,9 +230,12 @@ This project follows [Calendar Versioning](https://calver.org/) (`YY.M.MICRO` = 
    - The tap lives in a separate repo, [Screenly/homebrew-screenly-cli](https://github.com/Screenly/homebrew-screenly-cli),
      and nothing automated updates it. Until it is bumped, `brew install screenly-cli`
      keeps serving the previous version and nothing fails loudly.
-   - Open a PR there that moves **both** fields in `Formula/screenly-cli.rb` to the new
-     tag — `tag: "vYY.M.MICRO"` and `version "vYY.M.MICRO"`. The `url` pins a git tag
-     rather than a release tarball, so there is no `sha256` to recompute.
+   - Open a PR there that moves the `tag:` in `Formula/screenly-cli.rb` to
+     `vYY.M.MICRO`. That is the only line that changes: the formula has no explicit
+     `version` field, because Homebrew derives it from the tag and strips the leading
+     `v` (tag `v26.9.0` → version `26.9.0`), so it cannot drift from the tag. The
+     `url` pins a git tag rather than a release tarball, so there is no `sha256` to
+     recompute either.
    - Verify the two agree when you are done:
      ```bash
      gh release view --repo Screenly/cli --json tagName -q .tagName
@@ -240,5 +243,7 @@ This project follows [Calendar Versioning](https://calver.org/) (`YY.M.MICRO` = 
        --jq .content | base64 -d | grep 'tag:'
      ```
 
-The full runbook — including which files carry a `v` prefix and which must not be
-touched — is kept as an agent skill in [`.claude/skills/cut-release/SKILL.md`](.claude/skills/cut-release/SKILL.md).
+The full runbook — including which files carry a `v` prefix, which must not be
+touched, and how to spot-check [nixpkgs](https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/sc/screenly-cli/package.nix)
+(which updates via its own bot and has fallen behind before) — is kept as an agent
+skill in [`.claude/skills/cut-release/SKILL.md`](.claude/skills/cut-release/SKILL.md).
