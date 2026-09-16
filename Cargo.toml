@@ -54,7 +54,7 @@ walkdir = "2.3.3"
 warp = "0.3"
 
 # MCP server dependencies
-rmcp = { version = "1.4", default-features = false, features = ["macros", "server", "schemars", "transport-io"] }
+rmcp = { version = "2.0", default-features = false, features = ["macros", "server", "schemars", "transport-io"] }
 schemars = "1"
 tempfile = "3.8"
 
