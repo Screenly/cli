@@ -28,6 +28,38 @@ impl WhoamiInfo {
             .collect();
         (!parts.is_empty()).then(|| parts.join(" "))
     }
+
+    /// Shared field list for table and CSV: (table label, csv header, value).
+    fn rows(&self) -> Vec<(&str, &str, Option<String>)> {
+        vec![
+            (
+                "Email",
+                "email",
+                self.field("user", "email").map(str::to_string),
+            ),
+            ("Name", "name", self.full_name()),
+            (
+                "User ID",
+                "user_id",
+                self.field("user", "id").map(str::to_string),
+            ),
+            (
+                "Workspace",
+                "workspace",
+                self.field("workspace", "name").map(str::to_string),
+            ),
+            (
+                "Workspace ID",
+                "workspace_id",
+                self.field("workspace", "id").map(str::to_string),
+            ),
+            (
+                "Workspace URL",
+                "workspace_url",
+                self.field("workspace", "url").map(str::to_string),
+            ),
+        ]
+    }
 }
 
 impl WhoamiCommand {
@@ -52,41 +84,26 @@ impl Formatter for WhoamiInfo {
         match output_type {
             OutputType::Json => serde_json::to_string_pretty(&self.value).unwrap(),
             OutputType::HumanReadable => {
-                let name = self.full_name();
+                let rows = self.rows();
                 let mut table = prettytable::Table::new();
                 table.add_row(Row::from(vec!["Field", "Value"]));
-                for (field, value) in [
-                    ("Email", self.field("user", "email").unwrap_or("N/A")),
-                    ("Name", name.as_deref().unwrap_or("N/A")),
-                    ("User ID", self.field("user", "id").unwrap_or("N/A")),
-                    ("Workspace", self.field("workspace", "name").unwrap_or("N/A")),
-                    ("Workspace ID", self.field("workspace", "id").unwrap_or("N/A")),
-                    ("Workspace URL", self.field("workspace", "url").unwrap_or("N/A")),
-                ] {
-                    table.add_row(Row::new(vec![Cell::new(field), Cell::new(value)]));
+                for (label, _, value) in &rows {
+                    table.add_row(Row::new(vec![
+                        Cell::new(label),
+                        Cell::new(value.as_deref().unwrap_or("N/A")),
+                    ]));
                 }
                 table.to_string()
             }
             OutputType::Csv => {
-                let name = self.full_name();
+                let rows = self.rows();
                 let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
-                wtr.write_record([
-                    "email",
-                    "name",
-                    "user_id",
-                    "workspace",
-                    "workspace_id",
-                    "workspace_url",
-                ])
-                .unwrap();
-                wtr.write_record([
-                    self.field("user", "email").unwrap_or(""),
-                    name.as_deref().unwrap_or(""),
-                    self.field("user", "id").unwrap_or(""),
-                    self.field("workspace", "name").unwrap_or(""),
-                    self.field("workspace", "id").unwrap_or(""),
-                    self.field("workspace", "url").unwrap_or(""),
-                ])
+                wtr.write_record(rows.iter().map(|(_, header, _)| *header))
+                    .unwrap();
+                wtr.write_record(
+                    rows.iter()
+                        .map(|(_, _, value)| value.as_deref().unwrap_or("")),
+                )
                 .unwrap();
                 String::from_utf8(wtr.into_inner().unwrap()).unwrap()
             }
