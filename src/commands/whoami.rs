@@ -22,10 +22,13 @@ impl WhoamiInfo {
     }
 
     fn full_name(&self) -> Option<String> {
-        let parts: Vec<&str> = [self.field("user", "first_name"), self.field("user", "last_name")]
-            .into_iter()
-            .flatten()
-            .collect();
+        let parts: Vec<&str> = [
+            self.field("user", "first_name"),
+            self.field("user", "last_name"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         (!parts.is_empty()).then(|| parts.join(" "))
     }
 
