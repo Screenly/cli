@@ -116,7 +116,6 @@ mod tests {
     use httpmock::Method::GET;
     use httpmock::MockServer;
     use serde_json::json;
-    use tempfile::tempdir;
 
     use super::*;
     use crate::authentication::{Authentication, Config};
@@ -139,7 +138,6 @@ mod tests {
 
     #[test]
     fn test_whoami_get_returns_profile() {
-        let _tmp_dir = tempdir().unwrap();
         let mock_server = MockServer::start();
         let body = sample_me();
         mock_server.mock(|when, then| {
