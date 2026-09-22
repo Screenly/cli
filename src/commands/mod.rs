@@ -186,7 +186,7 @@ pub fn get(
     debug!("GET {url} -> {status}");
 
     if status != StatusCode::OK {
-        println!("Response: {:?}", &response.text());
+        debug!("Response: {:?}", &response.text()?);
         return Err(CommandError::WrongResponseStatus(status.as_u16()));
     }
     Ok(serde_json::from_str(&response.text()?)?)
