@@ -17,24 +17,16 @@ impl WhoamiInfo {
         Self { value }
     }
 
-    fn field(&self, object: &str, key: &str) -> String {
-        self.value
-            .get(object)
-            .and_then(|o| o.get(key))
-            .and_then(|v| v.as_str())
-            .unwrap_or("N/A")
-            .to_string()
+    fn field(&self, object: &str, key: &str) -> Option<&str> {
+        self.value[object][key].as_str().filter(|s| !s.is_empty())
     }
 
-    fn full_name(&self) -> String {
-        let first = self.field("user", "first_name");
-        let last = self.field("user", "last_name");
-        match (first.as_str(), last.as_str()) {
-            ("N/A", "N/A") => "N/A".to_string(),
-            ("N/A", last) => last.to_string(),
-            (first, "N/A") => first.to_string(),
-            (first, last) => format!("{first} {last}"),
-        }
+    fn full_name(&self) -> Option<String> {
+        let parts: Vec<&str> = [self.field("user", "first_name"), self.field("user", "last_name")]
+            .into_iter()
+            .flatten()
+            .collect();
+        (!parts.is_empty()).then(|| parts.join(" "))
     }
 }
 
@@ -60,21 +52,23 @@ impl Formatter for WhoamiInfo {
         match output_type {
             OutputType::Json => serde_json::to_string_pretty(&self.value).unwrap(),
             OutputType::HumanReadable => {
+                let name = self.full_name();
                 let mut table = prettytable::Table::new();
                 table.add_row(Row::from(vec!["Field", "Value"]));
                 for (field, value) in [
-                    ("Email", self.field("user", "email")),
-                    ("Name", self.full_name()),
-                    ("User ID", self.field("user", "id")),
-                    ("Workspace", self.field("workspace", "name")),
-                    ("Workspace ID", self.field("workspace", "id")),
-                    ("Workspace URL", self.field("workspace", "url")),
+                    ("Email", self.field("user", "email").unwrap_or("N/A")),
+                    ("Name", name.as_deref().unwrap_or("N/A")),
+                    ("User ID", self.field("user", "id").unwrap_or("N/A")),
+                    ("Workspace", self.field("workspace", "name").unwrap_or("N/A")),
+                    ("Workspace ID", self.field("workspace", "id").unwrap_or("N/A")),
+                    ("Workspace URL", self.field("workspace", "url").unwrap_or("N/A")),
                 ] {
-                    table.add_row(Row::new(vec![Cell::new(field), Cell::new(&value)]));
+                    table.add_row(Row::new(vec![Cell::new(field), Cell::new(value)]));
                 }
                 table.to_string()
             }
             OutputType::Csv => {
+                let name = self.full_name();
                 let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
                 wtr.write_record([
                     "email",
@@ -86,12 +80,12 @@ impl Formatter for WhoamiInfo {
                 ])
                 .unwrap();
                 wtr.write_record([
-                    self.field("user", "email"),
-                    self.full_name(),
-                    self.field("user", "id"),
-                    self.field("workspace", "name"),
-                    self.field("workspace", "id"),
-                    self.field("workspace", "url"),
+                    self.field("user", "email").unwrap_or(""),
+                    name.as_deref().unwrap_or(""),
+                    self.field("user", "id").unwrap_or(""),
+                    self.field("workspace", "name").unwrap_or(""),
+                    self.field("workspace", "id").unwrap_or(""),
+                    self.field("workspace", "url").unwrap_or(""),
                 ])
                 .unwrap();
                 String::from_utf8(wtr.into_inner().unwrap()).unwrap()
@@ -181,6 +175,34 @@ mod tests {
         assert_eq!(
             lines.next().unwrap(),
             "ada@example.com,Ada Lovelace,01USERID000000000000000000,Example Workspace,01WORKSPACEID0000000000000,https://example.screenlyapp.com"
+        );
+    }
+
+    #[test]
+    fn test_whoami_missing_and_empty_fields() {
+        let info = WhoamiInfo::new(json!({
+            "workspace": {
+                "id": "01WORKSPACEID0000000000000",
+                "name": "Example Workspace"
+            },
+            "user": {
+                "id": "01USERID000000000000000000",
+                "first_name": "",
+                "last_name": "Lovelace",
+                "email": "ada@example.com"
+            }
+        }));
+
+        let table = info.format(OutputType::HumanReadable);
+        assert!(table.contains("Lovelace"));
+        assert!(table.contains("N/A")); // missing workspace.url
+
+        let csv = info.format(OutputType::Csv);
+        let mut lines = csv.lines();
+        lines.next();
+        assert_eq!(
+            lines.next().unwrap(),
+            "ada@example.com,Lovelace,01USERID000000000000000000,Example Workspace,01WORKSPACEID0000000000000,"
         );
     }
 }
