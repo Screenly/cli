@@ -7,6 +7,7 @@ This document contains the help content for the `screenly` command-line program.
 * [`screenly`↴](#screenly)
 * [`screenly login`↴](#screenly-login)
 * [`screenly logout`↴](#screenly-logout)
+* [`screenly whoami`↴](#screenly-whoami)
 * [`screenly screen`↴](#screenly-screen)
 * [`screenly screen list`↴](#screenly-screen-list)
 * [`screenly screen get`↴](#screenly-screen-get)
@@ -58,6 +59,7 @@ Command line interface is intended for quick interaction with Screenly through t
 
 * `login` — Logs in with the provided token and stores it for further use if valid. You can set the API_TOKEN environment variable to override the stored token
 * `logout` — Logs out and removes the stored token
+* `whoami` — Shows information about the currently authenticated user and workspace
 * `screen` — Screen related commands
 * `asset` — Asset related commands
 * `playlist` — Playlist related commands
@@ -94,6 +96,14 @@ Logs in with the provided token and stores it for further use if valid. You can 
 Logs out and removes the stored token
 
 **Usage:** `screenly logout`
+
+
+
+## `screenly whoami`
+
+Shows information about the currently authenticated user and workspace
+
+**Usage:** `screenly whoami`
 
 
 

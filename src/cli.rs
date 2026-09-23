@@ -94,6 +94,8 @@ pub enum Commands {
     Login {},
     /// Logs out and removes the stored token.
     Logout {},
+    /// Shows information about the currently authenticated user and workspace.
+    Whoami {},
     /// Screen related commands.
     #[command(subcommand)]
     Screen(ScreenCommands),
@@ -580,6 +582,11 @@ pub fn handle_cli(cli: &Cli) {
             Authentication::remove_token().expect("Failed to remove token.");
             info!("Logout successful.");
             std::process::exit(0);
+        }
+        Commands::Whoami {} => {
+            let authentication = get_authentication();
+            let whoami_command = commands::whoami::WhoamiCommand::new(authentication);
+            handle_command_execution_result(whoami_command.get(), output);
         }
         Commands::Mcp {} => {
             handle_cli_mcp_command();
