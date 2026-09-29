@@ -129,8 +129,7 @@ pub fn verify_and_store_token(
 }
 
 fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), AuthenticationError> {
-    // Using uuid of non existing playlist. If we get 404 it means we authenticated successfully.
-    let url = format!("{api_url}/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/");
+    let url = format!("{api_url}/v4/screens?limit=1");
     let secret = format!("Token {token}");
     let client = reqwest::blocking::Client::builder().build()?;
 
@@ -140,8 +139,8 @@ fn verify_token(token: &str, api_url: &str) -> anyhow::Result<(), Authentication
         .send()?;
 
     match res.status() {
+        StatusCode::OK => Ok(()),
         StatusCode::UNAUTHORIZED => Err(AuthenticationError::WrongCredentials),
-        StatusCode::NOT_FOUND => Ok(()),
         _ => Err(AuthenticationError::Unknown),
     }
 }
@@ -173,9 +172,9 @@ mod tests {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/")
-                .header("Authorization", "Token token");
-            then.status(404);
+                .path("/v4/screens")
+                .header("Authorization", "Token correct_token");
+            then.status(200).body("[]");
         });
 
         let config = Config::new(mock_server.base_url());
@@ -196,8 +195,7 @@ mod tests {
 
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
-            when.method(GET)
-                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/");
+            when.method(GET).path("/v4/screens");
             then.status(401);
         });
 
@@ -248,11 +246,11 @@ mod tests {
         let _test = set_env(OsString::from("HOME"), tmp_dir.path().to_str().unwrap());
 
         let mock_server = MockServer::start();
-        let group_call_mock = mock_server.mock(|when, then| {
+        let screens_call_mock = mock_server.mock(|when, then| {
             when.method(GET)
-                .path("/v3/groups/11CF9Z3GZR0005XXKH00F8V20R/")
+                .path("/v4/screens")
                 .header("Authorization", "Token correct_token");
-            then.status(404);
+            then.status(200).body("[]");
         });
 
         let config = Config::new(mock_server.base_url());
@@ -261,7 +259,7 @@ mod tests {
         let path = tmp_dir.path().join(".screenly");
         assert!(path.exists());
         let contents = fs::read_to_string(path).unwrap();
-        group_call_mock.assert();
+        screens_call_mock.assert();
         assert!(contents.eq("correct_token"));
     }
 }

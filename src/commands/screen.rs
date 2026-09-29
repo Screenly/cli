@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use reqwest::StatusCode;
-
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{CommandError, Screens};
@@ -36,32 +34,22 @@ impl ScreenCommand {
         pin: &str,
         maybe_name: Option<String>,
     ) -> anyhow::Result<Screens, CommandError> {
-        let url = format!("{}/v3/screens/", &self.authentication.config.url);
         let mut payload = HashMap::new();
         payload.insert("pin".to_string(), pin.to_string());
         if let Some(name) = maybe_name {
             payload.insert("name".to_string(), name);
         }
-        let response = self
-            .authentication
-            .build_client()?
-            .post(url)
-            .json(&payload)
-            .send()?;
-        if response.status() != StatusCode::CREATED {
-            return Err(CommandError::WrongResponseStatus(
-                response.status().as_u16(),
-            ));
-        }
 
-        // Our newer endpoints all return arrays so let's just convert the output from v3 to be the same
-        let mut array: Vec<serde_json::Value> = Vec::new();
-        array.insert(0, serde_json::from_str(&response.text()?)?);
-        Ok(Screens::new(serde_json::Value::Array(array)))
+        // Creating a screen answers with the new id alone, so the screen is read back to
+        // return the same shape as the other screen commands.
+        let created = commands::post(&self.authentication, "v4.1/screens", &payload)?;
+        let id = created["id"].as_str().ok_or(CommandError::MissingField)?;
+
+        self.get(id)
     }
 
     pub fn delete(&self, id: &str) -> anyhow::Result<(), CommandError> {
-        let endpoint = format!("v3/screens/{id}/");
+        let endpoint = format!("v4.1/screens?id=eq.{id}");
         commands::delete(&self.authentication, &endpoint)
     }
 }
@@ -108,7 +96,7 @@ mod tests {
         let mock_server = MockServer::start();
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v3/screens/")
+                .path("/v4.1/screens")
                 .header("Authorization", "Token token")
                 .header("content-type", "application/json")
                 .header(
@@ -116,7 +104,16 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .json_body(json!({"pin": "test-pin", "name": "test"}));
-            then.status(201).json_body(new_screen.clone());
+            then.status(200)
+                .json_body(json!({"id": "017a5104-524b-33d8-8026-9087b59e7eb5"}));
+        });
+
+        let get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/screens")
+                .query_param("id", "eq.017a5104-524b-33d8-8026-9087b59e7eb5")
+                .header("Authorization", "Token token");
+            then.status(200).json_body(json!([new_screen.clone()]));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -124,6 +121,7 @@ mod tests {
         let screen_command = ScreenCommand::new(authentication);
         let v = screen_command.add("test-pin", Some("test".to_string()));
         post_mock.assert();
+        get_mock.assert();
         assert!(v.is_ok());
         assert_eq!(v.unwrap().value.as_array().unwrap()[0], new_screen);
     }
@@ -157,7 +155,8 @@ mod tests {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(DELETE)
-                .path("/v3/screens/test-id/")
+                .path("/v4.1/screens")
+                .query_param("id", "eq.test-id")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
