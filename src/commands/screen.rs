@@ -40,8 +40,8 @@ impl ScreenCommand {
             payload.insert("name".to_string(), name);
         }
 
-        let result = commands::post(&self.authentication, "v4.1/screens", &payload)?;
-        let id = result["id"].as_str().ok_or(CommandError::MissingField)?;
+        let created = commands::post(&self.authentication, "v4.1/screens", &payload)?;
+        let id = created["id"].as_str().ok_or(CommandError::MissingField)?;
 
         self.get(id)
     }
