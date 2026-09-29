@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use reqwest::StatusCode;
-
 use crate::authentication::Authentication;
 use crate::commands;
 use crate::commands::{CommandError, Screens};
@@ -36,32 +34,20 @@ impl ScreenCommand {
         pin: &str,
         maybe_name: Option<String>,
     ) -> anyhow::Result<Screens, CommandError> {
-        let url = format!("{}/v3/screens/", &self.authentication.config.url);
         let mut payload = HashMap::new();
         payload.insert("pin".to_string(), pin.to_string());
         if let Some(name) = maybe_name {
             payload.insert("name".to_string(), name);
         }
-        let response = self
-            .authentication
-            .build_client()?
-            .post(url)
-            .json(&payload)
-            .send()?;
-        if response.status() != StatusCode::CREATED {
-            return Err(CommandError::WrongResponseStatus(
-                response.status().as_u16(),
-            ));
-        }
 
-        // Our newer endpoints all return arrays so let's just convert the output from v3 to be the same
-        let mut array: Vec<serde_json::Value> = Vec::new();
-        array.insert(0, serde_json::from_str(&response.text()?)?);
-        Ok(Screens::new(serde_json::Value::Array(array)))
+        let created = commands::post(&self.authentication, "v4.1/screens", &payload)?;
+        let id = created["id"].as_str().ok_or(CommandError::MissingField)?;
+
+        self.get(id)
     }
 
     pub fn delete(&self, id: &str) -> anyhow::Result<(), CommandError> {
-        let endpoint = format!("v3/screens/{id}/");
+        let endpoint = format!("v4.1/screens?id=eq.{id}");
         commands::delete(&self.authentication, &endpoint)
     }
 }
@@ -104,11 +90,11 @@ mod tests {
 
     #[test]
     fn test_add_screen_should_send_correct_request() {
-        let new_screen = serde_json::from_str::<Value>("{\"id\":\"017a5104-524b-33d8-8026-9087b59e7eb5\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Test\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}").unwrap();
+        let new_screen = serde_json::from_str::<Value>("{\"id\":\"01HBDXC6ZRGC2PKDZC7X5ZFGE0\",\"team_id\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"created_at\":\"2021-06-28T05:07:55+00:00\",\"name\":\"Test\",\"is_enabled\":true,\"coords\":[55.22931, 48.90429],\"last_ping\":\"2021-08-25T06:17:20.728+00:00\",\"last_ip\":null,\"local_ip\":\"192.168.1.146\",\"mac\":\"b8:27:eb:d6:83:6f\",\"last_screenshot_time\":\"2021-08-25T06:09:04.399+00:00\",\"uptime\":\"230728.38\",\"load_avg\":\"0.14\",\"signal_strength\":null,\"interface\":\"eth0\",\"debug\":false,\"location\":\"Kamsko-Ust'inskiy rayon, Russia\",\"team\":\"016343c2-82b8-0000-a121-e30f1035875e\",\"timezone\":\"Europe/Moscow\",\"type\":\"hardware\",\"hostname\":\"srly-4shnfrdc5cd2p0p\",\"ws_open\":false,\"status\":\"Offline\",\"last_screenshot\":\"https://us-assets.screenlyapp.com/01CD1W50NR000A28F31W83B1TY/screenshots/01F98G8MJB6FC809MGGYTSWZNN/5267668e6db35498e61b83d4c702dbe8\",\"in_sync\":false,\"software_version\":\"Screenly 2 Player\",\"hardware_version\":\"Raspberry Pi 3B\",\"config\":{\"hdmi_mode\": 34, \"hdmi_boost\": 2, \"hdmi_drive\": 0, \"hdmi_group\": 0, \"verify_ssl\": true, \"audio_output\": \"hdmi\", \"hdmi_timings\": \"\", \"overscan_top\": 0, \"overscan_left\": 0, \"use_composite\": false, \"display_rotate\": 0, \"overscan_right\": 0, \"overscan_scale\": 0, \"overscan_bottom\": 0, \"disable_overscan\": 0, \"shuffle_playlist\": false, \"framebuffer_width\": 0, \"use_composite_pal\": false, \"framebuffer_height\": 0, \"hdmi_force_hotplug\": true, \"use_composite_ntsc\": false, \"hdmi_pixel_encoding\": 0, \"play_history_enabled\": false}}").unwrap();
         let mock_server = MockServer::start();
         let post_mock = mock_server.mock(|when, then| {
             when.method(POST)
-                .path("/v3/screens/")
+                .path("/v4.1/screens")
                 .header("Authorization", "Token token")
                 .header("content-type", "application/json")
                 .header(
@@ -116,7 +102,16 @@ mod tests {
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
                 )
                 .json_body(json!({"pin": "test-pin", "name": "test"}));
-            then.status(201).json_body(new_screen.clone());
+            then.status(200)
+                .json_body(json!({"id": "01HBDXC6ZRGC2PKDZC7X5ZFGE0"}));
+        });
+
+        let get_mock = mock_server.mock(|when, then| {
+            when.method(GET)
+                .path("/v4/screens")
+                .query_param("id", "eq.01HBDXC6ZRGC2PKDZC7X5ZFGE0")
+                .header("Authorization", "Token token");
+            then.status(200).json_body(json!([new_screen.clone()]));
         });
 
         let config = Config::new(mock_server.base_url());
@@ -124,6 +119,7 @@ mod tests {
         let screen_command = ScreenCommand::new(authentication);
         let v = screen_command.add("test-pin", Some("test".to_string()));
         post_mock.assert();
+        get_mock.assert();
         assert!(v.is_ok());
         assert_eq!(v.unwrap().value.as_array().unwrap()[0], new_screen);
     }
@@ -157,7 +153,8 @@ mod tests {
         let mock_server = MockServer::start();
         mock_server.mock(|when, then| {
             when.method(DELETE)
-                .path("/v3/screens/test-id/")
+                .path("/v4.1/screens")
+                .query_param("id", "eq.test-id")
                 .header(
                     "user-agent",
                     format!("screenly-cli {}", env!("CARGO_PKG_VERSION")),
