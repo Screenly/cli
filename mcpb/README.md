@@ -21,9 +21,9 @@ You can generate a token at `https://[your-workspace].screenlyapp.com` under
 ### Sideload from a GitHub release (testing / pre-listing)
 
 1. Download the bundle for your machine from the
-   [latest release](https://github.com/Screenly/cli/releases/latest), for example
-   `screenly-macos-arm64.mcpb` on an Apple Silicon Mac (aliases:
-   `screenly-macos-x64.mcpb`, `screenly-windows-x64.mcpb`).
+   [latest release](https://github.com/Screenly/cli/releases/latest):
+   `screenly-macos-arm64.mcpb` (Apple Silicon Mac), `screenly-macos-x64.mcpb`
+   (Intel Mac), or `screenly-windows-x64.mcpb` (Windows).
 2. Open the file. Claude Desktop shows an installation dialog.
 3. Paste your Screenly API token when prompted.
 
