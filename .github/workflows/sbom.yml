@@ -17,7 +17,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Upload SBOM
-        uses: sbomify/sbomify-action@master
+        # Image digest, not a repo ref: the action's action.yml runs
+        # ghcr.io/sbomify/sbomify-action:latest, so even a commit-SHA pin
+        # would execute whatever image :latest points to at run time.
+        uses: docker://ghcr.io/sbomify/sbomify-action@sha256:376e319b46134efc0b158bb5eae76a8a6b988864fd6b0a02d506ca798a238d48 # 26.11.0
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: 'UUzAdk8ixV'
