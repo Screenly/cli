@@ -17,8 +17,8 @@ starts at `0` for the first release of a given month.
 
 ## 0. Pick the version
 
-- Two-digit year + month + micro. A new month resets MICRO to `0` (the release
-  after `26.8.2` is `26.9.0`, not `26.8.3`).
+- Two-digit year + month + micro. A new month resets MICRO to `0` (e.g. after
+  `26.8.2`, the first September release is `26.9.0`).
 - The month is **not** zero-padded: `26.8.0`, never `26.08.0`. `Cargo.toml`'s
   `version` is parsed as strict [SemVer](https://semver.org/), which forbids a
   leading zero in a numeric component.
@@ -72,7 +72,7 @@ all artifacts, attests build provenance, and pushes `screenly/cli:<tag>` plus
 
 Then add release notes to the GitHub release description.
 
-CI is not run-owned — kick it off and check back; don't block on it.
+The workflow takes a while; check back on it rather than waiting.
 
 ## 4. Sync the Homebrew tap — REQUIRED
 
@@ -80,11 +80,11 @@ CI is not run-owned — kick it off and check back; don't block on it.
 serves `brew tap screenly/screenly-cli && brew install screenly-cli`. It is a
 separate repo, so it does not move on its own.
 
-Confirm the drift, then close it:
+Confirm the release for the tag you just pushed is published (this fails while
+the workflow is still running, rather than silently showing an older release):
 
 ```bash
-# what the tap currently pins vs. what we just shipped
-gh release view --repo Screenly/cli --json tagName -q .tagName
+gh release view vYY.M.MICRO --repo Screenly/cli --json tagName -q .tagName
 ```
 
 In the tap repo, `Formula/screenly-cli.rb` needs exactly **one** line changed —
@@ -131,7 +131,7 @@ This is worth running on its own — the tap fell a full release behind before:
 ```bash
 gh release view --repo Screenly/cli --json tagName -q .tagName
 gh api repos/Screenly/homebrew-screenly-cli/contents/Formula/screenly-cli.rb \
-  --jq .content | base64 -d | grep 'tag:'
+  --jq .content | base64 --decode | grep 'tag:'
 ```
 
 ## Other distribution channels
@@ -152,7 +152,7 @@ gh api repos/Screenly/homebrew-screenly-cli/contents/Formula/screenly-cli.rb \
 
   ```bash
   gh api repos/NixOS/nixpkgs/contents/pkgs/by-name/sc/screenly-cli/package.nix \
-    --jq .content | base64 -d | grep '^  version'
+    --jq .content | base64 --decode | grep '^  version'
   gh api "search/issues?q=repo:NixOS/nixpkgs+screenly-cli+in:title+type:pr" \
     --jq '.items[] | "\(.number) [\(.state)] \(.title)"' | head -5
   ```
