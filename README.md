@@ -16,6 +16,7 @@ Download the latest release [here](https://github.com/Screenly/cli/releases/late
 ### Homebrew (macOS only)
 
 ```bash
+$ brew trust --formula screenly/screenly-cli/screenly-cli
 $ brew tap screenly/screenly-cli
 $ brew install screenly-cli
 ```
