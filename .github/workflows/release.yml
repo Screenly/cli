@@ -160,6 +160,10 @@ jobs:
   publish-mcp-registry:
     name: mcp-registry
     needs: build-release
+    # Run even if an unrelated matrix leg (e.g. linux-armhf) failed: the publish
+    # job downloads the .mcpb assets and fails loudly if any are missing.
+    # Prerelease tags (v1.2.3-rc1) are not published to the registry.
+    if: ${{ !cancelled() && !contains(github.ref_name, '-') }}
     permissions:
       contents: read
       id-token: write

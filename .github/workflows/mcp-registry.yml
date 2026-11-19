@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mcp-registry
+  group: mcp-registry-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
@@ -42,17 +42,17 @@ jobs:
       MCP_PUBLISHER_VERSION: v1.8.9
       GH_TOKEN: ${{ github.token }}
     steps:
-      # Checks out the ref the workflow runs on (the tag on release, or the chosen
-      # branch on a manual run), so older tags without mcpb/server.json still work.
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Build server.json for this release
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Tag must be semver like v1.2.3, got: $TAG" >&2
+          # Stable releases only: registry versions are permanent, and a prerelease
+          # could show up as the newest version in MCP directories.
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must be a stable release like v1.2.3, got: $TAG" >&2
             exit 1
           fi
           version="${TAG#v}"
@@ -61,11 +61,23 @@ jobs:
           # Must match the mcpb_alias values in release.yml.
           aliases=(macos-arm64 macos-x64 windows-x64)
 
-          mkdir -p dist
+          # Use the metadata committed at the release tag, so a manual run from
+          # another branch can't publish metadata that never shipped. Older tags
+          # predate mcpb/server.json and fall back to the checked-out copy.
+          git fetch --quiet --depth=1 origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          if git show "${TAG}:mcpb/server.json" > template.json 2>/dev/null; then
+            echo "Using mcpb/server.json from ${TAG}"
+          else
+            echo "${TAG} has no mcpb/server.json; using the checked-out copy"
+            cp mcpb/server.json template.json
+          fi
+
+          patterns=()
           for alias in "${aliases[@]}"; do
-            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-              --dir dist --pattern "screenly-${alias}.mcpb"
+            patterns+=(--pattern "screenly-${alias}.mcpb")
           done
+          mkdir -p dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist "${patterns[@]}"
 
           packages='[]'
           for alias in "${aliases[@]}"; do
@@ -78,7 +90,7 @@ jobs:
 
           jq --arg version "$version" --argjson packages "$packages" \
             '.version = $version | .packages = $packages' \
-            mcpb/server.json > server.json
+            template.json > server.json
           cat server.json
 
       - name: Install cosign
