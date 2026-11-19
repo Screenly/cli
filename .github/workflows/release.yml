@@ -157,6 +157,20 @@ jobs:
         with:
           subject-path: "${{ github.workspace }}/screenly*"
 
+  publish-mcp-registry:
+    name: mcp-registry
+    needs: build-release
+    # Run even if an unrelated matrix leg (e.g. linux-armhf) failed: the publish
+    # job downloads the .mcpb assets and fails loudly if any are missing.
+    # Prerelease tags (v1.2.3-rc1) are not published to the registry.
+    if: ${{ !cancelled() && !contains(github.ref_name, '-') }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mcp-registry.yml
+    with:
+      tag: ${{ github.ref_name }}
+
   build-docker-image:
     environment: master
     name: docker
