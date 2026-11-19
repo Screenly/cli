@@ -157,6 +157,16 @@ jobs:
         with:
           subject-path: "${{ github.workspace }}/screenly*"
 
+  publish-mcp-registry:
+    name: mcp-registry
+    needs: build-release
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/mcp-registry.yml
+    with:
+      tag: ${{ github.ref_name }}
+
   build-docker-image:
     environment: master
     name: docker

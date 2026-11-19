@@ -1,0 +1,13 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Screenly/screenly",
+  "title": "Screenly",
+  "description": "Manage Screenly digital signage: screens, playlists, assets, labels and Edge Apps.",
+  "repository": {
+    "url": "https://github.com/Screenly/cli",
+    "source": "github"
+  },
+  "websiteUrl": "https://www.screenly.io/docs/developers/mcp/",
+  "version": "0.0.0",
+  "packages": []
+}
