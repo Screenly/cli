@@ -39,6 +39,9 @@ jobs:
       id-token: write # OIDC login to the MCP Registry
     env:
       TAG: ${{ inputs.tag }}
+      # The only registry entry this workflow may publish. Checked before login.
+      EXPECTED_NAME: io.github.Screenly/screenly
+      EXPECTED_REPO: https://github.com/Screenly/cli
       MCP_PUBLISHER_VERSION: v1.8.9
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -91,6 +94,17 @@ jobs:
           jq --arg version "$version" --argjson packages "$packages" \
             '.version = $version | .packages = $packages' \
             template.json > server.json
+
+          # Refuse to publish under any other name or repository, so an edited
+          # server.json can't use this repo's OIDC identity to overwrite another
+          # io.github.Screenly/* entry.
+          name="$(jq -r '.name' server.json)"
+          repo="$(jq -r '.repository.url' server.json)"
+          if [[ "$name" != "$EXPECTED_NAME" || "$repo" != "$EXPECTED_REPO" ]]; then
+            echo "Refusing to publish: name=$name repository=$repo" >&2
+            echo "Expected name=$EXPECTED_NAME repository=$EXPECTED_REPO" >&2
+            exit 1
+          fi
           cat server.json
 
       - name: Install cosign
