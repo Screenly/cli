@@ -1,6 +1,6 @@
 {
   "name": "screenly",
-  "version": "26.9.0",
+  "version": "26.11.0",
   "description": "Manage your Screenly digital signage network: screens, playlists, assets, labels and Edge Apps.",
   "contextFileName": "GEMINI.md",
   "mcpServers": {
