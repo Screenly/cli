@@ -1,0 +1,64 @@
+# Checks the Gemini CLI extension manifest (gemini-extension.json).
+#
+# Gemini CLI installs the extension from the latest release's source tarball and
+# expects the manifest version to match the release tag. Releases bump the
+# version in Cargo.toml, so this fails any change where the two disagree.
+
+name: Gemini extension
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "gemini-extension.json"
+      - "GEMINI.md"
+      - "Cargo.toml"
+      - ".github/workflows/gemini-extension.yml"
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "gemini-extension.json"
+      - "GEMINI.md"
+      - "Cargo.toml"
+      - ".github/workflows/gemini-extension.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Check manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest=gemini-extension.json
+
+          jq -e . "$manifest" > /dev/null
+
+          cargo_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)"
+          manifest_version="$(jq -r '.version' "$manifest")"
+          if [[ "$manifest_version" != "$cargo_version" ]]; then
+            echo "::error file=$manifest::version is $manifest_version but Cargo.toml is $cargo_version. Bump both together."
+            exit 1
+          fi
+
+          context_file="$(jq -r '.contextFileName // "GEMINI.md"' "$manifest")"
+          if [[ ! -f "$context_file" ]]; then
+            echo "::error file=$manifest::contextFileName $context_file does not exist"
+            exit 1
+          fi
+
+          # Gemini only passes declared settings to the server, and an empty
+          # API_TOKEN would override ~/.screenly, so the token must be declared.
+          jq -e '.settings | any(.envVar == "API_TOKEN" and .sensitive == true)' "$manifest" > /dev/null \
+            || { echo "::error file=$manifest::API_TOKEN must be declared as a sensitive setting"; exit 1; }
+
+          echo "gemini-extension.json $manifest_version OK"

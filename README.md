@@ -140,6 +140,17 @@ Details: [`mcpb/README.md`](mcpb/README.md).
 
 The token is stored in your operating system's keychain rather than a plaintext config file.
 
+#### Gemini CLI
+
+Install the Screenly CLI first (see [Installation](#installation)), then add the extension:
+
+```bash
+$ gemini extensions install https://github.com/Screenly/cli
+```
+
+Gemini CLI asks for your API token during install and keeps it in your system keychain.
+To change it later, run `gemini extensions config screenly`.
+
 #### Cursor / other clients
 
 Add to your MCP configuration file:
