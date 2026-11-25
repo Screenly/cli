@@ -166,6 +166,10 @@ jobs:
     environment: master
     name: docker
     needs: build-release
+    # The image only needs the linux-musl tarball (see Dockerfile), so run even
+    # if an unrelated matrix target failed. If that tarball is missing, the
+    # Dockerfile's wget fails and nothing is pushed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
