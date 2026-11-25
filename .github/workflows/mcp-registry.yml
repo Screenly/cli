@@ -6,6 +6,11 @@
 #
 # Auth is GitHub OIDC: the registry trusts tokens from this repository for the
 # io.github.Screenly/* namespace, so no secret or org Owner is needed.
+#
+# Because that token can publish anything under io.github.Screenly/*, the job
+# only runs from master or a v* tag (both protected), and it runs in the
+# `master` environment, which has the same ref policy plus required reviewers.
+# A run dispatched from any other branch never gets an OIDC token.
 
 name: Publish to MCP Registry
 
@@ -33,6 +38,11 @@ concurrency:
 jobs:
   publish:
     name: publish
+    # Protected refs only: master (manual re-publish) or a v* release tag
+    # (called from release.yml, where github.ref is the tag).
+    if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') }}
+    # Required reviewers and a master/v* deployment policy gate the OIDC token.
+    environment: master
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -87,7 +97,18 @@ jobs:
             file="screenly-${alias}.mcpb"
             sha="$(sha256sum "dist/${file}" | cut -d' ' -f1)"
             packages="$(jq -c --arg id "${base}/${file}" --arg sha "$sha" \
-              '. + [{registryType: "mcpb", identifier: $id, fileSha256: $sha, transport: {type: "stdio"}}]' \
+              '. + [{
+                registryType: "mcpb",
+                identifier: $id,
+                fileSha256: $sha,
+                transport: {type: "stdio"},
+                environmentVariables: [{
+                  name: "API_TOKEN",
+                  description: "Screenly API token (Settings > Security > API tokens in your Screenly workspace).",
+                  isRequired: true,
+                  isSecret: true
+                }]
+              }]' \
               <<<"$packages")"
           done
 
