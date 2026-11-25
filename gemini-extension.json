@@ -1,0 +1,23 @@
+{
+  "name": "screenly",
+  "version": "26.11.0",
+  "description": "Manage your Screenly digital signage network: screens, playlists, assets, labels and Edge Apps.",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "screenly": {
+      "command": "screenly",
+      "args": ["mcp"],
+      "env": {
+        "API_TOKEN": "${API_TOKEN}"
+      }
+    }
+  },
+  "settings": [
+    {
+      "name": "Screenly API Token",
+      "description": "API token for your Screenly team. Create one in your Screenly workspace under Settings > Security > API tokens.",
+      "envVar": "API_TOKEN",
+      "sensitive": true
+    }
+  ]
+}
