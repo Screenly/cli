@@ -6,8 +6,41 @@ on:
       - "v*"
 
 jobs:
+  check-version:
+    name: check-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # Gemini CLI compares gemini-extension.json's version with the release tag,
+      # so a stable tag must match it and Cargo.toml before anything is built.
+      # Prerelease tags (v1.2.3-rc1) are skipped: Gemini installs only the
+      # release marked Latest.
+      - name: Check tag matches Cargo.toml and gemini-extension.json
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$TAG" == *-* ]]; then
+            echo "Prerelease tag $TAG; skipping version check"
+            exit 0
+          fi
+          tag_version="${TAG#v}"
+          cargo_version="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)"
+          manifest_version="$(jq -r '.version' gemini-extension.json)"
+          if [[ "$cargo_version" != "$tag_version" || "$manifest_version" != "$tag_version" ]]; then
+            echo "::error::Tag $TAG does not match Cargo.toml ($cargo_version) and gemini-extension.json ($manifest_version)"
+            exit 1
+          fi
+          echo "Tag $TAG matches Cargo.toml and gemini-extension.json"
+
   build-release:
     name: deploy
+    needs: check-version
     permissions:
       contents: write
       id-token: write
