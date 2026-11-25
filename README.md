@@ -227,5 +227,9 @@ This project follows [Calendar Versioning](https://calver.org/) (`YY.M.MICRO` = 
   - The release workflow will detect the version tag and create the release automatically
   - Add the release notes to the GitHub release description
 
-4. **Update Homebrew:**
-   - Update the [Homebrew repo](https://github.com/Screenly/homebrew-screenly-cli) with the latest version
+4. **Update Homebrew (required — the release is not done without it):**
+   - In [Screenly/homebrew-screenly-cli](https://github.com/Screenly/homebrew-screenly-cli),
+     open a PR that bumps the `tag:` in `Formula/screenly-cli.rb` to `vYY.M.MICRO`,
+     then verify the tap and the release agree.
+   - See the [cut-release runbook](.claude/skills/cut-release/SKILL.md) for the
+     details and the verify commands.
