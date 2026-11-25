@@ -1,0 +1,157 @@
+# Publishes the release's MCP Bundles (.mcpb) to the official MCP Registry
+# (registry.modelcontextprotocol.io), which GitHub's MCP directory reads from.
+#
+# Runs automatically after a tagged release (called from release.yml), and can be
+# run by hand from the Actions tab to (re)publish an existing release tag.
+#
+# Auth is GitHub OIDC: the registry trusts tokens from this repository for the
+# io.github.Screenly/* namespace, so no secret or org Owner is needed.
+#
+# Because that token can publish anything under io.github.Screenly/*, the job
+# only runs from master or a v* tag (both protected), and it runs in the
+# `master` environment, which has the same ref policy plus required reviewers.
+# A run dispatched from any other branch never gets an OIDC token.
+
+name: Publish to MCP Registry
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: "Release tag to publish, e.g. v26.11.0"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish, e.g. v26.11.0"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-registry-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish
+    # Protected refs only: master (manual re-publish) or a v* release tag
+    # (called from release.yml, where github.ref is the tag).
+    if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v') }}
+    # Required reviewers and a master/v* deployment policy gate the OIDC token.
+    environment: master
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC login to the MCP Registry
+    env:
+      TAG: ${{ inputs.tag }}
+      # The only registry entry this workflow may publish. Checked before login.
+      EXPECTED_NAME: io.github.Screenly/screenly
+      EXPECTED_REPO: https://github.com/Screenly/cli
+      MCP_PUBLISHER_VERSION: v1.8.9
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Build server.json for this release
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Stable releases only: registry versions are permanent, and a prerelease
+          # could show up as the newest version in MCP directories.
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must be a stable release like v1.2.3, got: $TAG" >&2
+            exit 1
+          fi
+          version="${TAG#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+
+          # Must match the mcpb_alias values in release.yml.
+          aliases=(macos-arm64 macos-x64 windows-x64)
+
+          # Use the metadata committed at the release tag, so a manual run from
+          # another branch can't publish metadata that never shipped. Older tags
+          # predate mcpb/server.json and fall back to the checked-out copy.
+          git fetch --quiet --depth=1 origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          if git show "${TAG}:mcpb/server.json" > template.json 2>/dev/null; then
+            echo "Using mcpb/server.json from ${TAG}"
+          else
+            echo "${TAG} has no mcpb/server.json; using the checked-out copy"
+            cp mcpb/server.json template.json
+          fi
+
+          patterns=()
+          for alias in "${aliases[@]}"; do
+            patterns+=(--pattern "screenly-${alias}.mcpb")
+          done
+          mkdir -p dist
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir dist "${patterns[@]}"
+
+          packages='[]'
+          for alias in "${aliases[@]}"; do
+            file="screenly-${alias}.mcpb"
+            sha="$(sha256sum "dist/${file}" | cut -d' ' -f1)"
+            packages="$(jq -c --arg id "${base}/${file}" --arg sha "$sha" \
+              '. + [{
+                registryType: "mcpb",
+                identifier: $id,
+                fileSha256: $sha,
+                transport: {type: "stdio"},
+                environmentVariables: [{
+                  name: "API_TOKEN",
+                  description: "Screenly API token (Settings > Security > API tokens in your Screenly workspace).",
+                  isRequired: true,
+                  isSecret: true
+                }]
+              }]' \
+              <<<"$packages")"
+          done
+
+          jq --arg version "$version" --argjson packages "$packages" \
+            '.version = $version | .packages = $packages' \
+            template.json > server.json
+
+          # Refuse to publish under any other name or repository, so an edited
+          # server.json can't use this repo's OIDC identity to overwrite another
+          # io.github.Screenly/* entry.
+          name="$(jq -r '.name' server.json)"
+          repo="$(jq -r '.repository.url' server.json)"
+          if [[ "$name" != "$EXPECTED_NAME" || "$repo" != "$EXPECTED_REPO" ]]; then
+            echo "Refusing to publish: name=$name repository=$repo" >&2
+            echo "Expected name=$EXPECTED_NAME repository=$EXPECTED_REPO" >&2
+            exit 1
+          fi
+          cat server.json
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate
+
+      - name: Log in to the MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish
