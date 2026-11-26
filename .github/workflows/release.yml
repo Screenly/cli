@@ -71,7 +71,8 @@ jobs:
             mcpb_alias: windows-x64
           - build: windows-32
             os: ubuntu-22.04
-            rust: stable
+            # Same -lsynchronization issue as the x64 Windows target above.
+            rust: "1.98"
             target: i686-pc-windows-gnu
 
     steps:
