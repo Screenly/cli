@@ -24,6 +24,9 @@ jobs:
       # Emit backtraces on panics.
       RUST_BACKTRACE: 1
     strategy:
+      # Let every platform finish: one broken target must not cancel the
+      # others and leave the release without their binaries and MCP bundles.
+      fail-fast: false
       matrix:
         build:
           - linux
@@ -60,13 +63,16 @@ jobs:
             mcpb_alias: macos-arm64
           - build: windows
             os: ubuntu-22.04
-            rust: stable
+            # Rust 1.100's std links -lsynchronization, which the MinGW in the
+            # cross v0.2.5 image does not ship. Pin until cross is upgraded.
+            rust: "1.98"
             target: x86_64-pc-windows-gnu
             mcpb_platform: win32
             mcpb_alias: windows-x64
           - build: windows-32
             os: ubuntu-22.04
-            rust: stable
+            # Same -lsynchronization issue as the x64 Windows target above.
+            rust: "1.98"
             target: i686-pc-windows-gnu
 
     steps:
@@ -161,6 +167,10 @@ jobs:
     environment: master
     name: docker
     needs: build-release
+    # The image only needs the linux-musl tarball (see Dockerfile), so run even
+    # if an unrelated matrix target failed. If that tarball is missing, the
+    # Dockerfile's wget fails and nothing is pushed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
